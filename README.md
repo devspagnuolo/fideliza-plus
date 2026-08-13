@@ -6,10 +6,10 @@ MVP SaaS multiempresa para fidelização e inteligência de crescimento de peque
 
 - login seguro por sessão e papéis de usuário;
 - isolamento de dados por empresa no backend;
-- CRM: listagem e cadastro de clientes;
-- vendas e pontos: APIs para registrar compras e creditar pontos automaticamente;
+- CRM: listagem, cadastro e importação CSV de clientes;
+- vendas e pontos: registro/importação de compras e crédito automático de pontos;
 - dashboard com clientes, receita, vendas, ticket médio e recomendações iniciais;
-- base de campanhas em rascunho;
+- criação e listagem de campanhas em rascunho;
 - banco SQLite, migração, seed idempotente e teste inicial de segurança;
 - interface web responsiva para desktop e celular.
 
@@ -44,6 +44,10 @@ npm run db:migrate   # aplica a estrutura do banco
 npm run db:seed      # cria o cenário piloto
 ```
 
+## Importações CSV
+
+Há arquivos prontos em `examples/`. Clientes usam as colunas `name,email,phone`. Vendas usam `external_id,customer_email,total,occurred_at`, com data no formato ISO 8601. O `external_id` impede que a mesma venda importada seja contabilizada duas vezes.
+
 ## Estrutura
 
 ```text
@@ -57,4 +61,4 @@ O diretório `sources/` é uma referência sincronizada e permanece intocado.
 
 ## Limites desta versão
 
-A importação CSV, resgate de pontos, criação completa de usuários, disparo de campanhas e integração Bling estão planejados, mas ainda não têm interface final. O desenho mantém essas capacidades dentro do monólito modular até existirem razões operacionais para separá-las.
+O resgate de pontos, criação completa de usuários, segmentação de públicos, disparo de campanhas e integração Bling estão planejados, mas ainda não têm interface final. O desenho mantém essas capacidades dentro do monólito modular até existirem razões operacionais para separá-las.

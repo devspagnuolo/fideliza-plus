@@ -2,8 +2,8 @@
 
 ## P0 — piloto utilizável
 
-- concluir telas de registro/listagem de vendas e saldo/extrato de pontos;
-- importação CSV de clientes e vendas, com prévia, validação e relatório de erros;
+- concluir saldo/extrato e resgate de pontos;
+- adicionar prévia e download detalhado dos erros de importação CSV;
 - CRUD de empresa, unidades e usuários com autorização por papel;
 - segmentação CRM por recência, frequência, valor e inatividade;
 - fluxo de criação de campanha em rascunho, sem disparo externo;

@@ -8,9 +8,10 @@ import { db } from './database/db.js';
 import { config } from './config.js';
 import { requireAuth } from './auth.js';
 import { hashToken, newToken, verifyPassword } from './security.js';
+import { parseCsv } from './csv.js';
 
 export const app = express();
-app.use(helmet()); app.use(cors({ origin: config.webOrigin, credentials: true })); app.use(express.json({ limit: '2mb' })); app.use(cookieParser());
+app.use(helmet()); app.use(cors({ origin: config.webOrigin, credentials: true })); app.use(express.json({ limit: '2mb' })); app.use(express.text({ type: ['text/csv', 'application/csv'], limit: '5mb' })); app.use(cookieParser());
 app.get('/health', (_req,res) => res.json({ status:'ok' }));
 
 app.post('/auth/login', (req,res) => {
@@ -40,11 +41,23 @@ app.post('/customers',requireAuth,(req,res)=>{
   const p=z.object({name:z.string().min(2),email:z.string().email().optional().or(z.literal('')),phone:z.string().optional()}).safeParse(req.body); if(!p.success)return res.status(400).json({error:'Cliente inválido'});
   const id=randomUUID(); db.prepare('INSERT INTO customers (id,tenant_id,name,email,phone) VALUES (?,?,?,?,?)').run(id,req.auth!.tenantId,p.data.name,p.data.email||null,p.data.phone||null); res.status(201).json({id,...p.data});
 });
+app.post('/imports/customers',requireAuth,(req,res)=>{
+  const rows=parseCsv(String(req.body)); const errors:{row:number;message:string}[]=[]; let imported=0;
+  const insert=db.prepare('INSERT INTO customers (id,tenant_id,name,email,phone) VALUES (?,?,?,?,?) ON CONFLICT(tenant_id,email) DO UPDATE SET name=excluded.name,phone=excluded.phone');
+  db.transaction(()=>rows.forEach((row,index)=>{const parsed=z.object({name:z.string().min(2),email:z.string().email().optional().or(z.literal('')),phone:z.string().optional()}).safeParse(row);if(!parsed.success){errors.push({row:index+2,message:'Nome ou e-mail inválido'});return;}insert.run(randomUUID(),req.auth!.tenantId,parsed.data.name,parsed.data.email||null,parsed.data.phone||null);imported+=1;}))();
+  res.json({imported,errors});
+});
 app.get('/sales',requireAuth,(req,res)=>res.json(db.prepare(`SELECT s.*,c.name customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.tenant_id=? ORDER BY occurred_at DESC LIMIT 100`).all(req.auth!.tenantId)));
 app.post('/sales',requireAuth,(req,res)=>{
   const p=z.object({customerId:z.string().optional(),totalCents:z.number().int().positive(),occurredAt:z.string().datetime().optional()}).safeParse(req.body); if(!p.success)return res.status(400).json({error:'Venda inválida'});
   const tenant=req.auth!.tenantId; const saleId=randomUUID(); const tenantRow=db.prepare('SELECT points_per_real FROM tenants WHERE id=?').get(tenant) as any; const points=Math.floor((p.data.totalCents/100)*tenantRow.points_per_real);
   db.transaction(()=>{ db.prepare('INSERT INTO sales (id,tenant_id,customer_id,total_cents,occurred_at) VALUES (?,?,?,?,?)').run(saleId,tenant,p.data.customerId||null,p.data.totalCents,p.data.occurredAt||new Date().toISOString()); if(p.data.customerId){ const customer=db.prepare('SELECT id FROM customers WHERE id=? AND tenant_id=?').get(p.data.customerId,tenant); if(!customer) throw new Error('Cliente não pertence à empresa'); db.prepare('INSERT INTO loyalty_ledger (id,tenant_id,customer_id,sale_id,points,reason) VALUES (?,?,?,?,?,?)').run(randomUUID(),tenant,p.data.customerId,saleId,points,'Pontos por compra'); db.prepare('UPDATE customers SET points_balance=points_balance+? WHERE id=? AND tenant_id=?').run(points,p.data.customerId,tenant); } })(); res.status(201).json({id:saleId,points});
+});
+app.post('/imports/sales',requireAuth,(req,res)=>{
+  const tenant=req.auth!.tenantId; const rows=parseCsv(String(req.body)); const errors:{row:number;message:string}[]=[]; let imported=0;
+  const pointsPerReal=(db.prepare('SELECT points_per_real FROM tenants WHERE id=?').get(tenant) as any).points_per_real;
+  db.transaction(()=>rows.forEach((row,index)=>{const parsed=z.object({external_id:z.string().min(1),customer_email:z.string().email().optional().or(z.literal('')),total:z.coerce.number().positive(),occurred_at:z.string().datetime()}).safeParse(row);if(!parsed.success){errors.push({row:index+2,message:'Venda inválida'});return;}const customer=parsed.data.customer_email?db.prepare('SELECT id FROM customers WHERE tenant_id=? AND lower(email)=lower(?)').get(tenant,parsed.data.customer_email) as any:null;const saleId=randomUUID();const result=db.prepare('INSERT OR IGNORE INTO sales (id,tenant_id,customer_id,external_id,total_cents,occurred_at,source) VALUES (?,?,?,?,?,?,?)').run(saleId,tenant,customer?.id??null,parsed.data.external_id,Math.round(parsed.data.total*100),parsed.data.occurred_at,'csv');if(!result.changes)return;imported+=1;if(customer){const points=Math.floor(parsed.data.total*pointsPerReal);db.prepare('INSERT INTO loyalty_ledger (id,tenant_id,customer_id,sale_id,points,reason) VALUES (?,?,?,?,?,?)').run(randomUUID(),tenant,customer.id,saleId,points,'Pontos por importação');db.prepare('UPDATE customers SET points_balance=points_balance+? WHERE id=? AND tenant_id=?').run(points,customer.id,tenant);}}))();
+  res.json({imported,errors});
 });
 app.get('/campaigns',requireAuth,(req,res)=>res.json(db.prepare('SELECT * FROM campaigns WHERE tenant_id=? ORDER BY created_at DESC').all(req.auth!.tenantId)));
 app.post('/campaigns',requireAuth,(req,res)=>{const p=z.object({name:z.string().min(3),channel:z.enum(['whatsapp','email','sms']).default('whatsapp')}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Campanha inválida'});const id=randomUUID();db.prepare('INSERT INTO campaigns (id,tenant_id,name,channel) VALUES (?,?,?,?)').run(id,req.auth!.tenantId,p.data.name,p.data.channel);res.status(201).json({id,...p.data,status:'draft'});});

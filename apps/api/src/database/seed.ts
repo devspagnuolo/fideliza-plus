@@ -7,7 +7,7 @@ const seed = db.transaction(() => {
   const tenantId = 'tenant-vivi-moda';
   db.prepare('INSERT OR IGNORE INTO tenants (id,name,slug,segment,points_per_real) VALUES (?,?,?,?,?)').run(tenantId,'Vivi Moda Plus Size','vivi-moda-plus-size','Moda plus size',1);
   db.prepare('INSERT OR IGNORE INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('user-vivi-admin',tenantId,'Viviane Administradora','admin@vivimoda.local',hashPassword('Vivi@123'),'owner');
-  const customers = [
+  const customers: Array<[string, string, string, number]> = [
     ['Ana Souza','ana@example.com','11999990001',120], ['Beatriz Lima','bia@example.com','11999990002',35],
     ['Carla Mendes','carla@example.com','11999990003',0], ['Daniela Rocha','dani@example.com','11999990004',80]
   ];

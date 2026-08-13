@@ -6,4 +6,4 @@ dist/
 *.db-wal
 apps/web/.vite/
 coverage/
-
+*.tsbuildinfo
