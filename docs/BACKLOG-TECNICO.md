@@ -13,13 +13,17 @@
 
 ## P1 — validação comercial
 
-- expiração, estorno e ajuste administrativo de pontos;
+- expiração, estorno e ajuste administrativo de pontos (implementado na API; interface em andamento);
 - regras de fidelidade configuráveis por empresa e campanhas de pontos extras;
 - onboarding guiado e indicadores de ativação;
 - recomendações GIE com explicação, prioridade e mensuração de resultado;
 - integração de WhatsApp/e-mail via provedores selecionados;
 - jobs assíncronos para importações e recomendações;
 - observabilidade, alertas e painel administrativo.
+
+### Regra de transição dos pontos
+
+Créditos novos recebem validade configurável por empresa e podem ser expirados de forma idempotente. Saldos legados importados sem extrato de origem não expiram automaticamente: devem ser conciliados por um ajuste administrativo antes da ativação da validade, preservando a rastreabilidade e evitando baixa indevida.
 
 ## P2 — expansão
 

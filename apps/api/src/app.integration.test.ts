@@ -57,4 +57,20 @@ describe('API multiempresa',()=>{
     const health=await request(app).get('/health').expect(200);
     expect(health.body.version).toBe('v1');
   });
+  it('gerencia ajuste, estorno e expiração de pontos com isolamento',async()=>{
+    const agent=request.agent(app);
+    await agent.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    await agent.post('/customers/customer-a/loyalty/adjust').set('x-fideliza-request','web').send({points:20,reason:'Correção de saldo'}).expect(200);
+    await agent.post('/customers/customer-b/loyalty/adjust').set('x-fideliza-request','web').send({points:20,reason:'Tentativa externa'}).expect(404);
+    const sale=await agent.post('/sales').set('x-fideliza-request','web').send({customerId:'customer-a',totalCents:1000}).expect(201);
+    expect(sale.body.points).toBe(10);
+    await agent.post(`/sales/${sale.body.id}/reverse`).set('x-fideliza-request','web').send({}).expect(200);
+    await agent.post(`/sales/${sale.body.id}/reverse`).set('x-fideliza-request','web').send({}).expect(409);
+    db.prepare('INSERT INTO customers (id,tenant_id,name,email,points_balance) VALUES (?,?,?,?,?)').run('customer-expiry','tenant-a','Cliente Expiração','expiry@example.com',15);
+    db.prepare("INSERT INTO loyalty_ledger (id,tenant_id,customer_id,points,reason,entry_type,expires_at) VALUES (?,?,?,?,?,'earn',?)").run('expired-entry','tenant-a','customer-expiry',15,'Crédito antigo','2020-01-01T00:00:00.000Z');
+    const expiration=await agent.post('/loyalty/expire').set('x-fideliza-request','web').send({}).expect(200);
+    expect(expiration.body).toEqual({totalExpired:15,affectedCustomers:1});
+    const loyalty=await agent.get('/customers/customer-expiry/loyalty').expect(200);
+    expect(loyalty.body.ledger.some((entry:{points:number;reason:string})=>entry.points===-15&&entry.reason==='Expiração de pontos')).toBe(true);
+  });
 });

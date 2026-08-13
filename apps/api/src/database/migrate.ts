@@ -4,4 +4,15 @@ import { db } from './db.js';
 
 const sql = fs.readFileSync(path.resolve(process.cwd(), 'src/database/schema.sql'), 'utf8');
 db.exec(sql);
+
+function ensureColumn(table: string, column: string, definition: string) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!columns.some((item) => item.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+ensureColumn('tenants', 'points_validity_days', 'INTEGER NOT NULL DEFAULT 365');
+ensureColumn('sales', 'reversed_at', 'TEXT');
+ensureColumn('loyalty_ledger', 'entry_type', "TEXT NOT NULL DEFAULT 'adjustment'");
+ensureColumn('loyalty_ledger', 'expires_at', 'TEXT');
+ensureColumn('loyalty_ledger', 'expired_at', 'TEXT');
 console.log('Banco atualizado com sucesso.');

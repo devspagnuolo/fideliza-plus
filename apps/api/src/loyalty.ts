@@ -1,0 +1,42 @@
+import { randomUUID } from 'node:crypto';
+import { db } from './database/db.js';
+
+export function creditSalePoints(tenantId: string, customerId: string, saleId: string, points: number, reason: string) {
+  if (points <= 0) return;
+  const tenant = db.prepare('SELECT points_validity_days FROM tenants WHERE id=?').get(tenantId) as { points_validity_days: number };
+  const expiresAt = new Date(Date.now() + tenant.points_validity_days * 86_400_000).toISOString();
+  db.prepare(`INSERT INTO loyalty_ledger (id,tenant_id,customer_id,sale_id,points,reason,entry_type,expires_at)
+    VALUES (?,?,?,?,?,?,?,?)`).run(randomUUID(), tenantId, customerId, saleId, points, reason, 'earn', expiresAt);
+  db.prepare('UPDATE customers SET points_balance=points_balance+? WHERE id=? AND tenant_id=?').run(points, customerId, tenantId);
+}
+
+export function expirePoints(tenantId: string, now = new Date().toISOString()) {
+  const customers = db.prepare(`SELECT DISTINCT customer_id FROM loyalty_ledger
+    WHERE tenant_id=? AND points>0 AND expires_at IS NOT NULL AND expired_at IS NULL AND expires_at<=?`).all(tenantId, now) as { customer_id: string }[];
+  let totalExpired = 0;
+  let affectedCustomers = 0;
+
+  db.transaction(() => {
+    for (const { customer_id: customerId } of customers) {
+      const entries = db.prepare(`SELECT id,points,expires_at,expired_at FROM loyalty_ledger
+        WHERE tenant_id=? AND customer_id=? ORDER BY created_at,id`).all(tenantId, customerId) as { id: string; points: number; expires_at: string | null; expired_at: string | null }[];
+      let consumed = Math.abs(entries.filter((entry) => entry.points < 0).reduce((sum, entry) => sum + entry.points, 0));
+      let expiredForCustomer = 0;
+      for (const entry of entries.filter((item) => item.points > 0)) {
+        const available = Math.max(0, entry.points - consumed);
+        consumed = Math.max(0, consumed - entry.points);
+        if (!available || !entry.expires_at || entry.expires_at > now || entry.expired_at) continue;
+        db.prepare('UPDATE loyalty_ledger SET expired_at=? WHERE id=? AND tenant_id=?').run(now, entry.id, tenantId);
+        db.prepare(`INSERT INTO loyalty_ledger (id,tenant_id,customer_id,points,reason,entry_type)
+          VALUES (?,?,?,?,?,?)`).run(randomUUID(), tenantId, customerId, -available, 'Expiração de pontos', 'expiration');
+        expiredForCustomer += available;
+      }
+      if (expiredForCustomer) {
+        db.prepare('UPDATE customers SET points_balance=MAX(0,points_balance-?) WHERE id=? AND tenant_id=?').run(expiredForCustomer, customerId, tenantId);
+        totalExpired += expiredForCustomer;
+        affectedCustomers++;
+      }
+    }
+  })();
+  return { totalExpired, affectedCustomers };
+}
