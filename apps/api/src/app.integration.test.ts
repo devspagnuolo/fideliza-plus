@@ -47,4 +47,14 @@ describe('API multiempresa',()=>{
     const agent=request.agent(app);await agent.post('/auth/login').send({email:'owner-b@example.com',password:'Senha@123'}).expect(200);
     await agent.post('/campaigns').send({name:'Campanha teste',channel:'email'}).expect(403);
   });
+
+  it('mantém contrato legado e disponibiliza a API v1',async()=>{
+    const legacy=request.agent(app),versioned=request.agent(app);
+    await legacy.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    await versioned.post('/api/v1/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    const [legacyCustomers,v1Customers]=await Promise.all([legacy.get('/customers').expect(200),versioned.get('/api/v1/customers').expect(200)]);
+    expect(v1Customers.body).toEqual(legacyCustomers.body);
+    const health=await request(app).get('/health').expect(200);
+    expect(health.body.version).toBe('v1');
+  });
 });

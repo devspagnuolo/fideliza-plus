@@ -4,6 +4,8 @@
 
 Foi escolhido um **monólito modular TypeScript**, dividido em aplicação web e API. Essa forma reduz custo operacional e complexidade, sem misturar as responsabilidades de interface, regras de negócio e persistência. Microserviços só devem ser considerados quando escala, equipe ou isolamento operacional justificarem o custo.
 
+A API é organizada em routers de autenticação, administração, clientes/fidelidade, comércio e crescimento. O contrato público começa em `/api/v1`; rotas legadas sem prefixo são aliases temporários para manter o web MVP compatível. Integrações Bling e aplicativos móveis devem consumir somente a versão explícita.
+
 ## Stack
 
 - **React + Vite:** interface rápida, responsiva e simples de hospedar em serviço estático.

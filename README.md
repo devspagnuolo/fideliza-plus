@@ -39,6 +39,8 @@ Acesse `http://localhost:5173` e entre com:
 
 Essa credencial é somente para desenvolvimento. API: `http://localhost:3333`; saúde: `GET /health`.
 
+Novas integrações devem usar o prefixo versionado `/api/v1` (por exemplo, `GET /api/v1/customers`). As rotas sem prefixo permanecem compatíveis com a interface atual durante a transição.
+
 ## Comandos
 
 ```bash
