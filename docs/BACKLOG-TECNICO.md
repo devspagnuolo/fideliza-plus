@@ -1,19 +1,19 @@
 # Backlog técnico
 
-## P0 — piloto utilizável
+## P0 — piloto utilizável (concluído)
 
-- concluir saldo/extrato e resgate de pontos;
-- adicionar prévia e download detalhado dos erros de importação CSV;
-- CRUD de empresa, unidades e usuários com autorização por papel;
+- saldo, extrato e resgate transacional de pontos;
+- importação CSV validada, idempotente e com relatório de erros;
+- empresa, unidades e usuários com autorização por papel;
 - segmentação CRM por recência, frequência, valor e inatividade;
-- fluxo de criação de campanha em rascunho, sem disparo externo;
-- testes de integração da API e isolamento entre duas empresas;
-- PostgreSQL, backups, logs estruturados, rate limiting, CSRF e auditoria;
-- adequação LGPD: consentimento, exportação, anonimização e retenção.
+- campanhas segmentadas em rascunho, sem disparo externo;
+- testes HTTP e isolamento entre duas empresas;
+- backup local, rate limiting, proteção CSRF e auditoria;
+- consentimento, exportação e anonimização LGPD.
 
 ## P1 — validação comercial
 
-- resgate, expiração, estorno e ajuste auditável de pontos;
+- expiração, estorno e ajuste administrativo de pontos;
 - regras de fidelidade configuráveis por empresa e campanhas de pontos extras;
 - onboarding guiado e indicadores de ativação;
 - recomendações GIE com explicação, prioridade e mensuração de resultado;

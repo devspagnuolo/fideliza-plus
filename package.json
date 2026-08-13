@@ -9,6 +9,7 @@
     "test": "npm run test -w @fideliza/api",
     "db:migrate": "npm run db:migrate -w @fideliza/api",
     "db:seed": "npm run db:seed -w @fideliza/api"
+    ,"db:backup": "npm run db:backup -w @fideliza/api"
   },
   "devDependencies": { "concurrently": "^9.1.2" },
   "engines": { "node": ">=20" }

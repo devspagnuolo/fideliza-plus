@@ -9,3 +9,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!row) return res.status(401).json({ error: 'Sessão inválida' });
   req.auth = row; next();
 }
+
+export function requireRole(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.auth || !roles.includes(req.auth.role)) return res.status(403).json({ error: 'Sem permissão para esta ação' });
+    next();
+  };
+}

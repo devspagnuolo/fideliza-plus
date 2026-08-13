@@ -10,6 +10,11 @@ MVP SaaS multiempresa para fidelização e inteligência de crescimento de peque
 - vendas e pontos: registro/importação de compras e crédito automático de pontos;
 - dashboard com clientes, receita, vendas, ticket médio e recomendações iniciais;
 - criação e listagem de campanhas em rascunho;
+- extrato e resgate auditável de pontos;
+- configuração de empresa, regra de pontos, unidades e equipe;
+- segmentação CRM por atividade e valor;
+- consentimento, exportação e anonimização de dados pessoais;
+- rate limiting, proteção contra requisições forjadas e trilha de auditoria;
 - banco SQLite, migração, seed idempotente e teste inicial de segurança;
 - interface web responsiva para desktop e celular.
 
@@ -42,6 +47,7 @@ npm run build        # valida e gera os dois pacotes
 npm test             # testes automatizados
 npm run db:migrate   # aplica a estrutura do banco
 npm run db:seed      # cria o cenário piloto
+npm run db:backup    # cria uma cópia segura em apps/api/backups
 ```
 
 ## Importações CSV
@@ -61,4 +67,8 @@ O diretório `sources/` é uma referência sincronizada e permanece intocado.
 
 ## Limites desta versão
 
-O resgate de pontos, criação completa de usuários, segmentação de públicos, disparo de campanhas e integração Bling estão planejados, mas ainda não têm interface final. O desenho mantém essas capacidades dentro do monólito modular até existirem razões operacionais para separá-las.
+O disparo real de campanhas, integração Bling, PostgreSQL gerenciado e aplicativos Android/iOS são evoluções pós-MVP. Campanhas permanecem em rascunho de propósito: nenhum contato é enviado sem seleção de provedor, consentimento operacional e aprovação do conteúdo. O desenho mantém essas capacidades dentro do monólito modular até existirem razões reais para separá-las.
+
+## Estado do MVP
+
+O escopo web piloto definido para a Vivi Moda está concluído. Consulte `docs/ACEITE-MVP.md` para os critérios verificados e `docs/OPERACAO.md` para backup, restauração e cuidados antes da produção pública.
