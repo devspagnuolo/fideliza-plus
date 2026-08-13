@@ -1,0 +1,40 @@
+# Backlog técnico
+
+## P0 — piloto utilizável
+
+- concluir telas de registro/listagem de vendas e saldo/extrato de pontos;
+- importação CSV de clientes e vendas, com prévia, validação e relatório de erros;
+- CRUD de empresa, unidades e usuários com autorização por papel;
+- segmentação CRM por recência, frequência, valor e inatividade;
+- fluxo de criação de campanha em rascunho, sem disparo externo;
+- testes de integração da API e isolamento entre duas empresas;
+- PostgreSQL, backups, logs estruturados, rate limiting, CSRF e auditoria;
+- adequação LGPD: consentimento, exportação, anonimização e retenção.
+
+## P1 — validação comercial
+
+- resgate, expiração, estorno e ajuste auditável de pontos;
+- regras de fidelidade configuráveis por empresa e campanhas de pontos extras;
+- onboarding guiado e indicadores de ativação;
+- recomendações GIE com explicação, prioridade e mensuração de resultado;
+- integração de WhatsApp/e-mail via provedores selecionados;
+- jobs assíncronos para importações e recomendações;
+- observabilidade, alertas e painel administrativo.
+
+## P2 — expansão
+
+- integração Bling com OAuth, webhooks, sincronização incremental e reconciliação;
+- API pública versionada e gestão de chaves;
+- PWA e, após validação, app Android/iOS;
+- programa de recompensas e catálogo de benefícios;
+- experimentação de campanhas e atribuição de receita;
+- avaliar separação de módulos somente a partir de métricas reais de escala.
+
+## Critérios para saída do piloto
+
+- nenhuma leitura ou escrita cruza empresas em testes automatizados;
+- importações são idempotentes e conciliáveis;
+- backup e restauração testados;
+- trilha de auditoria para dados e pontos;
+- métricas de ativação, retenção e receita atribuída disponíveis;
+- termos, política de privacidade e processos LGPD aprovados.
