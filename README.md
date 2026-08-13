@@ -72,3 +72,9 @@ O disparo real de campanhas, integração Bling, PostgreSQL gerenciado e aplicat
 ## Estado do MVP
 
 O escopo web piloto definido para a Vivi Moda está concluído. Consulte `docs/ACEITE-MVP.md` para os critérios verificados e `docs/OPERACAO.md` para backup, restauração e cuidados antes da produção pública.
+
+## Homologação com Docker
+
+Defina `SESSION_SECRET` no `.env` com pelo menos 32 caracteres e execute `npm run docker:up`. A interface ficará em `http://localhost:8080` e a API em `http://localhost:3333`. O banco é persistido no volume `fideliza_data`; execute `npm run docker:down` para parar sem apagar os dados.
+
+Cada push e pull request executa testes, build, auditoria de dependências e build dos contêineres pelo GitHub Actions.

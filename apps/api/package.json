@@ -8,8 +8,8 @@
     "start": "node dist/server.js",
     "test": "vitest run",
     "db:migrate": "tsx src/database/migrate.ts",
-    "db:seed": "tsx src/database/seed.ts"
-    ,"db:backup": "tsx src/database/backup.ts"
+    "db:seed": "tsx src/database/seed.ts",
+    "db:backup": "tsx src/database/backup.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
