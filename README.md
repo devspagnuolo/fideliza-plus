@@ -17,6 +17,7 @@ MVP SaaS multiempresa para fidelização e inteligência de crescimento de peque
 - rate limiting, proteção contra requisições forjadas e trilha de auditoria;
 - banco SQLite, migração, seed idempotente e teste inicial de segurança;
 - interface web responsiva para desktop e celular.
+- base da integração Bling com OAuth seguro e painel de conexão opcional.
 
 ## Executar localmente
 
@@ -66,6 +67,10 @@ docs/    decisões, segurança e backlog técnico
 ```
 
 O diretório `sources/` é uma referência sincronizada e permanece intocado.
+
+## Integração Bling
+
+Para habilitar o botão de conexão, cadastre um aplicativo no Bling e preencha `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET` e `BLING_REDIRECT_URI` no `.env`. Sem essas variáveis, o painel mostra a integração como não configurada e todos os fluxos manuais continuam disponíveis. A sincronização de clientes e vendas será implementada na próxima etapa.
 
 ## Limites desta versão
 

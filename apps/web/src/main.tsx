@@ -5,7 +5,7 @@ import { api } from './api';
 import { LoyaltyPromotions } from './LoyaltyPromotions';
 import { OnboardingChecklist } from './OnboardingChecklist';
 import { GieRecommendations } from './GieRecommendations';
-import { OperationsPanel } from './OperationsPanel';
+import { OperationsPanel } from './SettingsOperations';
 import './styles.css';
 
 type Page = 'dashboard' | 'customers' | 'sales' | 'campaigns' | 'settings';

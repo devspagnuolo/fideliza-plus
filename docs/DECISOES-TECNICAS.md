@@ -47,3 +47,9 @@ Sem credenciais, o processador opera em modo simulado e registra o resultado sem
 Importações e atualização do GIE usam uma fila persistente no mesmo banco, preservando a simplicidade do monólito. Jobs são isolados por empresa, possuem tentativas e estados explícitos, e trabalhos interrompidos há mais de 15 minutos voltam à fila. O conteúdo CSV é removido assim que o job termina, reduzindo retenção desnecessária de dados pessoais.
 
 No piloto, o processamento é acionado pela aplicação. Em produção, o mesmo processador deve rodar como worker separado ou tarefa agendada, sem exigir a adoção prematura de um broker externo.
+
+## Integração Bling
+
+O Bling entra como adaptador do monólito modular e usa OAuth 2.0 com JWT. O estado temporário da autorização é aleatório, armazenado somente como hash, vinculado à empresa e ao usuário e expira em dez minutos. Tokens de acesso e renovação são protegidos com AES-256-GCM antes de chegar ao banco e nunca são enviados à interface.
+
+A conexão é exclusiva do proprietário da empresa e o registro possui cursor e data da última sincronização para suportar importação incremental. A ausência de credenciais mantém o recurso desativado sem afetar cadastros e importações manuais. A próxima etapa deve implementar renovação automática, controle de vazão, clientes/vendas idempotentes por identificador externo, webhooks e reconciliação observável.
