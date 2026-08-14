@@ -20,6 +20,17 @@ ensureColumn('users', 'cpf', 'TEXT');
 ensureColumn('users', 'phone', 'TEXT');
 ensureColumn('users', 'job_title', 'TEXT');
 ensureColumn('users', 'last_login_at', 'TEXT');
+ensureColumn('users', 'avatar_data', 'TEXT');
+ensureColumn('tenants', 'legal_name', 'TEXT');
+ensureColumn('tenants', 'cnpj', 'TEXT');
+ensureColumn('tenants', 'email', 'TEXT');
+ensureColumn('tenants', 'phone', 'TEXT');
+ensureColumn('tenants', 'website', 'TEXT');
+ensureColumn('tenants', 'address', 'TEXT');
+ensureColumn('tenants', 'city', 'TEXT');
+ensureColumn('tenants', 'state', 'TEXT');
+ensureColumn('tenants', 'postal_code', 'TEXT');
+ensureColumn('tenants', 'logo_data', 'TEXT');
 ensureColumn('customers', 'cpf', 'TEXT');
 ensureColumn('customers', 'address', 'TEXT');
 ensureColumn('customers', 'city', 'TEXT');
@@ -30,6 +41,7 @@ ensureColumn('customers', 'status', "TEXT NOT NULL DEFAULT 'active'");
 ensureColumn('customers', 'updated_at', 'TEXT');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_external ON customers(tenant_id,external_id) WHERE external_id IS NOT NULL');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_cpf ON users(tenant_id,cpf) WHERE cpf IS NOT NULL');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_cnpj ON tenants(cnpj) WHERE cnpj IS NOT NULL');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_cpf ON customers(tenant_id,cpf) WHERE cpf IS NOT NULL');
 db.exec(`CREATE TABLE IF NOT EXISTS erp_connectors (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, provider TEXT NOT NULL,

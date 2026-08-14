@@ -12,6 +12,7 @@ import { AnalyticsDashboard } from './AnalyticsDashboard';
 import { CustomerWorkspace } from './CustomerWorkspace';
 import { CustomerAcquisition } from './CustomerAcquisition';
 import { SettingsWorkspace } from './SettingsWorkspace';
+import { SidebarProfile } from './SidebarProfile';
 import './styles.css';
 
 type Page = 'dashboard' | 'customers' | 'sales' | 'campaigns' | 'settings';
@@ -42,6 +43,6 @@ function Campaigns(){const[items,setItems]=useState<Campaign[]>([]);const[open,s
 
 function SettingsPage(){return <SettingsWorkspace/>}
 
-function Shell(){const[page,setPage]=useState<Page>('dashboard');const pages={dashboard:<Dashboard/>,customers:<Customers/>,sales:<Sales/>,campaigns:<Campaigns/>,settings:<SettingsPage/>};return <div className="app"><aside className="sidebar"><Brand/><nav>{([['dashboard',LayoutDashboard,'Início'],['customers',Users,'Clientes'],['sales',ShoppingBag,'Vendas'],['campaigns',Megaphone,'Campanhas'],['settings',Settings,'Configurações']]as const).map(([id,Icon,label])=><button className={page===id?'active':''} onClick={()=>setPage(id)} key={id}><Icon size={20}/>{label}</button>)}</nav><div className="tenant"><div>VM</div><span><b>Vivi Moda</b><small>Plano piloto</small></span></div><button className="logout" onClick={async()=>{await api('/auth/logout',{method:'POST'});location.reload()}}><LogOut size={18}/> Sair</button></aside><main className="content">{pages[page]}</main></div>}
+function Shell(){const[page,setPage]=useState<Page>('dashboard');const pages={dashboard:<Dashboard/>,customers:<Customers/>,sales:<Sales/>,campaigns:<Campaigns/>,settings:<SettingsPage/>};return <div className="app"><aside className="sidebar"><Brand/><nav>{([['dashboard',LayoutDashboard,'Início'],['customers',Users,'Clientes'],['sales',ShoppingBag,'Vendas'],['campaigns',Megaphone,'Campanhas'],['settings',Settings,'Configurações']]as const).map(([id,Icon,label])=><button className={page===id?'active':''} onClick={()=>setPage(id)} key={id}><Icon size={20}/>{label}</button>)}</nav><SidebarProfile/><button className="logout" onClick={async()=>{await api('/auth/logout',{method:'POST'});location.reload()}}><LogOut size={18}/> Sair</button></aside><main className="content">{pages[page]}</main></div>}
 function App(){const[ready,setReady]=useState(false);const[logged,setLogged]=useState<boolean>();const check=()=>api('/me').then(()=>setLogged(true)).catch(()=>setLogged(false));useEffect(()=>{check().finally(()=>setReady(true))},[]);if(location.pathname==='/reset-password')return <PasswordRecovery/>;if(!ready)return null;return logged?<Shell/>:<Login onLogin={check}/>;}
 createRoot(document.getElementById('root')!).render(<><App/><PwaLifecycle/></>);
