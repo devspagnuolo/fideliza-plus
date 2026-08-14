@@ -15,7 +15,7 @@
 
 - expiração, estorno e ajuste administrativo de pontos (concluído);
 - regras de fidelidade configuráveis por empresa e campanhas de pontos extras (concluído);
-- onboarding guiado e indicadores de ativação;
+- onboarding guiado e indicadores de ativação (concluído);
 - recomendações GIE com explicação, prioridade e mensuração de resultado;
 - integração de WhatsApp/e-mail via provedores selecionados;
 - jobs assíncronos para importações e recomendações;

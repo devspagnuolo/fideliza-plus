@@ -85,4 +85,15 @@ describe('API multiempresa',()=>{
     expect((await tenantB.get('/loyalty/promotions').expect(200)).body).toEqual([]);
     expect((await tenantB.post('/sales').set('x-fideliza-request','web').send({customerId:'customer-b',totalCents:1000}).expect(201)).body.points).toBe(10);
   });
+  it('calcula o onboarding e os indicadores de ativação com dados reais',async()=>{
+    db.prepare('INSERT INTO tenants (id,name,slug,segment) VALUES (?,?,?,?)').run('tenant-onboarding','Empresa Onboarding','empresa-onboarding','Moda');
+    db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('user-onboarding','tenant-onboarding','Dona Onboarding','onboarding@example.com',hashPassword('Senha@123'),'owner');
+    const agent=request.agent(app);
+    await agent.post('/auth/login').send({email:'onboarding@example.com',password:'Senha@123'}).expect(200);
+    const initial=await agent.get('/onboarding').expect(200);
+    expect(initial.body.progress).toBe(20);
+    expect(initial.body.steps.find((step:{id:string})=>step.id==='profile').complete).toBe(true);
+    const dashboard=await agent.get('/dashboard').expect(200);
+    expect(dashboard.body).toMatchObject({activeCustomers:0,identificationRate:0,activation:{progress:20,activated:false}});
+  });
 });
