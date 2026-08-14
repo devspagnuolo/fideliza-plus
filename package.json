@@ -11,6 +11,7 @@
     "db:seed": "npm run db:seed -w @fideliza/api",
     "db:backup": "npm run db:backup -w @fideliza/api",
     "db:verify-backup": "npm run db:verify-backup -w @fideliza/api --",
+    "smoke": "node deploy/smoke.mjs",
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down"
   },

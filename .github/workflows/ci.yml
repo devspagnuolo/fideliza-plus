@@ -21,5 +21,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: docker build --target api -t fideliza-api:ci .
-      - run: docker build --target web -t fideliza-web:ci .
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Iniciar homologação em contêineres
+        env:
+          SESSION_SECRET: ci-only-secret-with-at-least-32-characters
+        run: docker compose up --build -d
+      - name: Aguardar serviços e executar smoke test
+        run: |
+          for attempt in {1..30}; do
+            if npm run smoke; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+      - if: always()
+        run: docker compose down -v

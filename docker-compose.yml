@@ -9,11 +9,21 @@ services:
       WEB_ORIGIN: http://localhost:8080
       DATABASE_PATH: /data/fideliza.db
       SESSION_SECRET: ${SESSION_SECRET:?Defina SESSION_SECRET com pelo menos 32 caracteres}
+      AUTO_BACKUP_ENABLED: ${AUTO_BACKUP_ENABLED:-true}
+      BACKUP_DIRECTORY: /data/backups
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_MAX_FILES: ${BACKUP_MAX_FILES:-30}
     volumes:
       - fideliza_data:/data
     ports:
       - "3333:3333"
     restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
   web:
     build:
       context: .
@@ -24,5 +34,7 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 volumes:
   fideliza_data:

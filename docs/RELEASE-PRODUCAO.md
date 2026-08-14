@@ -5,6 +5,7 @@ Uma versão só pode receber o status **liberada** quando todos os itens obrigat
 ## Qualidade técnica
 
 - [ ] testes e build aprovados no mesmo commit publicado;
+- [ ] `npm run smoke` aprovado contra o endereço publicado;
 - [ ] imagens Docker aprovadas pelo pipeline;
 - [ ] migração homologada e plano de reversão registrado;
 - [ ] `/health` e `/ready` monitorados externamente;

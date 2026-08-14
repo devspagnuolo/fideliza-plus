@@ -14,4 +14,8 @@ describe('configuração de produção', () => {
     expect(() => validateProductionEnvironment({ ...valid, WHATSAPP_ACCESS_TOKEN: 'token' })).toThrow(/WHATSAPP_PHONE_NUMBER_ID/);
     expect(() => validateProductionEnvironment({ ...valid, RESEND_API_KEY: 'key' })).toThrow(/EMAIL_FROM/);
   });
+  it('rejeita política de backup inválida', () => {
+    expect(() => validateProductionEnvironment({ ...valid, BACKUP_RETENTION_DAYS: 'zero' })).toThrow(/BACKUP_RETENTION_DAYS/);
+    expect(() => validateProductionEnvironment({ ...valid, BACKUP_MAX_FILES: '0' })).toThrow(/BACKUP_MAX_FILES/);
+  });
 });
