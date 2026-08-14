@@ -1,4 +1,5 @@
 import './database/migrate.js';
+import './database/seed.js';
 import { app } from './app.js';
 import { config } from './config.js';
 import { db } from './database/db.js';

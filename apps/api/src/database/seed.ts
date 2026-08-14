@@ -5,6 +5,9 @@ import { hashPassword } from '../security.js';
 
 const seed = db.transaction(() => {
   const tenantId = 'tenant-vivi-moda';
+  const pilotExists = db.prepare('SELECT 1 FROM users WHERE lower(email)=lower(?)').get('admin@vivimoda.local');
+  if (pilotExists) return;
+
   db.prepare('INSERT OR IGNORE INTO tenants (id,name,slug,segment,points_per_real) VALUES (?,?,?,?,?)').run(tenantId,'Vivi Moda Plus Size','vivi-moda-plus-size','Moda plus size',1);
   db.prepare('INSERT OR IGNORE INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('user-vivi-admin',tenantId,'Viviane Administradora','admin@vivimoda.local',hashPassword('Vivi@123'),'owner');
   const customers: Array<[string, string, string, number]> = [
