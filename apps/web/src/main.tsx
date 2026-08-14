@@ -18,6 +18,7 @@ import { ChartHoverTooltip } from './ChartHoverTooltip';
 import './styles.css';
 import './layout-controls.css';
 import './chart-axis.css';
+import './mobile-shell.css';
 
 type Page = 'dashboard' | 'customers' | 'sales' | 'campaigns' | 'settings';
 type Customer = { id:string; name:string; email?:string; phone?:string; points_balance:number };
