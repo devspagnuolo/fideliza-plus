@@ -40,6 +40,14 @@ CREATE TABLE IF NOT EXISTS loyalty_promotions (
   active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CHECK(ends_at > starts_at)
 );
+CREATE TABLE IF NOT EXISTS gie_recommendations (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), recommendation_key TEXT NOT NULL,
+  title TEXT NOT NULL, description TEXT NOT NULL, explanation TEXT NOT NULL, priority INTEGER NOT NULL,
+  metric_name TEXT NOT NULL, baseline_value REAL NOT NULL DEFAULT 0, current_value REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','accepted','dismissed','completed')),
+  accepted_at TEXT, completed_at TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(tenant_id,recommendation_key)
+);
 CREATE TABLE IF NOT EXISTS units (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -56,4 +64,5 @@ CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_sales_tenant_date ON sales(tenant_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_ledger_tenant_customer ON loyalty_ledger(tenant_id, customer_id);
 CREATE INDEX IF NOT EXISTS idx_promotions_tenant_period ON loyalty_promotions(tenant_id, active, starts_at, ends_at);
+CREATE INDEX IF NOT EXISTS idx_gie_tenant_status ON gie_recommendations(tenant_id, status, priority);
 CREATE INDEX IF NOT EXISTS idx_audit_tenant_date ON audit_logs(tenant_id, created_at);

@@ -96,4 +96,17 @@ describe('API multiempresa',()=>{
     const dashboard=await agent.get('/dashboard').expect(200);
     expect(dashboard.body).toMatchObject({activeCustomers:0,identificationRate:0,activation:{progress:20,activated:false}});
   });
+  it('prioriza, explica e acompanha recomendações GIE sem cruzar empresas',async()=>{
+    const ownerA=request.agent(app),ownerB=request.agent(app);
+    await ownerA.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    await ownerB.post('/auth/login').send({email:'owner-b@example.com',password:'Senha@123'}).expect(200);
+    const dashboard=await ownerA.get('/dashboard').expect(200);
+    expect(dashboard.body.recommendations.length).toBeGreaterThan(0);
+    const recommendation=dashboard.body.recommendations[0];
+    expect(recommendation).toEqual(expect.objectContaining({id:expect.any(String),explanation:expect.any(String),priority:expect.any(Number),metricName:expect.any(String),baselineValue:expect.any(Number),currentValue:expect.any(Number)}));
+    await ownerB.patch(`/gie/recommendations/${recommendation.id}`).set('x-fideliza-request','web').send({status:'accepted'}).expect(404);
+    await ownerA.patch(`/gie/recommendations/${recommendation.id}`).set('x-fideliza-request','web').send({status:'accepted'}).expect(200);
+    const refreshed=await ownerA.get('/dashboard').expect(200);
+    expect(refreshed.body.recommendations.find((item:{id:string})=>item.id===recommendation.id).status).toBe('accepted');
+  });
 });

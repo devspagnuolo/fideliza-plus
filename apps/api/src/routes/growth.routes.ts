@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { audit } from '../audit.js';
 import { requireAuth } from '../auth.js';
 import { db } from '../database/db.js';
+import { refreshRecommendations } from '../gie.js';
 
 export const growthRoutes = Router();
 growthRoutes.use(requireAuth);
@@ -35,11 +36,18 @@ growthRoutes.get('/dashboard',(req,res)=>{
     (SELECT COALESCE(SUM(total_cents),0) FROM sales WHERE tenant_id=? AND reversed_at IS NULL AND occurred_at>=datetime('now','-30 days')) revenueCents,
     (SELECT COUNT(*) FROM sales WHERE tenant_id=? AND reversed_at IS NULL AND occurred_at>=datetime('now','-30 days')) sales,
     (SELECT COUNT(DISTINCT customer_id) FROM sales WHERE tenant_id=? AND customer_id IS NOT NULL AND reversed_at IS NULL AND occurred_at>=datetime('now','-30 days')) activeCustomers`).get(tenantId,tenantId,tenantId,tenantId) as any;
-  const inactive=db.prepare(`SELECT COUNT(*) total FROM customers c WHERE c.tenant_id=? AND NOT EXISTS(SELECT 1 FROM sales s WHERE s.customer_id=c.id AND s.reversed_at IS NULL AND s.occurred_at>=datetime('now','-45 days'))`).get(tenantId) as {total:number};
-  const recommendations=[] as any[];
-  if(inactive.total)recommendations.push({title:'Reative clientes inativos',description:`${inactive.total} clientes estão sem comprar há 45 dias. Crie uma campanha de retorno.`,impact:'Alto'});
-  if(stats.customers<20)recommendations.push({title:'Amplie sua base identificada',description:'Cadastre o cliente no caixa para transformar vendas anônimas em relacionamento.',impact:'Médio'});
+  const recommendations=refreshRecommendations(tenantId);
   res.json({...stats,averageTicketCents:stats.sales?Math.round(stats.revenueCents/stats.sales):0,identificationRate:stats.customers?Math.round(stats.activeCustomers/stats.customers*100):0,activation:activationFor(tenantId),recommendations});
+});
+
+growthRoutes.patch('/gie/recommendations/:id', (req,res)=>{
+  const parsed=z.object({status:z.enum(['accepted','dismissed','completed'])}).safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({error:'Decisão inválida'});
+  const id=String(req.params.id),tenantId=req.auth!.tenantId;
+  const result=db.prepare(`UPDATE gie_recommendations SET status=?,accepted_at=CASE WHEN ?='accepted' THEN CURRENT_TIMESTAMP ELSE accepted_at END,completed_at=CASE WHEN ?='completed' THEN CURRENT_TIMESTAMP ELSE completed_at END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?`).run(parsed.data.status,parsed.data.status,parsed.data.status,id,tenantId);
+  if(!result.changes)return res.status(404).json({error:'Recomendação não encontrada'});
+  audit(tenantId,req.auth!.userId,'gie_decision','gie_recommendation',id,{status:parsed.data.status});
+  res.json({ok:true});
 });
 
 growthRoutes.get('/campaigns',(req,res)=>res.json(db.prepare('SELECT * FROM campaigns WHERE tenant_id=? ORDER BY created_at DESC').all(req.auth!.tenantId)));

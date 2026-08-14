@@ -1,0 +1,9 @@
+import { Sparkles } from 'lucide-react';
+import { api } from './api';
+
+type Recommendation={id:string;title:string;description:string;explanation:string;priority:number;impact:string;metricName:string;baselineValue:number;currentValue:number;changePercent:number;status:string};
+
+export function GieRecommendations({items,onChange}:{items:Recommendation[];onChange:()=>void}) {
+  async function decide(id:string,status:'accepted'|'dismissed'|'completed'){await api(`/gie/recommendations/${id}`,{method:'PATCH',body:JSON.stringify({status})});onChange();}
+  return <section className="panel insights"><div className="panel-title"><div className="ai"><Sparkles/></div><div><h2>Oportunidades para crescer</h2><p>Recomendações explicáveis e mensuráveis do Growth Intelligence Engine</p></div></div>{items.map(item=><article key={item.id}><div className="recommendation-meta"><span className="impact">PRIORIDADE {item.priority} · IMPACTO {item.impact.toUpperCase()}</span><span className={item.status==='accepted'?'badge':'draft'}>{item.status==='accepted'?'Em execução':'Nova'}</span></div><h3>{item.title}</h3><p>{item.description}</p><details><summary>Por que recomendamos isso?</summary><p>{item.explanation}</p></details><div className="measurement"><span>Métrica: <b>{item.metricName.replace(/_/g,' ')}</b></span><span>Base: <b>{item.baselineValue}</b></span><span>Atual: <b>{item.currentValue}</b></span><span>Variação: <b>{item.changePercent}%</b></span></div><div className="recommendation-actions">{item.status==='open'&&<button onClick={()=>decide(item.id,'accepted')}>Aceitar recomendação</button>}{item.status==='accepted'&&<button onClick={()=>decide(item.id,'completed')}>Marcar como concluída</button>}<button className="muted" onClick={()=>decide(item.id,'dismissed')}>Dispensar</button></div></article>)}{!items.length&&<p>Nenhuma oportunidade prioritária neste momento.</p>}</section>;
+}
