@@ -24,6 +24,10 @@ services:
         generateValue: true
       - key: WEB_ORIGIN
         value: https://fideliza-plus-web.onrender.com
+      - key: BLING_CLIENT_ID
+        sync: false
+      - key: BLING_CLIENT_SECRET
+        sync: false
 
   - type: web
     name: fideliza-plus-web

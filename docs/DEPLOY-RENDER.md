@@ -1,5 +1,16 @@
 # Homologação no Render
 
+## Ativação do Bling
+
+1. Crie no portal Bling Developers um aplicativo privado para a conta piloto.
+2. Use como redirecionamento `https://fideliza-plus-api.onrender.com/integrations/bling/callback`.
+3. Selecione ao menos os escopos de contatos e vendas/pedidos.
+4. Copie `client_id` e `client_secret` para `BLING_CLIENT_ID` e `BLING_CLIENT_SECRET` no serviço `fideliza-plus-api` do Render.
+5. Nunca envie o `client_secret` por mensagem ou captura de tela.
+6. Após o deploy, clique em **Conectar Bling**, autorize e execute **Sincronizar agora**.
+
+O fluxo usa Authorization Code, `state` contra CSRF, troca no servidor, JWT e armazenamento criptografado dos tokens.
+
 O arquivo `render.yaml` descreve dois serviços: a interface estática e a API Docker com disco persistente de 1 GB em `/data`. O disco guarda banco e backups e deve permanecer ligado a uma única instância enquanto o MVP usar SQLite.
 
 ## Criação
