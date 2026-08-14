@@ -19,14 +19,14 @@ jobs:
       - run: npm audit --audit-level=high
   containers:
     runs-on: ubuntu-latest
+    env:
+      SESSION_SECRET: ci-only-secret-with-at-least-32-characters
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 22
       - name: Iniciar homologação em contêineres
-        env:
-          SESSION_SECRET: ci-only-secret-with-at-least-32-characters
         run: docker compose up --build -d
       - name: Aguardar serviços e executar smoke test
         run: |
