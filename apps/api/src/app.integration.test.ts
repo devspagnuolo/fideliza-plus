@@ -137,4 +137,19 @@ describe('API multiempresa',()=>{
     const operator=request.agent(app);await operator.post('/auth/login').send({email:'operator-a@example.com',password:'Senha@123'}).expect(200);
     await operator.get('/admin/operations').expect(403);
   });
+  it('processa importações e GIE em fila persistente sem reter o arquivo bruto',async()=>{
+    const ownerA=request.agent(app),ownerB=request.agent(app);
+    await ownerA.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    await ownerB.post('/auth/login').send({email:'owner-b@example.com',password:'Senha@123'}).expect(200);
+    const csv='name,email,phone\nCliente Job,cliente-job@example.com,11999998888';
+    const queued=await ownerA.post('/jobs').set('x-fideliza-request','web').send({type:'import_customers',payload:csv}).expect(202);
+    await ownerB.get(`/jobs/${queued.body.id}`).expect(404);
+    expect((await ownerA.post('/jobs/process').set('x-fideliza-request','web').send({}).expect(200)).body).toEqual({processed:1,completed:1,failed:0});
+    const job=await ownerA.get(`/jobs/${queued.body.id}`).expect(200);
+    expect(job.body.status).toBe('completed');expect(JSON.parse(job.body.result).imported).toBe(1);
+    expect((db.prepare('SELECT payload FROM jobs WHERE id=?').get(queued.body.id) as {payload:null}).payload).toBeNull();
+    const gie=await ownerA.post('/jobs').set('x-fideliza-request','web').send({type:'refresh_gie'}).expect(202);
+    await ownerA.post('/jobs/process').set('x-fideliza-request','web').send({}).expect(200);
+    expect((await ownerA.get(`/jobs/${gie.body.id}`).expect(200)).body.status).toBe('completed');
+  });
 });

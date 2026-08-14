@@ -41,3 +41,9 @@ E-mail usa a API REST do Resend, com chave restrita a envio, remetente de domín
 A fila é persistida no banco e possui unicidade por campanha e cliente. Apenas clientes com consentimento de marketing vigente e contato compatível entram na fila. Preparação e processamento exigem papel `owner` ou `manager`, ficam na auditoria e nunca cruzam empresas.
 
 Sem credenciais, o processador opera em modo simulado e registra o resultado sem transmitir dados. Isso permite homologar segmentação, consentimento e volume antes de ativar provedores externos. Para produção, o processamento manual deve ser substituído por um worker agendado com retentativas e controle de vazão.
+
+## Jobs assíncronos
+
+Importações e atualização do GIE usam uma fila persistente no mesmo banco, preservando a simplicidade do monólito. Jobs são isolados por empresa, possuem tentativas e estados explícitos, e trabalhos interrompidos há mais de 15 minutos voltam à fila. O conteúdo CSV é removido assim que o job termina, reduzindo retenção desnecessária de dados pessoais.
+
+No piloto, o processamento é acionado pela aplicação. Em produção, o mesmo processador deve rodar como worker separado ou tarefa agendada, sem exigir a adoção prematura de um broker externo.

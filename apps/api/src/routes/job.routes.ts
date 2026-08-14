@@ -1,0 +1,15 @@
+import { randomUUID } from 'node:crypto';
+import { Router } from 'express';
+import { z } from 'zod';
+import { audit } from '../audit.js';
+import { requireAuth,requireRole } from '../auth.js';
+import { db } from '../database/db.js';
+import { processJobs } from '../jobs.js';
+
+export const jobRoutes=Router();
+jobRoutes.use(requireAuth,requireRole('owner','manager'));
+
+jobRoutes.post('/jobs',(req,res)=>{const parsed=z.object({type:z.enum(['import_customers','import_sales','refresh_gie']),payload:z.string().max(5_000_000).optional()}).safeParse(req.body);if(!parsed.success)return res.status(400).json({error:'Job inválido'});if(parsed.data.type.startsWith('import_')&&!parsed.data.payload)return res.status(400).json({error:'Arquivo da importação não informado'});const id=randomUUID();db.prepare('INSERT INTO jobs (id,tenant_id,type,payload) VALUES (?,?,?,?)').run(id,req.auth!.tenantId,parsed.data.type,parsed.data.payload??null);audit(req.auth!.tenantId,req.auth!.userId,'enqueue','job',id,{type:parsed.data.type});res.status(202).json({id,status:'queued'});});
+jobRoutes.post('/jobs/process',(req,res)=>{const result=processJobs(req.auth!.tenantId);audit(req.auth!.tenantId,req.auth!.userId,'process','job',undefined,result);res.json(result);});
+jobRoutes.get('/jobs',(req,res)=>res.json(db.prepare('SELECT id,type,status,result,error,attempts,created_at,started_at,completed_at FROM jobs WHERE tenant_id=? ORDER BY created_at DESC LIMIT 50').all(req.auth!.tenantId)));
+jobRoutes.get('/jobs/:id',(req,res)=>{const job=db.prepare('SELECT id,type,status,result,error,attempts,created_at,started_at,completed_at FROM jobs WHERE id=? AND tenant_id=?').get(String(req.params.id),req.auth!.tenantId);if(!job)return res.status(404).json({error:'Job não encontrado'});res.json(job);});

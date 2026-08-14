@@ -42,6 +42,12 @@ CREATE TABLE IF NOT EXISTS campaign_deliveries (
   external_id TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, sent_at TEXT,
   UNIQUE(campaign_id,customer_id)
 );
+CREATE TABLE IF NOT EXISTS jobs (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','processing','completed','failed')),
+  payload TEXT, result TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, started_at TEXT, completed_at TEXT
+);
 CREATE TABLE IF NOT EXISTS loyalty_promotions (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL,
   multiplier REAL NOT NULL CHECK(multiplier > 1 AND multiplier <= 10), starts_at TEXT NOT NULL, ends_at TEXT NOT NULL,
@@ -74,4 +80,5 @@ CREATE INDEX IF NOT EXISTS idx_ledger_tenant_customer ON loyalty_ledger(tenant_i
 CREATE INDEX IF NOT EXISTS idx_promotions_tenant_period ON loyalty_promotions(tenant_id, active, starts_at, ends_at);
 CREATE INDEX IF NOT EXISTS idx_gie_tenant_status ON gie_recommendations(tenant_id, status, priority);
 CREATE INDEX IF NOT EXISTS idx_deliveries_tenant_status ON campaign_deliveries(tenant_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_tenant_status ON jobs(tenant_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_tenant_date ON audit_logs(tenant_id, created_at);
