@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','manager','operator')), active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  two_factor_secret_encrypted TEXT, two_factor_enabled INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, token_hash TEXT NOT NULL UNIQUE,

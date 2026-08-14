@@ -54,6 +54,10 @@ O worker embutido percorre as empresas de forma isolada, impede ciclos concorren
 
 A solicitação sempre devolve a mesma mensagem, exista ou não uma conta, evitando enumeração de usuários. O token aleatório expira em 30 minutos, fica armazenado apenas como hash, aceita um único uso e invalida todas as sessões após a troca. Em produção, o link é enviado pelo Resend; o token só aparece na resposta em desenvolvimento para permitir homologação local.
 
+## Autenticação em dois fatores
+
+O segundo fator usa TOTP padrão RFC 6238, compatível com aplicativos autenticadores e sem dependência de SMS ou fornecedor pago. A ativação só é concluída após validar um código; o segredo fica protegido com AES-256-GCM e nunca volta à interface depois da configuração. A desativação exige simultaneamente senha e código válido.
+
 ## Integração Bling
 
 O Bling entra como adaptador do monólito modular e usa OAuth 2.0 com JWT. O estado temporário da autorização é aleatório, armazenado somente como hash, vinculado à empresa e ao usuário e expira em dez minutos. Tokens de acesso e renovação são protegidos com AES-256-GCM antes de chegar ao banco e nunca são enviados à interface.

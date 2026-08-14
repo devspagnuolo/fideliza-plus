@@ -21,6 +21,7 @@
 - jobs assíncronos para importações, campanhas e recomendações (concluído para o piloto);
 - observabilidade, alertas e painel administrativo (concluído para o piloto; monitor externo pendente para produção).
 - recuperação de senha com token de uso único (concluído);
+- autenticação em dois fatores TOTP para usuários (concluído);
 - worker automático para jobs, campanhas e expiração (concluído no monólito; separação opcional em produção).
 
 ### Regra de transição dos pontos

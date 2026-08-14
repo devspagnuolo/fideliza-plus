@@ -19,6 +19,7 @@ MVP SaaS multiempresa para fidelização e inteligência de crescimento de peque
 - interface web responsiva para desktop e celular.
 - base da integração Bling com OAuth seguro e painel de conexão opcional.
 - recuperação segura de senha e processamento automático das filas.
+- autenticação em dois fatores compatível com aplicativos autenticadores.
 
 ## Executar localmente
 

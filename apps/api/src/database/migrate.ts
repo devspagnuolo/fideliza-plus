@@ -14,6 +14,8 @@ ensureColumn('tenants', 'points_validity_days', 'INTEGER NOT NULL DEFAULT 365');
 ensureColumn('sales', 'reversed_at', 'TEXT');
 ensureColumn('customers', 'external_id', 'TEXT');
 ensureColumn('integration_connections', 'external_company_id', 'TEXT');
+ensureColumn('users', 'two_factor_secret_encrypted', 'TEXT');
+ensureColumn('users', 'two_factor_enabled', 'INTEGER NOT NULL DEFAULT 0');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_external ON customers(tenant_id,external_id) WHERE external_id IS NOT NULL');
 ensureColumn('loyalty_ledger', 'entry_type', "TEXT NOT NULL DEFAULT 'adjustment'");
 ensureColumn('loyalty_ledger', 'expires_at', 'TEXT');
