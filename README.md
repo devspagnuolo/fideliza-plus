@@ -72,6 +72,8 @@ O diretório `sources/` é uma referência sincronizada e permanece intocado.
 
 Para habilitar o botão de conexão, cadastre um aplicativo no Bling e preencha `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET` e `BLING_REDIRECT_URI` no `.env`. Sem essas variáveis, o painel mostra a integração como não configurada e todos os fluxos manuais continuam disponíveis. Depois da autorização, “Sincronizar agora” importa incrementalmente clientes e vendas pela fila persistente; repetições são idempotentes e não duplicam pontos.
 
+Para atualização reativa, configure no aplicativo Bling o servidor `BLING_WEBHOOK_URL`. Eventos são autenticados por HMAC, deduplicados e processados de forma assíncrona. O painel de conciliação acompanha falhas, vendas sem cliente e o último evento recebido.
+
 ## Limites desta versão
 
 O disparo real de campanhas, integração Bling, PostgreSQL gerenciado e aplicativos Android/iOS são evoluções pós-MVP. Campanhas permanecem em rascunho de propósito: nenhum contato é enviado sem seleção de provedor, consentimento operacional e aprovação do conteúdo. O desenho mantém essas capacidades dentro do monólito modular até existirem razões reais para separá-las.

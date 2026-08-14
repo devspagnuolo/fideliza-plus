@@ -52,7 +52,12 @@ CREATE TABLE IF NOT EXISTS integration_connections (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), provider TEXT NOT NULL,
   access_token_encrypted TEXT NOT NULL, refresh_token_encrypted TEXT NOT NULL, expires_at TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'connected', last_sync_at TEXT, sync_cursor TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(tenant_id,provider)
+  external_company_id TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(tenant_id,provider)
+);
+CREATE TABLE IF NOT EXISTS integration_webhook_events (
+  id TEXT PRIMARY KEY, provider TEXT NOT NULL, external_event_id TEXT NOT NULL, tenant_id TEXT NOT NULL REFERENCES tenants(id),
+  event_type TEXT NOT NULL, occurred_at TEXT NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'accepted',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(provider,external_event_id)
 );
 CREATE TABLE IF NOT EXISTS oauth_states (
   state_hash TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), user_id TEXT NOT NULL REFERENCES users(id),
@@ -93,4 +98,5 @@ CREATE INDEX IF NOT EXISTS idx_gie_tenant_status ON gie_recommendations(tenant_i
 CREATE INDEX IF NOT EXISTS idx_deliveries_tenant_status ON campaign_deliveries(tenant_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_tenant_status ON jobs(tenant_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_connections_tenant ON integration_connections(tenant_id, provider);
+CREATE INDEX IF NOT EXISTS idx_webhooks_tenant_date ON integration_webhook_events(tenant_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_tenant_date ON audit_logs(tenant_id, created_at);
