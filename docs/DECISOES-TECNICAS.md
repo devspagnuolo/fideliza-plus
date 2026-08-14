@@ -58,6 +58,10 @@ A solicitação sempre devolve a mesma mensagem, exista ou não uma conta, evita
 
 O segundo fator usa TOTP padrão RFC 6238, compatível com aplicativos autenticadores e sem dependência de SMS ou fornecedor pago. A ativação só é concluída após validar um código; o segredo fica protegido com AES-256-GCM e nunca volta à interface depois da configuração. A desativação exige simultaneamente senha e código válido.
 
+## PWA e acesso móvel
+
+O web app é instalável como PWA e reutiliza a mesma interface responsiva no celular e computador. O service worker guarda somente o shell público e ativos estáticos; respostas da API e dados pessoais não são persistidos em cache. Navegação sem rede apresenta uma tela segura, e novas versões exigem atualização consciente. Aplicativos nativos ficam condicionados a evidências de uso que justifiquem duas novas bases de distribuição.
+
 ## Integração Bling
 
 O Bling entra como adaptador do monólito modular e usa OAuth 2.0 com JWT. O estado temporário da autorização é aleatório, armazenado somente como hash, vinculado à empresa e ao usuário e expira em dez minutos. Tokens de acesso e renovação são protegidos com AES-256-GCM antes de chegar ao banco e nunca são enviados à interface.
