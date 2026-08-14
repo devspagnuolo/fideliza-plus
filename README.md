@@ -59,7 +59,10 @@ npm test             # testes automatizados
 npm run db:migrate   # aplica a estrutura do banco
 npm run db:seed      # cria o cenário piloto
 npm run db:backup    # cria uma cópia segura em apps/api/backups
+npm run db:verify-backup -- caminho/backup.db # comprova a integridade da cópia
 ```
+
+Com `AUTO_BACKUP_ENABLED=true`, a API cria backups verificados automaticamente e aplica retenção por idade e quantidade. Consulte `docs/RELEASE-PRODUCAO.md` antes de liberar acesso público.
 
 Com `WORKER_ENABLED=true`, a API processa automaticamente jobs, campanhas e expiração de pontos no intervalo definido por `WORKER_INTERVAL_MS`. Em instalações maiores, o mesmo worker pode ser executado separadamente sem alterar as regras do domínio.
 
@@ -86,7 +89,7 @@ Para atualização reativa, configure no aplicativo Bling o servidor `BLING_WEBH
 
 ## Limites desta versão
 
-O disparo real de campanhas, integração Bling, PostgreSQL gerenciado e aplicativos Android/iOS são evoluções pós-MVP. Campanhas permanecem em rascunho de propósito: nenhum contato é enviado sem seleção de provedor, consentimento operacional e aprovação do conteúdo. O desenho mantém essas capacidades dentro do monólito modular até existirem razões reais para separá-las.
+Campanhas e Bling já possuem integrações opcionais, mas seu uso real depende de credenciais, consentimentos e homologação dos fornecedores. PostgreSQL gerenciado e aplicativos nativos Android/iOS permanecem evoluções; a PWA atende o piloto móvel. O desenho continua como monólito modular até existirem razões reais para separação.
 
 ## Estado do MVP
 

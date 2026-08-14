@@ -1,10 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import { config } from '../config.js';
 import { db } from './db.js';
+import { createVerifiedBackup } from './backup-service.js';
 
-const directory=path.resolve(process.cwd(),'backups');
-fs.mkdirSync(directory,{recursive:true});
-const stamp=new Date().toISOString().replace(/[:.]/g,'-');
-const destination=path.join(directory,`fideliza-${stamp}.db`);
-await db.backup(destination);
-console.log(`Backup criado: ${destination}`);
+const summary = await createVerifiedBackup(db, config.backup.directory, config.backup.retentionDays, config.backup.maxFiles);
+console.log(`Backup verificado: ${summary.path} (${summary.sizeBytes} bytes, ${summary.tenants} empresas)`);
+db.close();

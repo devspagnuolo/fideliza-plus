@@ -2,33 +2,22 @@
 
 ## Escopo concluído
 
-- autenticação e sessão segura;
-- empresa multi-tenant, unidades, usuários e papéis;
-- cadastro e importação idempotente de clientes e vendas;
-- CRM e segmentação por atividade, frequência e valor;
-- pontos por compra, saldo, extrato e resgate auditável;
-- dashboard e recomendações iniciais do GIE;
-- campanhas segmentadas em rascunho;
-- consentimento, exportação e anonimização LGPD;
-- rate limiting, proteção de origem, auditoria e backup local;
-- interface responsiva para desktop e celular.
+- autenticação, recuperação de senha e autenticação em dois fatores;
+- multiempresa, equipe, papéis e auditoria;
+- CRM, importação idempotente e integração Bling opcional;
+- pontos, validade, ajustes, promoções, recompensas e resgates;
+- dashboard, GIE explicável e onboarding;
+- campanhas por fila, provedores opcionais, testes A/B e atribuição;
+- LGPD, API pública com escopos, PWA e modo offline seguro;
+- saúde operacional, jobs persistentes e backup automático verificado.
 
-## Evidências de validação
+Testes automatizados cobrem isolamento, autenticação, segurança, importações, Bling, webhooks, recompensas, atribuição, configuração de produção e recuperação de desastre. O pipeline valida testes, build, dependências e imagens Docker.
 
-- build de produção da API e web aprovado;
-- testes unitários de senha e CSV aprovados;
-- testes HTTP com duas empresas comprovam isolamento de leitura e escrita;
-- resgate comprova atualização transacional de saldo, extrato e auditoria;
-- mutação sem cabeçalho de origem é rejeitada;
-- migração e seed são repetíveis;
-- autenticação e dashboard da Vivi Moda passaram em smoke test.
+## Pendências externas ao piloto controlado
 
-## Fora do MVP, sem bloquear o piloto
-
-- sincronização Bling;
-- disparo por WhatsApp, e-mail ou SMS;
-- aplicativos nativos Android/iOS;
-- infraestrutura PostgreSQL gerenciada e observabilidade em produção;
-- experimentos avançados e atribuição causal do GIE.
-
-Esses itens são evolução do produto. Não devem ser classificados como defeitos ou pendências do MVP web piloto.
+- domínio, hospedagem e armazenamento gerenciado;
+- aprovação jurídica de Termos e Política de Privacidade;
+- domínio de e-mail, templates WhatsApp e credenciais Bling reais;
+- homologação da Vivi Moda e ensaio documentado de restauração;
+- revisão externa de segurança antes da abertura pública;
+- aplicativos nativos Android/iOS; a PWA atende o MVP móvel.

@@ -1,32 +1,20 @@
 # Operação do piloto
 
-## Backup
+## Backup automático e manual
 
-Execute `npm run db:backup`. O arquivo será criado em `apps/api/backups/`, diretório ignorado pelo Git. Copie o backup para armazenamento seguro fora do computador do piloto.
+Ative `AUTO_BACKUP_ENABLED=true` para gerar uma cópia verificada ao iniciar a API e depois no intervalo definido por `BACKUP_INTERVAL_HOURS`. A retenção combina idade (`BACKUP_RETENTION_DAYS`) e quantidade (`BACKUP_MAX_FILES`). No Docker, mantenha `BACKUP_DIRECTORY` dentro de `/data`.
 
-## Restauração
+Para uma cópia manual, execute `npm run db:backup`. O processo só informa sucesso depois de abrir o arquivo, verificar sua integridade e confirmar as tabelas essenciais. Mantenha outra cópia criptografada fora do servidor.
 
-1. pare a API;
-2. preserve o banco atual em outro local;
-3. copie o backup escolhido para o caminho configurado em `DATABASE_PATH`;
-4. execute `npm run db:migrate`;
-5. inicie a API e valide `GET /health` e o login piloto.
+## Verificação e restauração
 
-Nunca restaure um backup sobre um processo em execução. Faça um ensaio de restauração antes de usar dados reais.
-
-## Antes da produção pública
-
-- usar PostgreSQL gerenciado com backup automático e Row Level Security;
-- configurar HTTPS, domínio e segredos em cofre;
-- remover a senha piloto e cadastrar usuários reais;
-- aprovar termos de uso, política de privacidade e encarregado LGPD;
-- configurar logs centralizados, monitoramento e alertas;
-- executar teste de restauração e revisão de segurança externa.
+Execute `npm run db:verify-backup -- caminho/do/backup.db`. Para restaurar: pare a API; preserve o banco atual; verifique a cópia; coloque-a em `DATABASE_PATH`; rode `npm run db:migrate`; inicie a API; valide `/ready`, login e dashboard. Nunca sobrescreva o banco com a API ativa. Faça um ensaio trimestral em ambiente separado.
 
 ## Saúde e alertas
 
-- `GET /health`: confirma que o processo está ativo e informa tempo de atividade;
-- `GET /ready`: confirma que a API consegue consultar o banco;
-- Configurações → Saúde da operação: mostra fila, falhas, sessões e alertas da empresa para usuários proprietários;
-- falhas de entrega devem ser revisadas antes de reprocessar uma campanha;
-- em produção, um monitor externo deve consultar `/ready` e alertar a equipe quando houver indisponibilidade.
+- `/health` confirma o processo e `/ready` confirma acesso ao banco;
+- Configurações → Saúde da operação mostra filas, falhas e sessões;
+- um monitor externo deve consultar `/ready`;
+- falha de backup ou entrega deve gerar alerta e investigação.
+
+Antes da produção pública, siga `docs/RELEASE-PRODUCAO.md`. Em produção, a API recusa segredo curto, origem pública sem HTTPS e credenciais externas incompletas.

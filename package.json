@@ -10,6 +10,7 @@
     "db:migrate": "npm run db:migrate -w @fideliza/api",
     "db:seed": "npm run db:seed -w @fideliza/api",
     "db:backup": "npm run db:backup -w @fideliza/api",
+    "db:verify-backup": "npm run db:verify-backup -w @fideliza/api --",
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down"
   },
