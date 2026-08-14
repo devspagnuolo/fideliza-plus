@@ -13,8 +13,8 @@
 
 ## P1 — validação comercial
 
-- expiração, estorno e ajuste administrativo de pontos (implementado na API; interface em andamento);
-- regras de fidelidade configuráveis por empresa e campanhas de pontos extras;
+- expiração, estorno e ajuste administrativo de pontos (concluído);
+- regras de fidelidade configuráveis por empresa e campanhas de pontos extras (concluído);
 - onboarding guiado e indicadores de ativação;
 - recomendações GIE com explicação, prioridade e mensuração de resultado;
 - integração de WhatsApp/e-mail via provedores selecionados;

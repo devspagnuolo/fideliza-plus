@@ -1,6 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { db } from './database/db.js';
 
+export function calculateSalePoints(tenantId: string, totalCents: number, occurredAt: string) {
+  const tenant = db.prepare('SELECT points_per_real FROM tenants WHERE id=?').get(tenantId) as { points_per_real: number };
+  const promotion = db.prepare(`SELECT multiplier,name FROM loyalty_promotions
+    WHERE tenant_id=? AND active=1 AND starts_at<=? AND ends_at>=? ORDER BY multiplier DESC LIMIT 1`).get(tenantId, occurredAt, occurredAt) as { multiplier: number; name: string } | undefined;
+  const multiplier = promotion?.multiplier ?? 1;
+  return { points: Math.floor(totalCents / 100 * tenant.points_per_real * multiplier), multiplier, promotionName: promotion?.name };
+}
+
 export function creditSalePoints(tenantId: string, customerId: string, saleId: string, points: number, reason: string) {
   if (points <= 0) return;
   const tenant = db.prepare('SELECT points_validity_days FROM tenants WHERE id=?').get(tenantId) as { points_validity_days: number };

@@ -5,7 +5,7 @@ import { audit } from '../audit.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { parseCsv } from '../csv.js';
 import { db } from '../database/db.js';
-import { creditSalePoints, expirePoints } from '../loyalty.js';
+import { calculateSalePoints, creditSalePoints, expirePoints } from '../loyalty.js';
 
 export const commerceRoutes = Router();
 commerceRoutes.use(requireAuth);
@@ -17,14 +17,14 @@ commerceRoutes.post('/sales', (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Venda inválida' });
   const tenantId = req.auth!.tenantId;
   const id = randomUUID();
-  const rate = (db.prepare('SELECT points_per_real FROM tenants WHERE id=?').get(tenantId) as { points_per_real: number }).points_per_real;
-  const points = Math.floor(parsed.data.totalCents / 100 * rate);
+  const occurredAt = parsed.data.occurredAt || new Date().toISOString();
+  const { points, multiplier, promotionName } = calculateSalePoints(tenantId, parsed.data.totalCents, occurredAt);
   db.transaction(() => {
     if (parsed.data.customerId && !db.prepare('SELECT id FROM customers WHERE id=? AND tenant_id=?').get(parsed.data.customerId, tenantId)) throw new Error('Cliente não pertence à empresa');
-    db.prepare('INSERT INTO sales (id,tenant_id,customer_id,total_cents,occurred_at) VALUES (?,?,?,?,?)').run(id, tenantId, parsed.data.customerId || null, parsed.data.totalCents, parsed.data.occurredAt || new Date().toISOString());
-    if (parsed.data.customerId) creditSalePoints(tenantId, parsed.data.customerId, id, points, 'Pontos por compra');
+    db.prepare('INSERT INTO sales (id,tenant_id,customer_id,total_cents,occurred_at) VALUES (?,?,?,?,?)').run(id, tenantId, parsed.data.customerId || null, parsed.data.totalCents, occurredAt);
+    if (parsed.data.customerId) creditSalePoints(tenantId, parsed.data.customerId, id, points, promotionName ? `Pontos por compra · ${promotionName}` : 'Pontos por compra');
   })();
-  res.status(201).json({ id, points });
+  res.status(201).json({ id, points, multiplier, promotionName });
 });
 
 commerceRoutes.post('/imports/sales', (req, res) => {
@@ -32,7 +32,6 @@ commerceRoutes.post('/imports/sales', (req, res) => {
   const rows = parseCsv(String(req.body));
   const errors: { row: number; message: string }[] = [];
   let imported = 0;
-  const rate = (db.prepare('SELECT points_per_real FROM tenants WHERE id=?').get(tenantId) as { points_per_real: number }).points_per_real;
   db.transaction(() => rows.forEach((row, index) => {
     const parsed = z.object({ external_id: z.string().min(1), customer_email: z.string().email().optional().or(z.literal('')), total: z.coerce.number().positive(), occurred_at: z.string().datetime() }).safeParse(row);
     if (!parsed.success) { errors.push({ row: index + 2, message: 'Venda inválida' }); return; }
@@ -41,7 +40,7 @@ commerceRoutes.post('/imports/sales', (req, res) => {
     const result = db.prepare('INSERT OR IGNORE INTO sales (id,tenant_id,customer_id,external_id,total_cents,occurred_at,source) VALUES (?,?,?,?,?,?,?)').run(id, tenantId, customer?.id ?? null, parsed.data.external_id, Math.round(parsed.data.total * 100), parsed.data.occurred_at, 'csv');
     if (!result.changes) return;
     imported++;
-    if (customer) creditSalePoints(tenantId, customer.id, id, Math.floor(parsed.data.total * rate), 'Pontos por importação');
+    if (customer) { const bonus=calculateSalePoints(tenantId,Math.round(parsed.data.total*100),parsed.data.occurred_at); creditSalePoints(tenantId,customer.id,id,bonus.points,bonus.promotionName?`Pontos por importação · ${bonus.promotionName}`:'Pontos por importação'); }
   }))();
   res.json({ imported, errors });
 });

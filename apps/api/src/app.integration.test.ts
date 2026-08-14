@@ -73,4 +73,16 @@ describe('API multiempresa',()=>{
     const loyalty=await agent.get('/customers/customer-expiry/loyalty').expect(200);
     expect(loyalty.body.ledger.some((entry:{points:number;reason:string})=>entry.points===-15&&entry.reason==='Expiração de pontos')).toBe(true);
   });
+  it('aplica a melhor campanha de pontos somente na empresa e período corretos',async()=>{
+    const agent=request.agent(app);
+    await agent.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    const startsAt=new Date(Date.now()-86_400_000).toISOString(),endsAt=new Date(Date.now()+86_400_000).toISOString();
+    await agent.post('/loyalty/promotions').set('x-fideliza-request','web').send({name:'Pontos em dobro',multiplier:2,startsAt,endsAt}).expect(201);
+    const sale=await agent.post('/sales').set('x-fideliza-request','web').send({customerId:'customer-a',totalCents:1000}).expect(201);
+    expect(sale.body).toMatchObject({points:20,multiplier:2,promotionName:'Pontos em dobro'});
+    const tenantB=request.agent(app);
+    await tenantB.post('/auth/login').send({email:'owner-b@example.com',password:'Senha@123'}).expect(200);
+    expect((await tenantB.get('/loyalty/promotions').expect(200)).body).toEqual([]);
+    expect((await tenantB.post('/sales').set('x-fideliza-request','web').send({customerId:'customer-b',totalCents:1000}).expect(201)).body.points).toBe(10);
+  });
 });

@@ -8,6 +8,27 @@ import { db } from '../database/db.js';
 export const loyaltyRoutes = Router();
 loyaltyRoutes.use(requireAuth);
 
+loyaltyRoutes.get('/loyalty/promotions', (req, res) => res.json(db.prepare('SELECT id,name,multiplier,starts_at,ends_at,active,created_at FROM loyalty_promotions WHERE tenant_id=? ORDER BY starts_at DESC').all(req.auth!.tenantId)));
+
+loyaltyRoutes.post('/loyalty/promotions', requireRole('owner', 'manager'), (req, res) => {
+  const parsed = z.object({ name: z.string().min(3).max(100), multiplier: z.number().min(1.1).max(10), startsAt: z.string().datetime(), endsAt: z.string().datetime() }).refine((data) => data.endsAt > data.startsAt, { message: 'Período inválido' }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Campanha de pontos inválida' });
+  const id = randomUUID();
+  db.prepare('INSERT INTO loyalty_promotions (id,tenant_id,name,multiplier,starts_at,ends_at) VALUES (?,?,?,?,?,?)').run(id, req.auth!.tenantId, parsed.data.name, parsed.data.multiplier, parsed.data.startsAt, parsed.data.endsAt);
+  audit(req.auth!.tenantId, req.auth!.userId, 'create_promotion', 'loyalty_promotion', id, { multiplier: parsed.data.multiplier });
+  res.status(201).json({ id, ...parsed.data, active: 1 });
+});
+
+loyaltyRoutes.patch('/loyalty/promotions/:id/status', requireRole('owner', 'manager'), (req, res) => {
+  const parsed = z.object({ active: z.boolean() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Status inválido' });
+  const id = String(req.params.id);
+  const result = db.prepare('UPDATE loyalty_promotions SET active=? WHERE id=? AND tenant_id=?').run(parsed.data.active ? 1 : 0, id, req.auth!.tenantId);
+  if (!result.changes) return res.status(404).json({ error: 'Campanha de pontos não encontrada' });
+  audit(req.auth!.tenantId, req.auth!.userId, 'promotion_status', 'loyalty_promotion', id, parsed.data);
+  res.json({ ok: true });
+});
+
 loyaltyRoutes.post('/customers/:id/loyalty/adjust', requireRole('owner', 'manager'), (req, res) => {
   const customerId = String(req.params.id);
   const tenantId = req.auth!.tenantId;
