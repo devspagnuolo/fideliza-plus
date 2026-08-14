@@ -39,10 +39,21 @@ ensureColumn('customers', 'postal_code', 'TEXT');
 ensureColumn('customers', 'notes', 'TEXT');
 ensureColumn('customers', 'status', "TEXT NOT NULL DEFAULT 'active'");
 ensureColumn('customers', 'updated_at', 'TEXT');
+ensureColumn('customers', 'enrolled_at', 'TEXT');
+ensureColumn('customers', 'deleted_at', 'TEXT');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_external ON customers(tenant_id,external_id) WHERE external_id IS NOT NULL');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_cpf ON users(tenant_id,cpf) WHERE cpf IS NOT NULL');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_cnpj ON tenants(cnpj) WHERE cnpj IS NOT NULL');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_cpf ON customers(tenant_id,cpf) WHERE cpf IS NOT NULL');
+db.exec('CREATE INDEX IF NOT EXISTS idx_customers_tenant_visible ON customers(tenant_id,deleted_at,name)');
+const blingReset='2026-08-14-reset-initial-bling-customers';
+if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(blingReset)){
+  db.transaction(()=>{
+    db.prepare("DELETE FROM loyalty_ledger WHERE sale_id IN (SELECT id FROM sales WHERE source='bling')").run();
+    db.prepare("UPDATE customers SET points_balance=0,deleted_at=CURRENT_TIMESTAMP,enrolled_at=NULL WHERE external_id LIKE 'bling:%'").run();
+    db.prepare('INSERT INTO migrations (name) VALUES (?)').run(blingReset);
+  })();
+}
 db.exec(`CREATE TABLE IF NOT EXISTS erp_connectors (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, provider TEXT NOT NULL,
   connection_type TEXT NOT NULL CHECK(connection_type IN ('api','webhook','csv','database')),
