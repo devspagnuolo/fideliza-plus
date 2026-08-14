@@ -11,6 +11,13 @@ FROM dependencies AS build
 COPY . .
 RUN npm run build
 
+FROM nginx:1.27-alpine AS web
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+EXPOSE 80
+HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 CMD wget -qO- http://127.0.0.1/healthz || exit 1
+
+# A API é o estágio final para plataformas que constroem o Dockerfile sem indicar target.
 FROM node:22-bookworm-slim AS api
 ENV NODE_ENV=production PORT=3333 DATABASE_PATH=/data/fideliza.db
 WORKDIR /app/apps/api
@@ -22,9 +29,3 @@ USER node
 EXPOSE 3333
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 CMD ["node","-e","fetch('http://127.0.0.1:3333/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
 CMD ["node","dist/server.js"]
-
-FROM nginx:1.27-alpine AS web
-COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-EXPOSE 80
-HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 CMD wget -qO- http://127.0.0.1/healthz || exit 1

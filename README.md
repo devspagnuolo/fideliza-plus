@@ -101,6 +101,10 @@ Defina `SESSION_SECRET` no `.env` com pelo menos 32 caracteres e execute `npm ru
 
 Cada push e pull request executa testes, build, auditoria de dependências e build dos contêineres pelo GitHub Actions.
 
+## Homologação pública
+
+O `render.yaml` prepara uma API com disco persistente e uma interface estática. A criação dos recursos e qualquer cobrança exigem confirmação no painel do provedor. Consulte `docs/DEPLOY-RENDER.md` para o roteiro completo.
+
 ## Provedores de campanha
 
 Campanhas de e-mail usam Resend e campanhas de WhatsApp usam a Cloud API oficial da Meta. Enquanto as respectivas variáveis da `.env.example` estiverem vazias, a fila funciona em modo simulado e nenhum contato externo é realizado. O envio real exige consentimento de marketing vigente, domínio de e-mail verificado e template de WhatsApp aprovado.
