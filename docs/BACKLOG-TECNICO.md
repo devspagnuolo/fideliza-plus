@@ -20,6 +20,8 @@
 - integração de WhatsApp/e-mail via provedores selecionados (Resend e Meta implementados; ativação depende de credenciais e templates aprovados);
 - jobs assíncronos para importações, campanhas e recomendações (concluído para o piloto);
 - observabilidade, alertas e painel administrativo (concluído para o piloto; monitor externo pendente para produção).
+- recuperação de senha com token de uso único (concluído);
+- worker automático para jobs, campanhas e expiração (concluído no monólito; separação opcional em produção).
 
 ### Regra de transição dos pontos
 

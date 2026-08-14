@@ -18,6 +18,7 @@ MVP SaaS multiempresa para fidelização e inteligência de crescimento de peque
 - banco SQLite, migração, seed idempotente e teste inicial de segurança;
 - interface web responsiva para desktop e celular.
 - base da integração Bling com OAuth seguro e painel de conexão opcional.
+- recuperação segura de senha e processamento automático das filas.
 
 ## Executar localmente
 
@@ -52,6 +53,8 @@ npm run db:migrate   # aplica a estrutura do banco
 npm run db:seed      # cria o cenário piloto
 npm run db:backup    # cria uma cópia segura em apps/api/backups
 ```
+
+Com `WORKER_ENABLED=true`, a API processa automaticamente jobs, campanhas e expiração de pontos no intervalo definido por `WORKER_INTERVAL_MS`. Em instalações maiores, o mesmo worker pode ser executado separadamente sem alterar as regras do domínio.
 
 ## Importações CSV
 

@@ -48,6 +48,12 @@ Importações e atualização do GIE usam uma fila persistente no mesmo banco, p
 
 No piloto, o processamento é acionado pela aplicação. Em produção, o mesmo processador deve rodar como worker separado ou tarefa agendada, sem exigir a adoção prematura de um broker externo.
 
+O worker embutido percorre as empresas de forma isolada, impede ciclos concorrentes e automatiza jobs, entregas de campanhas e expiração de pontos. Pode ser desativado por variável de ambiente quando um processo dedicado assumir essa função.
+
+## Recuperação de acesso
+
+A solicitação sempre devolve a mesma mensagem, exista ou não uma conta, evitando enumeração de usuários. O token aleatório expira em 30 minutos, fica armazenado apenas como hash, aceita um único uso e invalida todas as sessões após a troca. Em produção, o link é enviado pelo Resend; o token só aparece na resposta em desenvolvimento para permitir homologação local.
+
 ## Integração Bling
 
 O Bling entra como adaptador do monólito modular e usa OAuth 2.0 com JWT. O estado temporário da autorização é aleatório, armazenado somente como hash, vinculado à empresa e ao usuário e expira em dez minutos. Tokens de acesso e renovação são protegidos com AES-256-GCM antes de chegar ao banco e nunca são enviados à interface.
