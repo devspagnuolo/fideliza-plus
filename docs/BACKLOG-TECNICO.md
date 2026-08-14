@@ -27,7 +27,7 @@ Créditos novos recebem validade configurável por empresa e podem ser expirados
 
 ## P2 — expansão
 
-- integração Bling: OAuth, tokens criptografados, isolamento por empresa e painel de conexão concluídos; sincronização incremental, webhooks e reconciliação pendentes;
+- integração Bling: OAuth, renovação de tokens, sincronização incremental idempotente de clientes/vendas e painel concluídos; webhooks e reconciliação pendentes;
 - API pública versionada e gestão de chaves;
 - PWA e, após validação, app Android/iOS;
 - programa de recompensas e catálogo de benefícios;

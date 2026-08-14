@@ -70,7 +70,7 @@ O diretório `sources/` é uma referência sincronizada e permanece intocado.
 
 ## Integração Bling
 
-Para habilitar o botão de conexão, cadastre um aplicativo no Bling e preencha `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET` e `BLING_REDIRECT_URI` no `.env`. Sem essas variáveis, o painel mostra a integração como não configurada e todos os fluxos manuais continuam disponíveis. A sincronização de clientes e vendas será implementada na próxima etapa.
+Para habilitar o botão de conexão, cadastre um aplicativo no Bling e preencha `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET` e `BLING_REDIRECT_URI` no `.env`. Sem essas variáveis, o painel mostra a integração como não configurada e todos os fluxos manuais continuam disponíveis. Depois da autorização, “Sincronizar agora” importa incrementalmente clientes e vendas pela fila persistente; repetições são idempotentes e não duplicam pontos.
 
 ## Limites desta versão
 
