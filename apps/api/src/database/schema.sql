@@ -52,14 +52,20 @@ CREATE TABLE IF NOT EXISTS reward_redemptions (
 CREATE TABLE IF NOT EXISTS campaigns (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, audience_rule TEXT NOT NULL DEFAULT '{}',
   channel TEXT NOT NULL DEFAULT 'whatsapp', subject TEXT, message TEXT, template_name TEXT,
+  variant_a_message TEXT, variant_b_message TEXT, attribution_window_days INTEGER NOT NULL DEFAULT 7,
   status TEXT NOT NULL DEFAULT 'draft', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS campaign_deliveries (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), campaign_id TEXT NOT NULL REFERENCES campaigns(id),
   customer_id TEXT NOT NULL REFERENCES customers(id), channel TEXT NOT NULL, recipient TEXT NOT NULL, provider TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','processing','sent','failed','simulated')),
-  external_id TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, sent_at TEXT,
+  variant TEXT NOT NULL DEFAULT 'A', external_id TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, sent_at TEXT,
   UNIQUE(campaign_id,customer_id)
+);
+CREATE TABLE IF NOT EXISTS campaign_attributions (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), campaign_id TEXT NOT NULL REFERENCES campaigns(id),
+  delivery_id TEXT NOT NULL REFERENCES campaign_deliveries(id), sale_id TEXT NOT NULL REFERENCES sales(id), variant TEXT NOT NULL,
+  revenue_cents INTEGER NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(tenant_id,sale_id)
 );
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), type TEXT NOT NULL,
@@ -119,6 +125,7 @@ CREATE INDEX IF NOT EXISTS idx_redemptions_tenant_customer ON reward_redemptions
 CREATE INDEX IF NOT EXISTS idx_promotions_tenant_period ON loyalty_promotions(tenant_id, active, starts_at, ends_at);
 CREATE INDEX IF NOT EXISTS idx_gie_tenant_status ON gie_recommendations(tenant_id, status, priority);
 CREATE INDEX IF NOT EXISTS idx_deliveries_tenant_status ON campaign_deliveries(tenant_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_attributions_campaign ON campaign_attributions(tenant_id,campaign_id,variant);
 CREATE INDEX IF NOT EXISTS idx_jobs_tenant_status ON jobs(tenant_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_connections_tenant ON integration_connections(tenant_id, provider);
 CREATE INDEX IF NOT EXISTS idx_webhooks_tenant_date ON integration_webhook_events(tenant_id,created_at);

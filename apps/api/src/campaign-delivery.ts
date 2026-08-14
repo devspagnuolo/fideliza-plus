@@ -1,10 +1,10 @@
 import { db } from './database/db.js';
 
-type Delivery={id:string;channel:string;recipient:string;provider:string;campaign_id:string;subject:string|null;message:string|null;template_name:string|null};
+type Delivery={id:string;channel:string;recipient:string;provider:string;campaign_id:string;subject:string|null;message:string|null;template_name:string|null;variant:string;variant_a_message:string|null;variant_b_message:string|null};
 
 async function sendEmail(delivery:Delivery) {
   if(!process.env.RESEND_API_KEY)return {status:'simulated',externalId:null};
-  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{authorization:`Bearer ${process.env.RESEND_API_KEY}`,'content-type':'application/json','user-agent':'fideliza-plus/0.1','idempotency-key':delivery.id},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[delivery.recipient],subject:delivery.subject||'Novidades Fideliza+',text:delivery.message||''})});
+  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{authorization:`Bearer ${process.env.RESEND_API_KEY}`,'content-type':'application/json','user-agent':'fideliza-plus/0.1','idempotency-key':delivery.id},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[delivery.recipient],subject:delivery.subject||'Novidades Fideliza+',text:(delivery.variant==='B'?delivery.variant_b_message:delivery.variant_a_message)||delivery.message||''})});
   const body=await response.json() as {id?:string;message?:string};
   if(!response.ok)throw new Error(body.message||`Resend HTTP ${response.status}`);
   return {status:'sent',externalId:body.id??null};
@@ -21,7 +21,7 @@ async function sendWhatsApp(delivery:Delivery) {
 }
 
 export async function processCampaignBatch(tenantId:string,limit=25) {
-  const deliveries=db.prepare(`SELECT d.id,d.channel,d.recipient,d.provider,d.campaign_id,c.subject,c.message,c.template_name FROM campaign_deliveries d JOIN campaigns c ON c.id=d.campaign_id AND c.tenant_id=d.tenant_id WHERE d.tenant_id=? AND d.status='queued' ORDER BY d.created_at LIMIT ?`).all(tenantId,limit) as Delivery[];
+  const deliveries=db.prepare(`SELECT d.id,d.channel,d.recipient,d.provider,d.campaign_id,d.variant,c.subject,c.message,c.template_name,c.variant_a_message,c.variant_b_message FROM campaign_deliveries d JOIN campaigns c ON c.id=d.campaign_id AND c.tenant_id=d.tenant_id WHERE d.tenant_id=? AND d.status='queued' ORDER BY d.created_at LIMIT ?`).all(tenantId,limit) as Delivery[];
   let sent=0,simulated=0,failed=0;
   for(const delivery of deliveries){
     db.prepare("UPDATE campaign_deliveries SET status='processing',attempts=attempts+1 WHERE id=? AND tenant_id=? AND status='queued'").run(delivery.id,tenantId);

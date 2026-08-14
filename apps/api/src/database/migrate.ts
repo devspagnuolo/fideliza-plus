@@ -23,4 +23,8 @@ ensureColumn('loyalty_ledger', 'expired_at', 'TEXT');
 ensureColumn('campaigns', 'subject', 'TEXT');
 ensureColumn('campaigns', 'message', 'TEXT');
 ensureColumn('campaigns', 'template_name', 'TEXT');
+ensureColumn('campaigns', 'variant_a_message', 'TEXT');
+ensureColumn('campaigns', 'variant_b_message', 'TEXT');
+ensureColumn('campaigns', 'attribution_window_days', 'INTEGER NOT NULL DEFAULT 7');
+ensureColumn('campaign_deliveries', 'variant', "TEXT NOT NULL DEFAULT 'A'");
 console.log('Banco atualizado com sucesso.');

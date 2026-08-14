@@ -70,6 +70,10 @@ A API externa usa o prefixo estável `/public/v1`, separado das rotas da sessão
 
 Recompensas pertencem à empresa e podem ter estoque limitado ou ilimitado. O resgate ocorre em uma única transação de banco: valida empresa, saldo, disponibilidade, reduz pontos e estoque, registra o extrato e cria o comprovante. Qualquer falha desfaz toda a operação, impedindo benefícios sem débito ou pontos descontados sem recompensa.
 
+## Experimentos e atribuição
+
+Campanhas podem dividir clientes de forma determinística entre variantes A e B, mantendo a mesma pessoa na mesma variante. Uma venda identificada é atribuída à entrega mais recente dentro da janela configurada, inicialmente sete dias, e cada venda aceita no máximo uma atribuição. O worker reconcilia resultados continuamente e o painel compara entregas, conversões e receita por variante. Trata-se de atribuição operacional por último contato, não de causalidade estatística; decisões de grande impacto exigem amostra suficiente.
+
 ## Integração Bling
 
 O Bling entra como adaptador do monólito modular e usa OAuth 2.0 com JWT. O estado temporário da autorização é aleatório, armazenado somente como hash, vinculado à empresa e ao usuário e expira em dez minutos. Tokens de acesso e renovação são protegidos com AES-256-GCM antes de chegar ao banco e nunca são enviados à interface.
