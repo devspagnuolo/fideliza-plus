@@ -12,6 +12,7 @@ function ensureColumn(table: string, column: string, definition: string) {
 
 ensureColumn('tenants', 'points_validity_days', 'INTEGER NOT NULL DEFAULT 365');
 ensureColumn('sales', 'reversed_at', 'TEXT');
+ensureColumn('sales', 'order_number', 'TEXT');
 ensureColumn('customers', 'external_id', 'TEXT');
 ensureColumn('integration_connections', 'external_company_id', 'TEXT');
 ensureColumn('users', 'two_factor_secret_encrypted', 'TEXT');

@@ -6,7 +6,7 @@ import { normalizeCpf,validCpf } from './cpf.js';
 
 type Connection={access_token_encrypted:string;refresh_token_encrypted:string;expires_at:string;last_sync_at:string|null};
 type Contact={id:number|string;nome?:string;email?:string;telefone?:string;celular?:string;numeroDocumento?:string};
-type Order={id:number|string;data?:string;dataSaida?:string;total?:number;contato?:{id?:number|string}};
+type Order={id:number|string;numero?:number|string;numeroLoja?:string;data?:string;dataSaida?:string;total?:number;contato?:{id?:number|string}};
 let lastRequestAt=0;
 async function respectRateLimit(){const wait=Math.max(0,350-(Date.now()-lastRequestAt));if(wait)await new Promise(resolve=>setTimeout(resolve,wait));lastRequestAt=Date.now();}
 async function refresh(tenantId:string,connection:Connection){const tokens=await exchangeBlingToken('refresh_token',decryptSecret(connection.refresh_token_encrypted));const expiresAt=new Date(Date.now()+tokens.expiresIn*1000).toISOString();db.prepare("UPDATE integration_connections SET access_token_encrypted=?,refresh_token_encrypted=?,expires_at=?,status='connected',updated_at=CURRENT_TIMESTAMP WHERE tenant_id=? AND provider='bling'").run(encryptSecret(tokens.accessToken),encryptSecret(tokens.refreshToken),expiresAt,tenantId);return tokens.accessToken;}
@@ -36,7 +36,8 @@ export async function syncBling(tenantId:string){
     db.transaction(()=>items.forEach(item=>{
       const customer=item.contato?.id!==undefined?db.prepare('SELECT id,enrolled_at FROM customers WHERE tenant_id=? AND external_id=? AND deleted_at IS NULL').get(tenantId,`bling:${item.contato.id}`) as {id:string;enrolled_at:string|null}|undefined:undefined;
       const totalCents=Math.max(0,Math.round(Number(item.total??0)*100)),date=occurredAt(item.dataSaida??item.data),saleId=randomUUID();
-      const result=db.prepare("INSERT OR IGNORE INTO sales (id,tenant_id,customer_id,external_id,total_cents,occurred_at,source) VALUES (?,?,?,?,?,?,'bling')").run(saleId,tenantId,customer?.id??null,`bling:${item.id}`,totalCents,date);
+      const externalId=`bling:${item.id}`,orderNumber=String(item.numeroLoja||item.numero||item.id),result=db.prepare("INSERT OR IGNORE INTO sales (id,tenant_id,customer_id,external_id,order_number,total_cents,occurred_at,source) VALUES (?,?,?,?,?,?,?,'bling')").run(saleId,tenantId,customer?.id??null,externalId,orderNumber,totalCents,date);
+      db.prepare('UPDATE sales SET order_number=COALESCE(order_number,?) WHERE tenant_id=? AND external_id=?').run(orderNumber,tenantId,externalId);
       if(!result.changes)return;sales++;
       if(customer?.enrolled_at&&new Date(date)>=new Date(customer.enrolled_at)){const bonus=calculateSalePoints(tenantId,totalCents,date);creditSalePoints(tenantId,customer.id,saleId,bonus.points,'Pontos por venda importada do Bling');}
     }))();

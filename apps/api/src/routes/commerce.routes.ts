@@ -10,10 +10,11 @@ import { calculateSalePoints, creditSalePoints, expirePoints } from '../loyalty.
 export const commerceRoutes = Router();
 commerceRoutes.use(requireAuth);
 
-commerceRoutes.get('/sales', (req, res) => res.json(db.prepare(`SELECT s.*,c.name customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.tenant_id=? ORDER BY occurred_at DESC LIMIT 100`).all(req.auth!.tenantId)));
+commerceRoutes.get('/sales', (req, res) => {const source=String(req.query.source||'').trim();res.json(db.prepare(`SELECT s.*,c.name customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.tenant_id=? AND (?='' OR s.source=?) ORDER BY occurred_at DESC LIMIT 250`).all(req.auth!.tenantId,source,source));});
+commerceRoutes.get('/sales/sources', (req, res) => res.json(db.prepare(`SELECT source,COUNT(*) total FROM sales WHERE tenant_id=? GROUP BY source ORDER BY source`).all(req.auth!.tenantId)));
 
 commerceRoutes.post('/sales', (req, res) => {
-  const parsed = z.object({ customerId: z.string().optional(), totalCents: z.number().int().positive(), occurredAt: z.string().datetime().optional() }).safeParse(req.body);
+  const parsed = z.object({ customerId: z.string().optional(), totalCents: z.number().int().positive(), occurredAt: z.string().datetime().optional(),source:z.string().min(2).max(40).optional(),orderNumber:z.string().max(60).optional() }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Venda inválida' });
   const tenantId = req.auth!.tenantId;
   const id = randomUUID();
@@ -21,7 +22,7 @@ commerceRoutes.post('/sales', (req, res) => {
   const { points, multiplier, promotionName } = calculateSalePoints(tenantId, parsed.data.totalCents, occurredAt);
   db.transaction(() => {
     if (parsed.data.customerId && !db.prepare('SELECT id FROM customers WHERE id=? AND tenant_id=?').get(parsed.data.customerId, tenantId)) throw new Error('Cliente não pertence à empresa');
-    db.prepare('INSERT INTO sales (id,tenant_id,customer_id,total_cents,occurred_at) VALUES (?,?,?,?,?)').run(id, tenantId, parsed.data.customerId || null, parsed.data.totalCents, occurredAt);
+    db.prepare('INSERT INTO sales (id,tenant_id,customer_id,order_number,total_cents,occurred_at,source) VALUES (?,?,?,?,?,?,?)').run(id, tenantId, parsed.data.customerId || null,parsed.data.orderNumber||null, parsed.data.totalCents, occurredAt,parsed.data.source||'manual');
     if (parsed.data.customerId) creditSalePoints(tenantId, parsed.data.customerId, id, points, promotionName ? `Pontos por compra · ${promotionName}` : 'Pontos por compra');
   })();
   res.status(201).json({ id, points, multiplier, promotionName });
