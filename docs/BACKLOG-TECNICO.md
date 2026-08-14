@@ -17,8 +17,8 @@
 - regras de fidelidade configuráveis por empresa e campanhas de pontos extras (concluído);
 - onboarding guiado e indicadores de ativação (concluído);
 - recomendações GIE com explicação, prioridade e mensuração de resultado (concluído);
-- integração de WhatsApp/e-mail via provedores selecionados;
-- jobs assíncronos para importações e recomendações;
+- integração de WhatsApp/e-mail via provedores selecionados (Resend e Meta implementados; ativação depende de credenciais e templates aprovados);
+- jobs assíncronos para importações e recomendações (fila persistente de campanhas concluída; demais cargas pendentes);
 - observabilidade, alertas e painel administrativo.
 
 ### Regra de transição dos pontos

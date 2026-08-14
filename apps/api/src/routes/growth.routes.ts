@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { audit } from '../audit.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireRole } from '../auth.js';
 import { db } from '../database/db.js';
 import { refreshRecommendations } from '../gie.js';
+import { processCampaignBatch } from '../campaign-delivery.js';
 
 export const growthRoutes = Router();
 growthRoutes.use(requireAuth);
@@ -51,4 +52,20 @@ growthRoutes.patch('/gie/recommendations/:id', (req,res)=>{
 });
 
 growthRoutes.get('/campaigns',(req,res)=>res.json(db.prepare('SELECT * FROM campaigns WHERE tenant_id=? ORDER BY created_at DESC').all(req.auth!.tenantId)));
-growthRoutes.post('/campaigns',(req,res)=>{const p=z.object({name:z.string().min(3),channel:z.enum(['whatsapp','email','sms']).default('whatsapp'),segment:z.enum(['all','active','inactive','vip']).default('all')}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Campanha inválida'});const id=randomUUID();db.prepare('INSERT INTO campaigns (id,tenant_id,name,channel,audience_rule) VALUES (?,?,?,?,?)').run(id,req.auth!.tenantId,p.data.name,p.data.channel,JSON.stringify({segment:p.data.segment}));audit(req.auth!.tenantId,req.auth!.userId,'create','campaign',id,{segment:p.data.segment});res.status(201).json({id,...p.data,status:'draft'});});
+growthRoutes.post('/campaigns',(req,res)=>{const p=z.object({name:z.string().min(3),channel:z.enum(['whatsapp','email']).default('whatsapp'),segment:z.enum(['all','active','inactive','vip']).default('all'),subject:z.string().max(150).optional(),message:z.string().min(3).max(2000),templateName:z.string().max(100).optional()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Campanha inválida'});if(p.data.channel==='whatsapp'&&!p.data.templateName)return res.status(400).json({error:'Informe o template aprovado do WhatsApp'});const id=randomUUID();db.prepare('INSERT INTO campaigns (id,tenant_id,name,channel,audience_rule,subject,message,template_name) VALUES (?,?,?,?,?,?,?,?)').run(id,req.auth!.tenantId,p.data.name,p.data.channel,JSON.stringify({segment:p.data.segment}),p.data.subject??null,p.data.message,p.data.templateName??null);audit(req.auth!.tenantId,req.auth!.userId,'create','campaign',id,{segment:p.data.segment,channel:p.data.channel});res.status(201).json({id,...p.data,status:'draft'});});
+
+growthRoutes.post('/campaigns/:id/queue',requireRole('owner','manager'),(req,res)=>{
+  const tenantId=req.auth!.tenantId,id=String(req.params.id);
+  const campaign=db.prepare('SELECT id,channel,audience_rule FROM campaigns WHERE id=? AND tenant_id=?').get(id,tenantId) as {id:string;channel:string;audience_rule:string}|undefined;
+  if(!campaign)return res.status(404).json({error:'Campanha não encontrada'});
+  const segment=(JSON.parse(campaign.audience_rule) as {segment?:string}).segment||'all';
+  const customers=db.prepare(`SELECT c.id,c.email,c.phone,COUNT(s.id) frequency,COALESCE(SUM(s.total_cents),0) value_cents,MAX(s.occurred_at) last_purchase FROM customers c LEFT JOIN sales s ON s.customer_id=c.id AND s.tenant_id=c.tenant_id AND s.reversed_at IS NULL WHERE c.tenant_id=? AND COALESCE((SELECT granted FROM customer_consents cc WHERE cc.customer_id=c.id AND cc.tenant_id=c.tenant_id AND cc.purpose='marketing' ORDER BY cc.created_at DESC LIMIT 1),0)=1 GROUP BY c.id`).all(tenantId) as {id:string;email:string|null;phone:string|null;frequency:number;value_cents:number;last_purchase:string|null}[];
+  const cutoff=Date.now()-45*86_400_000;
+  const eligible=customers.filter(customer=>{const group=!customer.last_purchase||new Date(customer.last_purchase).getTime()<cutoff?'inactive':customer.frequency>=3||customer.value_cents>=50000?'vip':'active';return (segment==='all'||segment===group)&&(campaign.channel==='email'?Boolean(customer.email):Boolean(customer.phone));});
+  const insert=db.prepare('INSERT OR IGNORE INTO campaign_deliveries (id,tenant_id,campaign_id,customer_id,channel,recipient,provider) VALUES (?,?,?,?,?,?,?)');
+  let queued=0;db.transaction(()=>eligible.forEach(customer=>{const result=insert.run(randomUUID(),tenantId,id,customer.id,campaign.channel,campaign.channel==='email'?customer.email:customer.phone,campaign.channel==='email'?'resend':'meta');queued+=result.changes;}))();
+  db.prepare("UPDATE campaigns SET status='queued' WHERE id=? AND tenant_id=?").run(id,tenantId);audit(tenantId,req.auth!.userId,'queue','campaign',id,{queued,eligible:eligible.length});res.json({queued,eligible:eligible.length});
+});
+
+growthRoutes.post('/campaigns/process',requireRole('owner','manager'),async(req,res)=>{const result=await processCampaignBatch(req.auth!.tenantId);audit(req.auth!.tenantId,req.auth!.userId,'process_deliveries','campaign',undefined,result);res.json(result);});
+growthRoutes.get('/campaigns/:id/deliveries',(req,res)=>{const id=String(req.params.id);if(!db.prepare('SELECT id FROM campaigns WHERE id=? AND tenant_id=?').get(id,req.auth!.tenantId))return res.status(404).json({error:'Campanha não encontrada'});res.json(db.prepare('SELECT id,customer_id,channel,provider,status,error,attempts,created_at,sent_at FROM campaign_deliveries WHERE campaign_id=? AND tenant_id=? ORDER BY created_at').all(id,req.auth!.tenantId));});

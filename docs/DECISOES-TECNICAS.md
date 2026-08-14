@@ -33,3 +33,11 @@ Antes de produção: segredo obrigatório via cofre, HTTPS, rate limiting, prote
 ## Evolução prevista
 
 SQLite atende desenvolvimento e piloto controlado; PostgreSQL é o destino para produção. Bling deverá entrar como um adaptador assíncrono com idempotência por `external_id`. Um aplicativo móvel poderá consumir a mesma API após versionamento e autenticação apropriada. Nenhuma dessas evoluções bloqueia a validação do MVP web.
+
+## Entrega de campanhas
+
+E-mail usa a API REST do Resend, com chave restrita a envio, remetente de domínio verificado e chave de idempotência por entrega. WhatsApp usa diretamente a Graph API oficial da Meta e somente templates previamente aprovados; o nome do template fica associado à campanha.
+
+A fila é persistida no banco e possui unicidade por campanha e cliente. Apenas clientes com consentimento de marketing vigente e contato compatível entram na fila. Preparação e processamento exigem papel `owner` ou `manager`, ficam na auditoria e nunca cruzam empresas.
+
+Sem credenciais, o processador opera em modo simulado e registra o resultado sem transmitir dados. Isso permite homologar segmentação, consentimento e volume antes de ativar provedores externos. Para produção, o processamento manual deve ser substituído por um worker agendado com retentativas e controle de vazão.

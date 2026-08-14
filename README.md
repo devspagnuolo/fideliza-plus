@@ -80,3 +80,7 @@ O escopo web piloto definido para a Vivi Moda está concluído. Consulte `docs/A
 Defina `SESSION_SECRET` no `.env` com pelo menos 32 caracteres e execute `npm run docker:up`. A interface ficará em `http://localhost:8080` e a API em `http://localhost:3333`. O banco é persistido no volume `fideliza_data`; execute `npm run docker:down` para parar sem apagar os dados.
 
 Cada push e pull request executa testes, build, auditoria de dependências e build dos contêineres pelo GitHub Actions.
+
+## Provedores de campanha
+
+Campanhas de e-mail usam Resend e campanhas de WhatsApp usam a Cloud API oficial da Meta. Enquanto as respectivas variáveis da `.env.example` estiverem vazias, a fila funciona em modo simulado e nenhum contato externo é realizado. O envio real exige consentimento de marketing vigente, domínio de e-mail verificado e template de WhatsApp aprovado.

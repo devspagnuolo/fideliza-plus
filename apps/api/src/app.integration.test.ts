@@ -109,4 +109,19 @@ describe('API multiempresa',()=>{
     const refreshed=await ownerA.get('/dashboard').expect(200);
     expect(refreshed.body.recommendations.find((item:{id:string})=>item.id===recommendation.id).status).toBe('accepted');
   });
+  it('enfileira somente clientes consentidos e simula provedores sem credenciais',async()=>{
+    const ownerA=request.agent(app),ownerB=request.agent(app);
+    await ownerA.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    await ownerB.post('/auth/login').send({email:'owner-b@example.com',password:'Senha@123'}).expect(200);
+    await ownerA.post('/customers/customer-a/consents').set('x-fideliza-request','web').send({purpose:'marketing',granted:true}).expect(201);
+    const campaign=await ownerA.post('/campaigns').set('x-fideliza-request','web').send({name:'Retorno por e-mail',channel:'email',segment:'all',subject:'Sentimos sua falta',message:'Temos novidades para você.'}).expect(201);
+    const queued=await ownerA.post(`/campaigns/${campaign.body.id}/queue`).set('x-fideliza-request','web').send({}).expect(200);
+    expect(queued.body.queued).toBe(1);
+    expect((await ownerA.post(`/campaigns/${campaign.body.id}/queue`).set('x-fideliza-request','web').send({}).expect(200)).body.queued).toBe(0);
+    const processed=await ownerA.post('/campaigns/process').set('x-fideliza-request','web').send({}).expect(200);
+    expect(processed.body).toMatchObject({processed:1,simulated:1,failed:0});
+    const deliveries=await ownerA.get(`/campaigns/${campaign.body.id}/deliveries`).expect(200);
+    expect(deliveries.body[0]).toMatchObject({status:'simulated',provider:'resend'});
+    await ownerB.get(`/campaigns/${campaign.body.id}/deliveries`).expect(404);
+  });
 });

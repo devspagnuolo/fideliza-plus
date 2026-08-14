@@ -32,7 +32,15 @@ CREATE TABLE IF NOT EXISTS loyalty_ledger (
 );
 CREATE TABLE IF NOT EXISTS campaigns (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, audience_rule TEXT NOT NULL DEFAULT '{}',
-  channel TEXT NOT NULL DEFAULT 'whatsapp', status TEXT NOT NULL DEFAULT 'draft', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  channel TEXT NOT NULL DEFAULT 'whatsapp', subject TEXT, message TEXT, template_name TEXT,
+  status TEXT NOT NULL DEFAULT 'draft', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS campaign_deliveries (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), campaign_id TEXT NOT NULL REFERENCES campaigns(id),
+  customer_id TEXT NOT NULL REFERENCES customers(id), channel TEXT NOT NULL, recipient TEXT NOT NULL, provider TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','processing','sent','failed','simulated')),
+  external_id TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, sent_at TEXT,
+  UNIQUE(campaign_id,customer_id)
 );
 CREATE TABLE IF NOT EXISTS loyalty_promotions (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL,
@@ -65,4 +73,5 @@ CREATE INDEX IF NOT EXISTS idx_sales_tenant_date ON sales(tenant_id, occurred_at
 CREATE INDEX IF NOT EXISTS idx_ledger_tenant_customer ON loyalty_ledger(tenant_id, customer_id);
 CREATE INDEX IF NOT EXISTS idx_promotions_tenant_period ON loyalty_promotions(tenant_id, active, starts_at, ends_at);
 CREATE INDEX IF NOT EXISTS idx_gie_tenant_status ON gie_recommendations(tenant_id, status, priority);
+CREATE INDEX IF NOT EXISTS idx_deliveries_tenant_status ON campaign_deliveries(tenant_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_tenant_date ON audit_logs(tenant_id, created_at);

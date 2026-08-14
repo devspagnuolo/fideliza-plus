@@ -15,4 +15,7 @@ ensureColumn('sales', 'reversed_at', 'TEXT');
 ensureColumn('loyalty_ledger', 'entry_type', "TEXT NOT NULL DEFAULT 'adjustment'");
 ensureColumn('loyalty_ledger', 'expires_at', 'TEXT');
 ensureColumn('loyalty_ledger', 'expired_at', 'TEXT');
+ensureColumn('campaigns', 'subject', 'TEXT');
+ensureColumn('campaigns', 'message', 'TEXT');
+ensureColumn('campaigns', 'template_name', 'TEXT');
 console.log('Banco atualizado com sucesso.');
