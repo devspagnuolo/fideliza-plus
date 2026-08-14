@@ -124,4 +124,17 @@ describe('API multiempresa',()=>{
     expect(deliveries.body[0]).toMatchObject({status:'simulated',provider:'resend'});
     await ownerB.get(`/campaigns/${campaign.body.id}/deliveries`).expect(404);
   });
+  it('expõe prontidão e painel operacional somente ao proprietário da empresa',async()=>{
+    await request(app).get('/ready').expect(200,{status:'ready',database:'ok'});
+    const ownerA=request.agent(app),ownerB=request.agent(app);
+    await ownerA.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    await ownerB.post('/auth/login').send({email:'owner-b@example.com',password:'Senha@123'}).expect(200);
+    const operationsA=await ownerA.get('/admin/operations').expect(200);
+    expect(operationsA.body).toEqual(expect.objectContaining({runtime:expect.objectContaining({requests:expect.any(Number),errorRate:expect.any(Number)}),database:{status:'ok'},deliveries:expect.objectContaining({total:expect.any(Number),failureRate:expect.any(Number)}),alerts:expect.any(Array)}));
+    const operationsB=await ownerB.get('/admin/operations').expect(200);
+    expect(operationsB.body.deliveries.total).toBe(0);
+    db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('operator-a','tenant-a','Operador A','operator-a@example.com',hashPassword('Senha@123'),'operator');
+    const operator=request.agent(app);await operator.post('/auth/login').send({email:'operator-a@example.com',password:'Senha@123'}).expect(200);
+    await operator.get('/admin/operations').expect(403);
+  });
 });

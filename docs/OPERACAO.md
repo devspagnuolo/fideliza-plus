@@ -22,3 +22,11 @@ Nunca restaure um backup sobre um processo em execução. Faça um ensaio de res
 - aprovar termos de uso, política de privacidade e encarregado LGPD;
 - configurar logs centralizados, monitoramento e alertas;
 - executar teste de restauração e revisão de segurança externa.
+
+## Saúde e alertas
+
+- `GET /health`: confirma que o processo está ativo e informa tempo de atividade;
+- `GET /ready`: confirma que a API consegue consultar o banco;
+- Configurações → Saúde da operação: mostra fila, falhas, sessões e alertas da empresa para usuários proprietários;
+- falhas de entrega devem ser revisadas antes de reprocessar uma campanha;
+- em produção, um monitor externo deve consultar `/ready` e alertar a equipe quando houver indisponibilidade.

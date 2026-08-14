@@ -19,7 +19,7 @@
 - recomendações GIE com explicação, prioridade e mensuração de resultado (concluído);
 - integração de WhatsApp/e-mail via provedores selecionados (Resend e Meta implementados; ativação depende de credenciais e templates aprovados);
 - jobs assíncronos para importações e recomendações (fila persistente de campanhas concluída; demais cargas pendentes);
-- observabilidade, alertas e painel administrativo.
+- observabilidade, alertas e painel administrativo (concluído para o piloto; monitor externo pendente para produção).
 
 ### Regra de transição dos pontos
 
