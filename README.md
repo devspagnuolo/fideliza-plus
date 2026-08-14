@@ -22,6 +22,7 @@ MVP SaaS multiempresa para fidelização e inteligência de crescimento de peque
 - autenticação em dois fatores compatível com aplicativos autenticadores.
 - PWA instalável em celulares e computadores, com experiência offline segura.
 - API pública versionada com chaves revogáveis e escopos de leitura.
+- catálogo de recompensas com estoque e resgate transacional por pontos.
 
 ## Executar localmente
 

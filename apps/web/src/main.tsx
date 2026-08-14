@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BarChart3, Gift, LayoutDashboard, LogOut, Megaphone, Plus, Settings, ShoppingBag, Sparkles, Upload, Users } from 'lucide-react';
 import { api } from './api';
-import { LoyaltyPromotions } from './LoyaltyPromotions';
+import { LoyaltyPromotions } from './CampaignTools';
 import { OnboardingChecklist } from './OnboardingChecklist';
 import { GieRecommendations } from './GieRecommendations';
 import { OperationsPanel } from './SettingsOperations';

@@ -66,6 +66,10 @@ O web app é instalável como PWA e reutiliza a mesma interface responsiva no ce
 
 A API externa usa o prefixo estável `/public/v1`, separado das rotas da sessão web. Chaves possuem prefixo identificável, são exibidas uma única vez e persistidas somente como hash. Cada chave pertence a uma empresa, possui escopos explícitos, pode expirar ou ser revogada e tem limite inicial de 120 requisições por minuto. A primeira versão permite somente leitura de clientes e vendas, reduzindo o risco operacional até existirem casos reais para escrita.
 
+## Catálogo de recompensas
+
+Recompensas pertencem à empresa e podem ter estoque limitado ou ilimitado. O resgate ocorre em uma única transação de banco: valida empresa, saldo, disponibilidade, reduz pontos e estoque, registra o extrato e cria o comprovante. Qualquer falha desfaz toda a operação, impedindo benefícios sem débito ou pontos descontados sem recompensa.
+
 ## Integração Bling
 
 O Bling entra como adaptador do monólito modular e usa OAuth 2.0 com JWT. O estado temporário da autorização é aleatório, armazenado somente como hash, vinculado à empresa e ao usuário e expira em dez minutos. Tokens de acesso e renovação são protegidos com AES-256-GCM antes de chegar ao banco e nunca são enviados à interface.

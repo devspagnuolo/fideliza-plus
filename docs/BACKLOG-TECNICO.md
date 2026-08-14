@@ -33,7 +33,7 @@ Créditos novos recebem validade configurável por empresa e podem ser expirados
 - integração Bling: OAuth, renovação de tokens, sincronização incremental idempotente, webhooks autenticados e painel de reconciliação concluídos;
 - API pública versionada e gestão de chaves com escopos (concluído para leitura de clientes e vendas);
 - PWA instalável concluída; avaliar apps Android/iOS nativos somente após validação de uso;
-- programa de recompensas e catálogo de benefícios;
+- programa de recompensas e catálogo de benefícios com estoque e resgate (concluído);
 - experimentação de campanhas e atribuição de receita;
 - avaliar separação de módulos somente a partir de métricas reais de escala.
 
