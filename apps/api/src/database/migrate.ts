@@ -16,7 +16,29 @@ ensureColumn('customers', 'external_id', 'TEXT');
 ensureColumn('integration_connections', 'external_company_id', 'TEXT');
 ensureColumn('users', 'two_factor_secret_encrypted', 'TEXT');
 ensureColumn('users', 'two_factor_enabled', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('users', 'cpf', 'TEXT');
+ensureColumn('users', 'phone', 'TEXT');
+ensureColumn('users', 'job_title', 'TEXT');
+ensureColumn('users', 'last_login_at', 'TEXT');
+ensureColumn('customers', 'cpf', 'TEXT');
+ensureColumn('customers', 'address', 'TEXT');
+ensureColumn('customers', 'city', 'TEXT');
+ensureColumn('customers', 'state', 'TEXT');
+ensureColumn('customers', 'postal_code', 'TEXT');
+ensureColumn('customers', 'notes', 'TEXT');
+ensureColumn('customers', 'status', "TEXT NOT NULL DEFAULT 'active'");
+ensureColumn('customers', 'updated_at', 'TEXT');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_external ON customers(tenant_id,external_id) WHERE external_id IS NOT NULL');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_cpf ON users(tenant_id,cpf) WHERE cpf IS NOT NULL');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_cpf ON customers(tenant_id,cpf) WHERE cpf IS NOT NULL');
+db.exec(`CREATE TABLE IF NOT EXISTS erp_connectors (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, provider TEXT NOT NULL,
+  connection_type TEXT NOT NULL CHECK(connection_type IN ('api','webhook','csv','database')),
+  base_url TEXT, credentials_encrypted TEXT, status TEXT NOT NULL DEFAULT 'draft', capabilities TEXT NOT NULL DEFAULT '["customers","sales"]',
+  last_test_at TEXT, last_sync_at TEXT, last_error TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(tenant_id,name)
+)`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_erp_connectors_tenant ON erp_connectors(tenant_id,status)');
 ensureColumn('loyalty_ledger', 'entry_type', "TEXT NOT NULL DEFAULT 'adjustment'");
 ensureColumn('loyalty_ledger', 'expires_at', 'TEXT');
 ensureColumn('loyalty_ledger', 'expired_at', 'TEXT');

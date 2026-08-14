@@ -1,5 +1,11 @@
 # Decisões técnicas — MVP
 
+## Analytics, CPF e conectores genéricos
+
+O dashboard usa agregações SQL isoladas por tenant e períodos limitados, preservando o baixo custo. A central de ERPs separa cadastro do conector e adaptadores específicos: credenciais são criptografadas, capacidades são declaradas por conexão e nenhum provedor é tratado como universal. Assim, novos ERPs podem ser incluídos sem microserviços prematuros.
+
+CPF de colaboradores e clientes é normalizado, validado e protegido por índice único dentro de cada empresa. A troca de senha exige a senha atual, aplica política de complexidade e encerra todas as sessões existentes.
+
 ## Arquitetura
 
 Foi escolhido um **monólito modular TypeScript**, dividido em aplicação web e API. Essa forma reduz custo operacional e complexidade, sem misturar as responsabilidades de interface, regras de negócio e persistência. Microserviços só devem ser considerados quando escala, equipe ou isolamento operacional justificarem o custo.

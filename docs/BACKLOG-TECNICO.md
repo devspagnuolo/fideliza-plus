@@ -1,5 +1,20 @@
 # Backlog técnico
 
+## Próximas integrações ERP
+
+- implementar adaptadores homologados, começando por TOTVS, Omie, Tiny e Linx;
+- mapear clientes, vendas, produtos e estoque por conector;
+- adicionar agendamento incremental, retentativas e reconciliação genérica;
+- criar assistente visual de mapeamento para APIs e arquivos fora do padrão;
+- bloquear destinos de rede privados e adotar allowlist nos testes de conectividade.
+
+## Evoluções analíticas
+
+- coortes de retenção e frequência de recompra;
+- metas por unidade e comparação entre lojas;
+- exportação de dashboards em PDF/XLSX;
+- projeções de receita após volume mínimo de dados.
+
 ## P0 — piloto utilizável (concluído)
 
 - saldo, extrato e resgate transacional de pontos;
