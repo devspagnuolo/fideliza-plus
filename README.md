@@ -21,6 +21,7 @@ MVP SaaS multiempresa para fidelização e inteligência de crescimento de peque
 - recuperação segura de senha e processamento automático das filas.
 - autenticação em dois fatores compatível com aplicativos autenticadores.
 - PWA instalável em celulares e computadores, com experiência offline segura.
+- API pública versionada com chaves revogáveis e escopos de leitura.
 
 ## Executar localmente
 
@@ -44,6 +45,8 @@ Acesse `http://localhost:5173` e entre com:
 Essa credencial é somente para desenvolvimento. API: `http://localhost:3333`; saúde: `GET /health`.
 
 Novas integrações devem usar o prefixo versionado `/api/v1` (por exemplo, `GET /api/v1/customers`). As rotas sem prefixo permanecem compatíveis com a interface atual durante a transição.
+
+Integrações externas podem usar `GET /public/v1/customers` e `GET /public/v1/sales` com `Authorization: Bearer fz_live_...`. A chave é exibida somente na criação, armazenada como hash, limitada a 120 requisições por minuto e pode ser revogada nas configurações.
 
 ## Comandos
 

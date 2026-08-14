@@ -62,6 +62,10 @@ O segundo fator usa TOTP padrão RFC 6238, compatível com aplicativos autentica
 
 O web app é instalável como PWA e reutiliza a mesma interface responsiva no celular e computador. O service worker guarda somente o shell público e ativos estáticos; respostas da API e dados pessoais não são persistidos em cache. Navegação sem rede apresenta uma tela segura, e novas versões exigem atualização consciente. Aplicativos nativos ficam condicionados a evidências de uso que justifiquem duas novas bases de distribuição.
 
+## API pública
+
+A API externa usa o prefixo estável `/public/v1`, separado das rotas da sessão web. Chaves possuem prefixo identificável, são exibidas uma única vez e persistidas somente como hash. Cada chave pertence a uma empresa, possui escopos explícitos, pode expirar ou ser revogada e tem limite inicial de 120 requisições por minuto. A primeira versão permite somente leitura de clientes e vendas, reduzindo o risco operacional até existirem casos reais para escrita.
+
 ## Integração Bling
 
 O Bling entra como adaptador do monólito modular e usa OAuth 2.0 com JWT. O estado temporário da autorização é aleatório, armazenado somente como hash, vinculado à empresa e ao usuário e expira em dez minutos. Tokens de acesso e renovação são protegidos com AES-256-GCM antes de chegar ao banco e nunca são enviados à interface.

@@ -19,6 +19,11 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, token_hash TEXT NOT NULL UNIQUE,
   expires_at TEXT NOT NULL, used_at TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS api_keys (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, key_prefix TEXT NOT NULL,
+  key_hash TEXT NOT NULL UNIQUE, scopes TEXT NOT NULL DEFAULT '["customers:read","sales:read"]', active INTEGER NOT NULL DEFAULT 1,
+  last_used_at TEXT, expires_at TEXT, created_by TEXT REFERENCES users(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS customers (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, email TEXT, phone TEXT,
   external_id TEXT, birth_date TEXT, tags TEXT NOT NULL DEFAULT '[]', points_balance INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -95,6 +100,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_reset_tokens(user_id,expires_at);
+CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON api_keys(tenant_id,active);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_external ON customers(tenant_id,external_id) WHERE external_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sales_tenant_date ON sales(tenant_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_ledger_tenant_customer ON loyalty_ledger(tenant_id, customer_id);
