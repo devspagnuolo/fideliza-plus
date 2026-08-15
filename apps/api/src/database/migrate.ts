@@ -138,4 +138,48 @@ CREATE TABLE IF NOT EXISTS customer_support_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_customer_notifications ON customer_notifications(tenant_id,customer_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_customer_support ON customer_support_requests(tenant_id,customer_id,created_at);`);
+ensureColumn('tenants','suspension_reason','TEXT');
+ensureColumn('tenants','suspended_at','TEXT');
+ensureColumn('users','blocked_reason','TEXT');
+ensureColumn('users','blocked_at','TEXT');
+ensureColumn('users','source','TEXT NOT NULL DEFAULT \'company\'');
+ensureColumn('invoices','payment_method',"TEXT NOT NULL DEFAULT 'boleto'");
+ensureColumn('invoices','boleto_url','TEXT');
+ensureColumn('invoices','invoice_pdf_url','TEXT');
+ensureColumn('invoices','notified_at','TEXT');
+ensureColumn('invoices','payment_reference','TEXT');
+ensureColumn('subscriptions','payment_method',"TEXT NOT NULL DEFAULT 'boleto'");
+ensureColumn('subscriptions','billing_day','INTEGER NOT NULL DEFAULT 10');
+db.exec(`CREATE TABLE IF NOT EXISTS platform_permissions(
+  role TEXT NOT NULL,permission TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,description TEXT NOT NULL,
+  updated_by TEXT REFERENCES platform_admins(id),updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(role,permission)
+);
+CREATE TABLE IF NOT EXISTS platform_access_logs(
+  id TEXT PRIMARY KEY,user_type TEXT NOT NULL,user_id TEXT NOT NULL,tenant_id TEXT,success INTEGER NOT NULL,
+  ip TEXT,user_agent TEXT,reason TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS billing_events(
+  id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),invoice_id TEXT REFERENCES invoices(id),
+  event_type TEXT NOT NULL,description TEXT NOT NULL,metadata TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS outbound_messages(
+  id TEXT PRIMARY KEY,tenant_id TEXT REFERENCES tenants(id),recipient TEXT NOT NULL,channel TEXT NOT NULL,template TEXT NOT NULL,
+  subject TEXT,message TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'queued',external_id TEXT,error TEXT,scheduled_at TEXT,
+  sent_at TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS customer_verifications(
+  id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  channel TEXT NOT NULL,destination TEXT NOT NULL,code_hash TEXT NOT NULL,expires_at TEXT NOT NULL,verified_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_access_logs_date ON platform_access_logs(created_at,user_type);
+CREATE INDEX IF NOT EXISTS idx_billing_events_tenant ON billing_events(tenant_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_outbound_status ON outbound_messages(status,scheduled_at);`);
+const permissions=[
+ ['super_admin','platform.manage','Gerenciar toda a plataforma e configurações globais'],['super_admin','billing.manage','Gerenciar assinaturas, cobranças e conciliação'],
+ ['owner','company.manage','Gerenciar cadastro, equipe e integrações da própria empresa'],['owner','billing.read','Consultar plano, faturas e pagamentos da própria empresa'],
+ ['manager','crm.manage','Gerenciar clientes, vendas, campanhas e relatórios'],['operator','operation.write','Cadastrar clientes e vendas na operação diária']
+];
+const permissionInsert=db.prepare('INSERT OR IGNORE INTO platform_permissions(role,permission,description) VALUES(?,?,?)');
+db.transaction(()=>permissions.forEach(x=>permissionInsert.run(...x)))();
 console.log('Banco atualizado com sucesso.');
