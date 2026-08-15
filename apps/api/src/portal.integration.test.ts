@@ -98,5 +98,22 @@ describe('portais separados do Fideliza+', () => {
 
     const subscription = db.prepare('SELECT plan_code,status,monthly_price_cents FROM subscriptions WHERE tenant_id=?').get('tenant-portal-a');
     expect(subscription).toEqual({ plan_code: 'growth', status: 'active', monthly_price_cents: 14990 });
+
+    const created = await platform.post('/platform/modules/security/lgpd').set('x-fideliza-request', 'web').send({
+      title: 'Solicitação de acesso do titular', tenantId: 'tenant-portal-a', status: 'pending', priority: 'high',
+      owner: 'Encarregado LGPD', dueAt: '2026-09-01', payload: { Titular: 'Cliente Portal', Canal: 'Portal' },
+    }).expect(201);
+    const moduleView = await platform.get('/platform/modules/security/lgpd').expect(200);
+    expect(moduleView.body.summary).toMatchObject({ total: 1, active: 1 });
+    expect(moduleView.body.records[0]).toMatchObject({ id: created.body.id, companyName: 'Loja Portal A', priority: 'high' });
+    const exported = await platform.get('/platform/modules/security/lgpd/export').expect(200);
+    expect(exported.headers['content-type']).toContain('text/csv');
+    expect(exported.text).toContain('Solicitação de acesso do titular');
+    await platform.patch(`/platform/modules/security/lgpd/${created.body.id}`).set('x-fideliza-request', 'web').send({
+      title: 'Solicitação concluída', tenantId: 'tenant-portal-a', status: 'resolved', priority: 'medium',
+      owner: 'Encarregado LGPD', dueAt: null, payload: { Titular: 'Cliente Portal', Resultado: 'Entregue' },
+    }).expect(204);
+    await platform.delete(`/platform/modules/security/lgpd/${created.body.id}`).set('x-fideliza-request', 'web').expect(204);
+    expect((await platform.get('/platform/modules/security/lgpd').expect(200)).body.records).toHaveLength(0);
   });
 });

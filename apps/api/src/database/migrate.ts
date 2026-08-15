@@ -175,6 +175,13 @@ CREATE TABLE IF NOT EXISTS customer_verifications(
 CREATE INDEX IF NOT EXISTS idx_access_logs_date ON platform_access_logs(created_at,user_type);
 CREATE INDEX IF NOT EXISTS idx_billing_events_tenant ON billing_events(tenant_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_outbound_status ON outbound_messages(status,scheduled_at);`);
+db.exec(`CREATE TABLE IF NOT EXISTS platform_module_records(
+ id TEXT PRIMARY KEY,module TEXT NOT NULL,section TEXT NOT NULL,tenant_id TEXT REFERENCES tenants(id),title TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',priority TEXT NOT NULL DEFAULT 'medium',owner TEXT,due_at TEXT,payload TEXT NOT NULL DEFAULT '{}',created_by TEXT REFERENCES platform_admins(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_platform_module_records_view ON platform_module_records(module,section,status,created_at);
+CREATE TABLE IF NOT EXISTS platform_configuration_history(
+ id TEXT PRIMARY KEY,module TEXT NOT NULL,section TEXT NOT NULL,record_id TEXT,admin_id TEXT REFERENCES platform_admins(id),before_value TEXT,after_value TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);`);
 const permissions=[
  ['super_admin','platform.manage','Gerenciar toda a plataforma e configurações globais'],['super_admin','billing.manage','Gerenciar assinaturas, cobranças e conciliação'],
  ['owner','company.manage','Gerenciar cadastro, equipe e integrações da própria empresa'],['owner','billing.read','Consultar plano, faturas e pagamentos da própria empresa'],
