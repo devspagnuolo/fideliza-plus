@@ -15,6 +15,8 @@ import { SettingsWorkspace } from './SettingsWorkspace';
 import { SidebarProfile } from './SidebarProfile';
 import { SalesWorkspace } from './SalesWorkspace';
 import { ChartHoverTooltip } from './ChartHoverTooltip';
+import { CustomerPortal } from './CustomerPortal';
+import { PlatformAdmin } from './PlatformAdmin';
 import './styles.css';
 import './layout-controls.css';
 import './chart-axis.css';
@@ -49,5 +51,5 @@ function Campaigns(){const[items,setItems]=useState<Campaign[]>([]);const[open,s
 function SettingsPage(){return <SettingsWorkspace/>}
 
 function Shell(){const[page,setPage]=useState<Page>('dashboard'),[collapsed,setCollapsed]=useState(()=>localStorage.getItem('fideliza:sidebar-collapsed')==='true');const toggle=()=>setCollapsed(value=>{localStorage.setItem('fideliza:sidebar-collapsed',String(!value));return!value});const pages={dashboard:<Dashboard/>,customers:<Customers/>,sales:<SalesWorkspace/>,campaigns:<Campaigns/>,settings:<SettingsPage/>};return <div className={`app ${collapsed?'sidebar-collapsed':''}`}><aside className="sidebar"><button className="sidebar-toggle" onClick={toggle} title={collapsed?'Expandir menu':'Recolher menu'}>{collapsed?<PanelLeftOpen/>:<PanelLeftClose/>}</button><Brand/><nav>{([['dashboard',LayoutDashboard,'Início'],['customers',Users,'Clientes'],['sales',ShoppingBag,'Vendas'],['campaigns',Megaphone,'Campanhas'],['settings',Settings,'Configurações']]as const).map(([id,Icon,label])=><button className={page===id?'active':''} onClick={()=>setPage(id)} key={id} title={label}><Icon size={20}/><span>{label}</span></button>)}</nav><SidebarProfile/><button className="logout" onClick={async()=>{await api('/auth/logout',{method:'POST'});location.reload()}}><LogOut size={18}/><span>Sair</span></button></aside><main className="content">{pages[page]}</main></div>}
-function App(){const[ready,setReady]=useState(false);const[logged,setLogged]=useState<boolean>();const check=()=>api('/me').then(()=>setLogged(true)).catch(()=>setLogged(false));useEffect(()=>{check().finally(()=>setReady(true))},[]);if(location.pathname==='/reset-password')return <PasswordRecovery/>;if(!ready)return null;return logged?<Shell/>:<Login onLogin={check}/>;}
+function App(){const[ready,setReady]=useState(false);const[logged,setLogged]=useState<boolean>();const check=()=>api('/me').then(()=>setLogged(true)).catch(()=>setLogged(false));useEffect(()=>{if(location.pathname.startsWith('/cliente/')||location.pathname==='/admin'){setReady(true);return}check().finally(()=>setReady(true))},[]);if(location.pathname.startsWith('/cliente/'))return <CustomerPortal/>;if(location.pathname==='/admin')return <PlatformAdmin/>;if(location.pathname==='/reset-password')return <PasswordRecovery/>;if(!ready)return null;return logged?<Shell/>:<Login onLogin={check}/>;}
 createRoot(document.getElementById('root')!).render(<><App/><PwaLifecycle/><ChartHoverTooltip/></>);

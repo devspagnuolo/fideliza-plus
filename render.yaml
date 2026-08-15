@@ -28,6 +28,12 @@ services:
         sync: false
       - key: BLING_CLIENT_SECRET
         sync: false
+      - key: PLATFORM_ADMIN_NAME
+        value: Rafael
+      - key: PLATFORM_ADMIN_EMAIL
+        sync: false
+      - key: PLATFORM_ADMIN_PASSWORD
+        sync: false
 
   - type: web
     name: fideliza-plus-web

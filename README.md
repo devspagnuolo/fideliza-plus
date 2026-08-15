@@ -17,6 +17,8 @@ MVP SaaS multiempresa para fidelização e inteligência de crescimento de peque
 - rate limiting, proteção contra requisições forjadas e trilha de auditoria;
 - banco SQLite, migração, seed idempotente e teste inicial de segurança;
 - interface web responsiva para desktop e celular.
+- portal separado do consumidor para adesão, saldo, extrato e benefícios;
+- painel Fideliza+ Admin para empresas, planos, assinaturas e MRR;
 - base da integração Bling com OAuth seguro e painel de conexão opcional.
 - recuperação segura de senha e processamento automático das filas.
 - autenticação em dois fatores compatível com aplicativos autenticadores.
@@ -45,6 +47,8 @@ Acesse `http://localhost:5173` e entre com:
 - senha: `Vivi@123`
 
 Essa credencial é somente para desenvolvimento. API: `http://localhost:3333`; saúde: `GET /health`.
+
+Os demais acessos locais são `http://localhost:5173/cliente/vivi-moda-plus-size` para o consumidor e `http://localhost:5173/admin` para a administração do Fideliza+. Configure as variáveis `PLATFORM_ADMIN_*` antes do primeiro acesso administrativo. Consulte `docs/PORTAIS-E-ASSINATURAS.md`.
 
 Novas integrações devem usar o prefixo versionado `/api/v1` (por exemplo, `GET /api/v1/customers`). As rotas sem prefixo permanecem compatíveis com a interface atual durante a transição.
 
