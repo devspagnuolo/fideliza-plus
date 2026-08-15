@@ -23,7 +23,7 @@ services:
       - key: SESSION_SECRET
         generateValue: true
       - key: WEB_ORIGIN
-        value: https://fideliza-plus-web.onrender.com
+        value: https://fidelizaplus.com.br
       - key: BLING_CLIENT_ID
         sync: false
       - key: BLING_CLIENT_SECRET
@@ -38,6 +38,8 @@ services:
   - type: web
     name: fideliza-plus-web
     runtime: static
+    domains:
+      - fidelizaplus.com.br
     buildCommand: npm ci && npm run build -w @fideliza/web
     staticPublishPath: ./apps/web/dist
     autoDeployTrigger: commit
