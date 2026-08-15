@@ -70,6 +70,52 @@ CREATE TABLE IF NOT EXISTS platform_sessions (id TEXT PRIMARY KEY,admin_id TEXT 
 CREATE TABLE IF NOT EXISTS subscriptions (id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL UNIQUE REFERENCES tenants(id),plan_code TEXT NOT NULL DEFAULT 'pilot',status TEXT NOT NULL DEFAULT 'trialing',monthly_price_cents INTEGER NOT NULL DEFAULT 0,current_period_start TEXT,current_period_end TEXT,cancel_at_period_end INTEGER NOT NULL DEFAULT 0,external_customer_id TEXT,external_subscription_id TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE INDEX IF NOT EXISTS idx_customer_accounts_tenant ON customer_accounts(tenant_id,active);CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status,plan_code);`);
 db.prepare("INSERT OR IGNORE INTO subscriptions (id,tenant_id,plan_code,status) SELECT 'sub-'||id,id,'pilot','trialing' FROM tenants").run();
+ensureColumn('tenants', 'responsible_name', 'TEXT');
+ensureColumn('tenants', 'login_blocked', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('subscriptions', 'joined_at', 'TEXT');
+ensureColumn('users', 'mfa_required', 'INTEGER NOT NULL DEFAULT 0');
+db.exec(`CREATE TABLE IF NOT EXISTS platform_plans (
+  code TEXT PRIMARY KEY,name TEXT NOT NULL,monthly_price_cents INTEGER NOT NULL DEFAULT 0,
+  user_limit INTEGER NOT NULL DEFAULT 1,consumer_limit INTEGER NOT NULL DEFAULT 100,
+  storage_mb INTEGER NOT NULL DEFAULT 100,features TEXT NOT NULL DEFAULT '[]',active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS invoices (
+  id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),subscription_id TEXT REFERENCES subscriptions(id),
+  amount_cents INTEGER NOT NULL,status TEXT NOT NULL DEFAULT 'pending',due_at TEXT NOT NULL,paid_at TEXT,
+  external_id TEXT,description TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS platform_audit_logs (
+  id TEXT PRIMARY KEY,admin_id TEXT REFERENCES platform_admins(id),action TEXT NOT NULL,entity_type TEXT NOT NULL,
+  entity_id TEXT,ip TEXT,metadata TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS platform_login_attempts (
+  id TEXT PRIMARY KEY,email TEXT NOT NULL,success INTEGER NOT NULL,ip TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id TEXT PRIMARY KEY,tenant_id TEXT REFERENCES tenants(id),subject TEXT NOT NULL,description TEXT,
+  status TEXT NOT NULL DEFAULT 'open',priority TEXT NOT NULL DEFAULT 'medium',sla_due_at TEXT,assigned_to TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,resolved_at TEXT
+);
+CREATE TABLE IF NOT EXISTS platform_incidents (
+  id TEXT PRIMARY KEY,title TEXT NOT NULL,description TEXT,severity TEXT NOT NULL DEFAULT 'medium',
+  status TEXT NOT NULL DEFAULT 'open',started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,resolved_at TEXT,created_by TEXT REFERENCES platform_admins(id)
+);
+CREATE TABLE IF NOT EXISTS global_settings (
+  key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_by TEXT REFERENCES platform_admins(id),updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_invoices_status_due ON invoices(status,due_at);
+CREATE INDEX IF NOT EXISTS idx_platform_audit_date ON platform_audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_support_status ON support_tickets(status,priority);
+CREATE INDEX IF NOT EXISTS idx_incidents_status ON platform_incidents(status,severity);`);
+const defaultPlans=[
+  ['pilot','Piloto',0,2,1000,250,'["crm","loyalty","dashboard","bling"]'],
+  ['essential','Essencial',9900,5,5000,1024,'["crm","loyalty","dashboard","campaigns","integrations"]'],
+  ['growth','Crescimento',19900,15,25000,5120,'["crm","loyalty","gie","campaigns","integrations","api"]'],
+  ['professional','Profissional',39900,50,100000,20480,'["all","priority_support","advanced_reports"]']
+];
+const insertPlan=db.prepare('INSERT OR IGNORE INTO platform_plans (code,name,monthly_price_cents,user_limit,consumer_limit,storage_mb,features) VALUES (?,?,?,?,?,?,?)');
+db.transaction(()=>defaultPlans.forEach(plan=>insertPlan.run(...plan)))();
 ensureColumn('loyalty_ledger', 'entry_type', "TEXT NOT NULL DEFAULT 'adjustment'");
 ensureColumn('loyalty_ledger', 'expires_at', 'TEXT');
 ensureColumn('loyalty_ledger', 'expired_at', 'TEXT');

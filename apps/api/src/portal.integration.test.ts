@@ -63,6 +63,16 @@ describe('portais separados do Fideliza+', () => {
 
     const dashboard = await platform.get('/platform/dashboard').expect(200);
     expect(dashboard.body.kpis.tenants).toBe(2);
+    expect(dashboard.body.business).toMatchObject({ tenants: 2, consumers: 1 });
+    expect(dashboard.body.operational).toEqual(expect.objectContaining({ availability: expect.any(Number) }));
+    expect(dashboard.body.alerts).toHaveLength(4);
+
+    const overview = await platform.get('/platform/overview').expect(200);
+    expect(overview.body.companies).toHaveLength(2);
+    expect(overview.body.plans.map((plan: { code: string }) => plan.code)).toEqual(
+      expect.arrayContaining(['pilot', 'essential', 'growth', 'professional']),
+    );
+    expect(overview.body).toEqual(expect.objectContaining({ finance: expect.any(Object), monitoring: expect.any(Object) }));
 
     await platform.patch('/platform/subscriptions/tenant-portal-a').set('x-fideliza-request', 'web').send({
       planCode: 'growth', status: 'active', monthlyPriceCents: 14990, currentPeriodEnd: '2026-09-14',

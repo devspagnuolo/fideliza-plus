@@ -1,2 +1,2 @@
-const base=import.meta.env.VITE_API_URL??'http://localhost:3333';
-export async function api<T>(path:string,options?:RequestInit):Promise<T>{const r=await fetch(`${base}${path}`,{...options,credentials:'include',headers:{'content-type':'application/json','x-fideliza-request':'web',...options?.headers}});if(!r.ok){const body=await r.json().catch(()=>({}));throw new Error(body.error??'Ocorreu um erro');}if(r.status===204)return undefined as T;return r.json();}
+export const API_URL=import.meta.env.VITE_API_URL??'http://localhost:3333';
+export async function api<T>(path:string,options?:RequestInit):Promise<T>{const r=await fetch(`${API_URL}${path}`,{...options,credentials:'include',headers:{'content-type':'application/json','x-fideliza-request':'web',...options?.headers}});if(!r.ok){const body=await r.json().catch(()=>({}));throw new Error(body.error??'Ocorreu um erro');}if(r.status===204)return undefined as T;return r.json();}
