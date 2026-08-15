@@ -4,14 +4,15 @@ O Fideliza+ possui três experiências isoladas, cada uma com sessão e autoriza
 
 ## 1. Painel da empresa
 
-- URL pública: `https://fideliza-plus-web.onrender.com`
+- URL pública oficial: `https://fidelizaplus.com.br`
+- Endereço alternativo: `https://www.fidelizaplus.com.br`
 - Público: proprietários e funcionários do varejista.
 - Finalidade: clientes, vendas, campanhas, fidelidade, integrações, equipe e indicadores da empresa.
 
 ## 2. Portal do consumidor
 
-- Padrão da URL: `https://fideliza-plus-web.onrender.com/cliente/{slug-da-empresa}`
-- Piloto: `https://fideliza-plus-web.onrender.com/cliente/vivi-moda-plus-size`
+- Padrão da URL: `https://fidelizaplus.com.br/cliente/{slug-da-empresa}`
+- Piloto: `https://fidelizaplus.com.br/cliente/vivi-moda-plus-size`
 - Público: consumidores da empresa identificados por CPF.
 - Finalidade: adesão ao programa, login, saldo, extrato e catálogo de benefícios.
 
@@ -19,7 +20,7 @@ O CPF é único dentro de cada empresa. O consumidor só começa a participar de
 
 ## 3. Fideliza+ Admin
 
-- URL: `https://fideliza-plus-web.onrender.com/admin`
+- URL: `https://fidelizaplus.com.br/admin`
 - Público: proprietário e administradores internos do Fideliza+.
 - Finalidade: visão consolidada de empresas, quantidade de usuários e consumidores, assinaturas, planos, situação de cobrança e MRR.
 

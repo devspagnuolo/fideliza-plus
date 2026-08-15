@@ -48,7 +48,7 @@ Acesse `http://localhost:5173` e entre com:
 
 Essa credencial é somente para desenvolvimento. API: `http://localhost:3333`; saúde: `GET /health`.
 
-Os demais acessos locais são `http://localhost:5173/cliente/vivi-moda-plus-size` para o consumidor e `http://localhost:5173/admin` para a administração do Fideliza+. Configure as variáveis `PLATFORM_ADMIN_*` antes do primeiro acesso administrativo. Consulte `docs/PORTAIS-E-ASSINATURAS.md`.
+Em produção, os acessos oficiais são `https://fidelizaplus.com.br` para empresas, `https://fidelizaplus.com.br/cliente/vivi-moda-plus-size` para consumidores da loja piloto e `https://fidelizaplus.com.br/admin` para a administração central do Fideliza+. Localmente, use `http://localhost:5173`, mantendo os mesmos caminhos. Configure as variáveis `PLATFORM_ADMIN_*` antes do primeiro acesso administrativo. Consulte `docs/PORTAIS-E-ASSINATURAS.md`.
 
 Novas integrações devem usar o prefixo versionado `/api/v1` (por exemplo, `GET /api/v1/customers`). As rotas sem prefixo permanecem compatíveis com a interface atual durante a transição.
 
