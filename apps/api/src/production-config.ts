@@ -7,9 +7,8 @@ function paired(env: Environment, first: string, second: string) {
 export function validateProductionEnvironment(env: Environment) {
   if (env.NODE_ENV !== 'production') return;
   if ((env.SESSION_SECRET ?? '').length < 32) throw new Error('SESSION_SECRET deve ter pelo menos 32 caracteres em produção');
-  const origin = new URL(env.WEB_ORIGIN ?? '');
-  const localOrigin = ['localhost', '127.0.0.1'].includes(origin.hostname);
-  if (origin.protocol !== 'https:' && !localOrigin) throw new Error('WEB_ORIGIN deve usar HTTPS em produção');
+  const origins = (env.WEB_ORIGIN ?? '').split(',').map(value => new URL(value.trim()));
+  if (!origins.length || origins.some(origin => origin.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(origin.hostname))) throw new Error('WEB_ORIGIN deve usar HTTPS em produção');
   paired(env, 'WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID');
   paired(env, 'BLING_CLIENT_ID', 'BLING_CLIENT_SECRET');
   if (env.RESEND_API_KEY && !env.EMAIL_FROM) throw new Error('EMAIL_FROM é obrigatório com RESEND_API_KEY');

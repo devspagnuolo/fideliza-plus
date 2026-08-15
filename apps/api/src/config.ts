@@ -10,6 +10,7 @@ const databasePath = path.resolve(process.cwd(), process.env.DATABASE_PATH ?? '.
 export const config = {
   port: Number(process.env.PORT ?? 3333),
   webOrigin: process.env.WEB_ORIGIN ?? 'http://localhost:5173',
+  webOrigins: (process.env.WEB_ORIGIN ?? 'http://localhost:5173').split(',').map(value => value.trim()).filter(Boolean),
   databasePath,
   sessionSecret,
   isProduction,

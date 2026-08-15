@@ -23,7 +23,7 @@ services:
       - key: SESSION_SECRET
         generateValue: true
       - key: WEB_ORIGIN
-        value: https://fidelizaplus.com.br
+        value: https://fidelizaplus.com.br,https://fideliza-plus-web.onrender.com
       - key: BLING_CLIENT_ID
         sync: false
       - key: BLING_CLIENT_SECRET
