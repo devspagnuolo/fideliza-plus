@@ -42,6 +42,24 @@ describe('portais separados do Fideliza+', () => {
     expect(me.body).toMatchObject({ companyName: 'Loja Portal A', slug: 'loja-a' });
     expect((await consumer.get('/customer/dashboard').expect(200)).body.customer.name).toBe('Cliente Portal');
 
+    const customerId = me.body.customerId;
+    db.prepare('UPDATE customers SET points_balance=500 WHERE id=?').run(customerId);
+    db.prepare(`INSERT INTO sales (id,tenant_id,customer_id,total_cents,occurred_at,source,order_number)
+      VALUES ('sale-portal','tenant-portal-a',?,15990,CURRENT_TIMESTAMP,'site','PED-1001')`).run(customerId);
+    db.prepare(`INSERT INTO loyalty_ledger (id,tenant_id,customer_id,sale_id,points,reason,entry_type)
+      VALUES ('ledger-portal','tenant-portal-a',?,'sale-portal',160,'Compra PED-1001','earn')`).run(customerId);
+    db.prepare(`INSERT INTO rewards (id,tenant_id,name,description,points_cost,stock)
+      VALUES ('reward-portal','tenant-portal-a','Cupom de teste','Benefício do portal',200,3)`).run();
+
+    expect((await consumer.get('/customer/purchases?search=PED-1001').expect(200)).body.items[0]).toMatchObject({ order_number: 'PED-1001', source: 'site' });
+    expect((await consumer.get('/customer/ledger?type=earn').expect(200)).body.items[0].points).toBe(160);
+    await consumer.post('/customer/rewards/reward-portal/redeem').set('x-fideliza-request', 'web').expect(201);
+    expect((db.prepare('SELECT points_balance FROM customers WHERE id=?').get(customerId) as {points_balance:number}).points_balance).toBe(300);
+    await consumer.patch('/customer/profile').set('x-fideliza-request', 'web').send({name:'Cliente Atualizado',email:'novo@portal.test',phone:'11988887777',birthDate:'1990-01-02',city:'São Paulo',state:'SP'}).expect(204);
+    await consumer.put('/customer/preferences').set('x-fideliza-request', 'web').send({marketing:true}).expect(204);
+    await consumer.post('/customer/support').set('x-fideliza-request', 'web').send({subject:'Dúvida de pontos',message:'Preciso conferir meus pontos da compra.',category:'points'}).expect(201);
+    expect((await consumer.get('/customer/data-export').expect(200)).body).toEqual(expect.objectContaining({profile:expect.any(Object),purchases:expect.any(Array),points:expect.any(Array)}));
+
     const duplicate = request.agent(app);
     await duplicate.post('/customer/auth/register').set('x-fideliza-request', 'web').send({
       tenantSlug: 'loja-a', name: 'Outro nome', cpf: '52998224725', phone: '11999999999',

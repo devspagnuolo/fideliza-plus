@@ -126,4 +126,16 @@ ensureColumn('campaigns', 'variant_a_message', 'TEXT');
 ensureColumn('campaigns', 'variant_b_message', 'TEXT');
 ensureColumn('campaigns', 'attribution_window_days', 'INTEGER NOT NULL DEFAULT 7');
 ensureColumn('campaign_deliveries', 'variant', "TEXT NOT NULL DEFAULT 'A'");
+db.exec(`CREATE TABLE IF NOT EXISTS customer_notifications (
+  id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,message TEXT NOT NULL,type TEXT NOT NULL DEFAULT 'info',action_url TEXT,read_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS customer_support_requests (
+  id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  subject TEXT NOT NULL,message TEXT NOT NULL,category TEXT NOT NULL DEFAULT 'other',status TEXT NOT NULL DEFAULT 'open',
+  response TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_customer_notifications ON customer_notifications(tenant_id,customer_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_customer_support ON customer_support_requests(tenant_id,customer_id,created_at);`);
 console.log('Banco atualizado com sucesso.');
