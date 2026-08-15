@@ -150,6 +150,7 @@ ensureColumn('invoices','notified_at','TEXT');
 ensureColumn('invoices','payment_reference','TEXT');
 ensureColumn('subscriptions','payment_method',"TEXT NOT NULL DEFAULT 'boleto'");
 ensureColumn('subscriptions','billing_day','INTEGER NOT NULL DEFAULT 10');
+ensureColumn('integration_connections','last_error','TEXT');
 db.exec(`CREATE TABLE IF NOT EXISTS platform_permissions(
   role TEXT NOT NULL,permission TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,description TEXT NOT NULL,
   updated_by TEXT REFERENCES platform_admins(id),updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(role,permission)
