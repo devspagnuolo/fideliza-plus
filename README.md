@@ -87,7 +87,7 @@ O diretório `sources/` é uma referência sincronizada e permanece intocado.
 
 ## Integração Bling
 
-Para habilitar o botão de conexão, cadastre um aplicativo no Bling e preencha `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET` e `BLING_REDIRECT_URI` no `.env`. Sem essas variáveis, o painel mostra a integração como não configurada e todos os fluxos manuais continuam disponíveis. Depois da autorização, “Sincronizar agora” importa incrementalmente clientes e vendas pela fila persistente; repetições são idempotentes e não duplicam pontos.
+Para habilitar o botão de conexão, cadastre um aplicativo no Bling e preencha `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET` e `BLING_REDIRECT_URI` no `.env`. Sem essas variáveis, o painel mostra a integração como não configurada e todos os fluxos manuais continuam disponíveis. Depois da autorização, a fila persistente e os webhooks importam clientes e pedidos de forma incremental. A conciliação é idempotente: alterações de valor ajustam somente a diferença, cancelamentos e exclusões estornam os pontos, reativações restabelecem o valor correto e eventos repetidos ou fora de ordem não duplicam saldo. O ciclo periódico funciona como contingência caso um webhook atrase.
 
 Para atualização reativa, configure no aplicativo Bling o servidor `BLING_WEBHOOK_URL`. Eventos são autenticados por HMAC, deduplicados e processados de forma assíncrona. O painel de conciliação acompanha falhas, vendas sem cliente e o último evento recebido.
 

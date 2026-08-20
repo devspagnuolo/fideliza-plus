@@ -5,7 +5,7 @@ import { audit } from '../audit.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { parseCsv } from '../csv.js';
 import { db } from '../database/db.js';
-import { calculateSalePoints, creditSalePoints, expirePoints } from '../loyalty.js';
+import { calculateSalePoints, creditSalePoints, expirePoints, reconcileSalePoints } from '../loyalty.js';
 
 export const commerceRoutes = Router();
 commerceRoutes.use(requireAuth);
@@ -54,14 +54,9 @@ commerceRoutes.post('/sales/:id/reverse', requireRole('owner', 'manager'), (req,
       const sale = db.prepare('SELECT customer_id,reversed_at FROM sales WHERE id=? AND tenant_id=?').get(id, tenantId) as { customer_id: string | null; reversed_at: string | null } | undefined;
       if (!sale) throw new Error('NOT_FOUND');
       if (sale.reversed_at) throw new Error('ALREADY_REVERSED');
-      const earned = sale.customer_id ? (db.prepare("SELECT COALESCE(SUM(points),0) points FROM loyalty_ledger WHERE sale_id=? AND tenant_id=? AND entry_type='earn'").get(id, tenantId) as { points: number }).points : 0;
-      if (sale.customer_id && earned) {
-        const customer = db.prepare('SELECT points_balance FROM customers WHERE id=? AND tenant_id=?').get(sale.customer_id, tenantId) as { points_balance: number };
-        if (customer.points_balance < earned) throw new Error('INSUFFICIENT');
-        db.prepare('UPDATE customers SET points_balance=points_balance-? WHERE id=? AND tenant_id=?').run(earned, sale.customer_id, tenantId);
-        db.prepare(`INSERT INTO loyalty_ledger (id,tenant_id,customer_id,sale_id,points,reason,entry_type) VALUES (?,?,?,?,?,?,?)`).run(randomUUID(), tenantId, sale.customer_id, id, -earned, 'Estorno de venda', 'reversal');
-      }
-      db.prepare('UPDATE sales SET reversed_at=? WHERE id=? AND tenant_id=?').run(new Date().toISOString(), id, tenantId);
+      const adjustment=sale.customer_id?reconcileSalePoints(tenantId,sale.customer_id,id,0,'Estorno manual de venda'):{delta:0};
+      const earned=Math.max(0,-adjustment.delta);
+      db.prepare("UPDATE sales SET reversed_at=?,reversal_source='manual',external_status=CASE WHEN source='bling' THEN 'Estornado manualmente no Fideliza+' ELSE external_status END WHERE id=? AND tenant_id=?").run(new Date().toISOString(), id, tenantId);
       audit(tenantId, req.auth!.userId, 'reverse_sale', 'sale', id, { points: earned });
       return { pointsReversed: earned };
     })();
@@ -69,7 +64,6 @@ commerceRoutes.post('/sales/:id/reverse', requireRole('owner', 'manager'), (req,
   } catch (error) {
     if ((error as Error).message === 'NOT_FOUND') return res.status(404).json({ error: 'Venda não encontrada' });
     if ((error as Error).message === 'ALREADY_REVERSED') return res.status(409).json({ error: 'Venda já estornada' });
-    if ((error as Error).message === 'INSUFFICIENT') return res.status(409).json({ error: 'Saldo insuficiente para estornar os pontos da venda' });
     throw error;
   }
 });

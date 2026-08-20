@@ -11,6 +11,7 @@ process.env.SESSION_SECRET='integration-test-secret-with-32-characters';
 const { db }=await import('./database/db.js');
 await import('./database/migrate.js');
 const { hashPassword }=await import('./security.js');
+const { reconcileSalePoints }=await import('./loyalty.js');
 const { app }=await import('./app.js');
 
 function seedTenant(id:string,email:string,customerId:string) {
@@ -67,11 +68,15 @@ describe('API multiempresa',()=>{
     await agent.post(`/sales/${sale.body.id}/reverse`).set('x-fideliza-request','web').send({}).expect(200);
     await agent.post(`/sales/${sale.body.id}/reverse`).set('x-fideliza-request','web').send({}).expect(409);
     db.prepare('INSERT INTO customers (id,tenant_id,name,email,points_balance) VALUES (?,?,?,?,?)').run('customer-expiry','tenant-a','Cliente Expiração','expiry@example.com',15);
-    db.prepare("INSERT INTO loyalty_ledger (id,tenant_id,customer_id,points,reason,entry_type,expires_at) VALUES (?,?,?,?,?,'earn',?)").run('expired-entry','tenant-a','customer-expiry',15,'Crédito antigo','2020-01-01T00:00:00.000Z');
+    db.prepare("INSERT INTO sales (id,tenant_id,customer_id,total_cents,occurred_at,source) VALUES ('expired-sale','tenant-a','customer-expiry',1500,'2020-01-01T00:00:00.000Z','manual')").run();
+    db.prepare("INSERT INTO loyalty_ledger (id,tenant_id,customer_id,sale_id,points,reason,entry_type,expires_at) VALUES (?,?,?,?,?,?,'earn',?)").run('expired-entry','tenant-a','customer-expiry','expired-sale',15,'Crédito antigo','2020-01-01T00:00:00.000Z');
     const expiration=await agent.post('/loyalty/expire').set('x-fideliza-request','web').send({}).expect(200);
     expect(expiration.body).toEqual({totalExpired:15,affectedCustomers:1});
     const loyalty=await agent.get('/customers/customer-expiry/loyalty').expect(200);
     expect(loyalty.body.ledger.some((entry:{points:number;reason:string})=>entry.points===-15&&entry.reason==='Expiração de pontos')).toBe(true);
+    expect(reconcileSalePoints('tenant-a','customer-expiry','expired-sale',15,'Conciliação após expiração').delta).toBe(0);
+    expect(reconcileSalePoints('tenant-a','customer-expiry','expired-sale',0,'Cancelamento após expiração').delta).toBe(0);
+    expect((db.prepare("SELECT points_balance FROM customers WHERE id='customer-expiry'").get() as {points_balance:number}).points_balance).toBe(0);
   });
   it('aplica a melhor campanha de pontos somente na empresa e período corretos',async()=>{
     const agent=request.agent(app);

@@ -13,6 +13,11 @@ function ensureColumn(table: string, column: string, definition: string) {
 ensureColumn('tenants', 'points_validity_days', 'INTEGER NOT NULL DEFAULT 365');
 ensureColumn('sales', 'reversed_at', 'TEXT');
 ensureColumn('sales', 'order_number', 'TEXT');
+ensureColumn('sales', 'external_status', 'TEXT');
+ensureColumn('sales', 'external_updated_at', 'TEXT');
+ensureColumn('sales', 'reversal_source', 'TEXT');
+db.prepare("UPDATE sales SET reversal_source='manual' WHERE reversed_at IS NOT NULL AND reversal_source IS NULL").run();
+db.exec('CREATE INDEX IF NOT EXISTS idx_sales_tenant_external_status ON sales(tenant_id,source,external_status,reversed_at)');
 ensureColumn('customers', 'external_id', 'TEXT');
 ensureColumn('integration_connections', 'external_company_id', 'TEXT');
 ensureColumn('users', 'two_factor_secret_encrypted', 'TEXT');
@@ -151,6 +156,10 @@ ensureColumn('invoices','payment_reference','TEXT');
 ensureColumn('subscriptions','payment_method',"TEXT NOT NULL DEFAULT 'boleto'");
 ensureColumn('subscriptions','billing_day','INTEGER NOT NULL DEFAULT 10');
 ensureColumn('integration_connections','last_error','TEXT');
+ensureColumn('integration_webhook_events','processed_at','TEXT');
+ensureColumn('integration_webhook_events','last_error','TEXT');
+ensureColumn('integration_webhook_events','attempts','INTEGER NOT NULL DEFAULT 0');
+db.exec('CREATE INDEX IF NOT EXISTS idx_webhook_events_pending ON integration_webhook_events(tenant_id,provider,status,occurred_at)');
 db.exec(`CREATE TABLE IF NOT EXISTS platform_permissions(
   role TEXT NOT NULL,permission TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,description TEXT NOT NULL,
   updated_by TEXT REFERENCES platform_admins(id),updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(role,permission)

@@ -2,6 +2,7 @@ import express from 'express';import cors from 'cors';import helmet from 'helmet
 import { db } from './database/db.js';import { observeRequest,runtimeMetrics } from './observability.js';
 import { publicApiRoutes } from './routes/public-api.routes.js';
 export const app=express();
+app.set('trust proxy',1);
 app.use(observeRequest);app.use(helmet());app.use(cors({origin:(origin,callback)=>callback(null,!origin||config.webOrigins.includes(origin)),credentials:true}));app.use(express.json({limit:'2mb',verify:(req,_res,buffer)=>{(req as express.Request&{rawBody?:Buffer}).rawBody=Buffer.from(buffer);}}));app.use(express.text({type:['text/csv','application/csv'],limit:'5mb'}));app.use(cookieParser());
 app.use((req,res,next)=>{const publicAuth=['/auth/login','/auth/forgot-password','/auth/reset-password','/api/v1/auth/login','/api/v1/auth/forgot-password','/api/v1/auth/reset-password'].includes(req.path);if(!['GET','HEAD','OPTIONS'].includes(req.method)&&!publicAuth&&req.path!=='/webhooks/bling'&&req.header('x-fideliza-request')!=='web')return res.status(403).json({error:'Origem da requisição inválida'});next();});
 app.get('/health',(_req,res)=>res.json({status:'ok',version:'v1',uptimeSeconds:runtimeMetrics().uptimeSeconds}));
