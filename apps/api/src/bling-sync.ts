@@ -19,7 +19,7 @@ type SyncResult=SyncStats&{since:string;completedAt:string;situationMappingAvail
 async function respectRateLimit(){const wait=Math.max(0,350-(Date.now()-lastRequestAt));if(wait)await new Promise(resolve=>setTimeout(resolve,wait));lastRequestAt=Date.now();}
 async function refresh(tenantId:string,connection:Connection){const tokens=await exchangeBlingToken('refresh_token',decryptSecret(connection.refresh_token_encrypted));const expiresAt=new Date(Date.now()+tokens.expiresIn*1000).toISOString();db.prepare("UPDATE integration_connections SET access_token_encrypted=?,refresh_token_encrypted=?,expires_at=?,status='connected',updated_at=CURRENT_TIMESTAMP WHERE tenant_id=? AND provider='bling'").run(encryptSecret(tokens.accessToken),encryptSecret(tokens.refreshToken),expiresAt,tenantId);return tokens.accessToken;}
 async function tokenFor(tenantId:string,force=false){const connection=db.prepare("SELECT access_token_encrypted,refresh_token_encrypted,expires_at,last_sync_at FROM integration_connections WHERE tenant_id=? AND provider='bling' AND status='connected'").get(tenantId) as Connection|undefined;if(!connection)throw new Error('Bling não conectado');const token=force||new Date(connection.expires_at).getTime()<Date.now()+60_000?await refresh(tenantId,connection):decryptSecret(connection.access_token_encrypted);return {token,connection};}
-async function getPage<T>(tenantId:string,path:string,params=new URLSearchParams()){let auth=await tokenFor(tenantId);const execute=async(token:string)=>{await respectRateLimit();return fetch(`https://api.bling.com.br/Api/v3/${path}?${params}`,{headers:{authorization:`Bearer ${token}`,'enable-jwt':'1',accept:'application/json'}});};let response=await execute(auth.token);if(response.status===401){auth=await tokenFor(tenantId,true);response=await execute(auth.token);}const body=await response.json() as {data?:T[];error?:{message?:string}};if(!response.ok)throw new Error(body.error?.message||`Bling HTTP ${response.status}`);return body.data??[];}
+async function getPage<T>(tenantId:string,path:string,params=new URLSearchParams()){let auth=await tokenFor(tenantId);const execute=async(token:string)=>{await respectRateLimit();return fetch(`https://api.bling.com.br/Api/v3/${path}?${params}`,{headers:{authorization:`Bearer ${token}`,'enable-jwt':'1',accept:'application/json'}});};let response=await execute(auth.token);if(response.status===401){auth=await tokenFor(tenantId,true);response=await execute(auth.token);}const body=await response.json().catch(()=>({})) as {data?:T[];message?:string;error?:{message?:string;description?:string}};if(!response.ok){const detail=body.error?.message||body.error?.description||body.message;throw new Error(detail?`Bling ${path}: ${detail} (HTTP ${response.status})`:`Bling ${path}: acesso recusado (HTTP ${response.status})`);}return body.data??[];}
 const occurredAt=(value?:string)=>{if(!value)return new Date().toISOString();const date=new Date(value.length===10?`${value}T12:00:00-03:00`:value);return Number.isNaN(date.getTime())?new Date().toISOString():date.toISOString();};
 const normalized=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const isReversedStatus=(value:string)=>/(cancel|exclu|estorn|devolv|anulad)/.test(normalized(value));
@@ -44,8 +44,8 @@ async function loadSituationMap(tenantId:string){
 
 function orderState(item:Order,situations:Map<string,Situation>,deleted=false){
   if(deleted)return {status:'Excluído no Bling',reversed:true,known:true};
-  const rawId=item.situacao?.id===undefined?'':String(item.situacao.id),situation=situations.get(rawId),fallback=String(item.situacao?.valor??(rawId||'não informada')),status=situation?.nome?.trim()||`Situação ${fallback}`;
-  return {status,reversed:isReversedStatus(status)||Number(situation?.idHerdado)===2,known:Boolean(situation)};
+  const rawId=item.situacao?.id===undefined?'':String(item.situacao.id),situation=situations.get(rawId),officialValue=item.situacao?.valor===undefined?undefined:Number(item.situacao.valor),fallback=String(item.situacao?.valor??(rawId||'não informada')),canceled=Number(situation?.idHerdado)===2||officialValue===2,status=situation?.nome?.trim()||(canceled?'Cancelado':`Situação ${fallback}`);
+  return {status,reversed:isReversedStatus(status)||canceled,known:Boolean(situation)||officialValue!==undefined};
 }
 
 function customerForOrder(tenantId:string,item:Order){
@@ -126,7 +126,7 @@ async function performSync(tenantId:string):Promise<SyncResult>{
   const connection=db.prepare("SELECT last_sync_at FROM integration_connections WHERE tenant_id=? AND provider='bling'").get(tenantId) as {last_sync_at:string|null}|undefined;
   if(!connection)throw new Error('Bling não conectado');
   const since=connection.last_sync_at??new Date(Date.now()-365*86_400_000).toISOString(),startedAt=new Date().toISOString(),stats:SyncStats={contacts:0,ignoredContacts:0,sales:0,updatedSales:0,reversedSales:0,reinstatedSales:0,adjustedPoints:0,webhookEvents:0,failedWebhookEvents:0};
-  const situations=await loadSituationMap(tenantId);
+  const situations=await loadSituationMap(tenantId).catch(error=>{console.warn(`Mapa de situações do Bling indisponível; usando os códigos do pedido: ${(error as Error).message}`);return new Map<string,Situation>();});
   for(let page=1;page<=1000;page++){
     const params=new URLSearchParams({pagina:String(page),limite:'100',dataAlteracaoInicial:since.slice(0,10)}),items=await getPage<Contact>(tenantId,'contatos',params);
     db.transaction(()=>items.forEach(item=>upsertContact(tenantId,item)?stats.contacts++:stats.ignoredContacts++))();

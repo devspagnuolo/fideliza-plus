@@ -22,13 +22,17 @@ db.prepare("INSERT INTO sales (id,tenant_id,external_id,total_cents,occurred_at,
 
 createTenant('lifecycle-tenant');
 db.prepare('INSERT INTO customers (id,tenant_id,name,email,phone,cpf,enrolled_at) VALUES (?,?,?,?,?,?,?)').run('lifecycle-customer','lifecycle-tenant','Cliente Ciclo','ciclo@example.com','11999998888','52998224725','2026-08-01T12:00:00.000Z');
+createTenant('limited-scope-tenant');
+db.prepare('INSERT INTO customers (id,tenant_id,name,email,phone,cpf,enrolled_at) VALUES (?,?,?,?,?,?,?)').run('limited-scope-customer','limited-scope-tenant','Cliente Escopo','escopo@example.com','11999998888','52998224725','2026-08-01T12:00:00.000Z');
 
 let scenario:'reconciliation'|'lifecycle'='reconciliation';
 let lifecycleStatus:'active'|'canceled'='active';
 let lifecycleTotal=200;
+let situationAccess=true;
 vi.stubGlobal('fetch',vi.fn(async(urlValue:string)=>{
   const url=new URL(urlValue),pathname=url.pathname;
   let data:unknown[]=[];
+  if(pathname.includes('/situacoes/modulos')&&!situationAccess)return new Response(JSON.stringify({error:{message:'Forbidden'}}),{status:403,headers:{'content-type':'application/json'}});
   if(pathname.endsWith('/situacoes/modulos'))data=[{id:500,nome:'Vendas',descricao:'Pedidos de Venda'}];
   else if(pathname.endsWith('/situacoes/modulos/500'))data=[{id:1,nome:'Em aberto',idHerdado:0},{id:2,nome:'Cancelado',idHerdado:2}];
   else if(pathname.endsWith('/contatos')){
@@ -44,7 +48,7 @@ describe('sincronização Bling',()=>{
   afterAll(()=>{vi.unstubAllGlobals();db.close();for(const suffix of ['','-shm','-wal'])fs.rmSync(`${databasePath}${suffix}`,{force:true});});
 
   it('reconcilia pedido já importado buscando o contato ausente e pontua uma única vez',async()=>{
-    scenario='reconciliation';
+    scenario='reconciliation';situationAccess=true;
     expect(await syncBling('sync-tenant')).toMatchObject({contacts:2,ignoredContacts:0,sales:1,situationMappingAvailable:true});
     expect(await syncBling('sync-tenant')).toMatchObject({contacts:1,sales:0});
     expect((db.prepare("SELECT external_id,points_balance FROM customers WHERE id='enrolled-customer'").get() as {external_id:string;points_balance:number})).toEqual({external_id:'bling:11',points_balance:200});
@@ -54,7 +58,7 @@ describe('sincronização Bling',()=>{
   });
 
   it('estorna, não duplica, permite saldo devedor e reativa apenas a diferença correta',async()=>{
-    scenario='lifecycle';lifecycleStatus='active';lifecycleTotal=200;
+    scenario='lifecycle';situationAccess=true;lifecycleStatus='active';lifecycleTotal=200;
     expect(await syncBling('lifecycle-tenant')).toMatchObject({sales:1,adjustedPoints:200});
     db.prepare("INSERT INTO loyalty_ledger (id,tenant_id,customer_id,points,reason,entry_type) VALUES (?,'lifecycle-tenant','lifecycle-customer',-150,'Resgate teste','redemption')").run(randomUUID());
     db.prepare("UPDATE customers SET points_balance=points_balance-150 WHERE id='lifecycle-customer'").run();
@@ -74,7 +78,7 @@ describe('sincronização Bling',()=>{
   },20_000);
 
   it('processa exclusão e ignora evento antigo recebido fora de ordem',async()=>{
-    scenario='lifecycle';lifecycleStatus='active';lifecycleTotal=250;
+    scenario='lifecycle';situationAccess=true;lifecycleStatus='active';lifecycleTotal=250;
     const payload=(eventId:string,event:string,date:string,data:object)=>JSON.stringify({eventId,date,version:'v1',event,companyId:'company',data});
     db.prepare("INSERT INTO integration_webhook_events (id,provider,external_event_id,tenant_id,event_type,occurred_at,payload) VALUES (?,'bling',?,'lifecycle-tenant','order.deleted',?,?)").run('delete-event','delete-event','2026-08-21T12:00:00.000Z',payload('delete-event','order.deleted','2026-08-21T12:00:00.000Z',{id:30}));
     expect(await syncBling('lifecycle-tenant')).toMatchObject({webhookEvents:1,reversedSales:1,adjustedPoints:250});
@@ -92,4 +96,12 @@ describe('sincronização Bling',()=>{
     expect(await syncBling('lifecycle-tenant')).toMatchObject({webhookEvents:1,reinstatedSales:0,adjustedPoints:0});
     expect((db.prepare("SELECT reversed_at,reversal_source FROM sales WHERE external_id='bling:30'").get() as {reversed_at:string|null;reversal_source:string|null})).toMatchObject({reversal_source:'manual'});
   },20_000);
+
+  it('continua sincronizando e reconhece cancelamento quando o mapa de situações retorna 403',async()=>{
+    scenario='lifecycle';situationAccess=false;lifecycleStatus='canceled';lifecycleTotal=200;
+    expect(await syncBling('limited-scope-tenant')).toMatchObject({sales:1,adjustedPoints:0,situationMappingAvailable:false});
+    expect((db.prepare("SELECT customer_id,external_status,reversed_at FROM sales WHERE tenant_id='limited-scope-tenant' AND external_id='bling:30'").get() as {customer_id:string;external_status:string;reversed_at:string|null})).toMatchObject({customer_id:'limited-scope-customer',external_status:'Cancelado'});
+    expect((db.prepare("SELECT reversed_at FROM sales WHERE tenant_id='limited-scope-tenant' AND external_id='bling:30'").get() as {reversed_at:string|null}).reversed_at).toBeTruthy();
+    situationAccess=true;
+  });
 });
