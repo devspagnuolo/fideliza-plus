@@ -13,6 +13,14 @@ async function refresh(tenantId:string,connection:Connection){const tokens=await
 async function tokenFor(tenantId:string,force=false){const connection=db.prepare("SELECT access_token_encrypted,refresh_token_encrypted,expires_at,last_sync_at FROM integration_connections WHERE tenant_id=? AND provider='bling' AND status='connected'").get(tenantId) as Connection|undefined;if(!connection)throw new Error('Bling não conectado');const token=force||new Date(connection.expires_at).getTime()<Date.now()+60_000?await refresh(tenantId,connection):decryptSecret(connection.access_token_encrypted);return {token,connection};}
 async function getPage<T>(tenantId:string,path:string,params:URLSearchParams){let auth=await tokenFor(tenantId);const execute=async(token:string)=>{await respectRateLimit();return fetch(`https://api.bling.com.br/Api/v3/${path}?${params}`,{headers:{authorization:`Bearer ${token}`,'enable-jwt':'1',accept:'application/json'}});};let response=await execute(auth.token);if(response.status===401){auth=await tokenFor(tenantId,true);response=await execute(auth.token);}const body=await response.json() as {data?:T[];error?:{message?:string}};if(!response.ok)throw new Error(body.error?.message||`Bling HTTP ${response.status}`);return body.data??[];}
 const occurredAt=(value?:string)=>{if(!value)return new Date().toISOString();const date=new Date(value.length===10?`${value}T12:00:00-03:00`:value);return Number.isNaN(date.getTime())?new Date().toISOString():date.toISOString();};
+function upsertContact(tenantId:string,item:Contact){
+  const externalId=`bling:${item.id}`,email=item.email?.trim()||null,phone=(item.celular?.trim()||item.telefone?.trim()||'').replace(/\D/g,''),name=item.nome?.trim()||'',cpf=normalizeCpf(item.numeroDocumento||'');
+  if(name.length<2||phone.length<10||!validCpf(cpf))return false;
+  const existing=db.prepare('SELECT id FROM customers WHERE tenant_id=? AND (external_id=? OR cpf=?) ORDER BY CASE WHEN external_id=? THEN 0 ELSE 1 END LIMIT 1').get(tenantId,externalId,cpf,externalId) as {id:string}|undefined;
+  if(existing)db.prepare('UPDATE customers SET external_id=?,name=?,email=COALESCE(?,email),phone=?,cpf=?,deleted_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?').run(externalId,name,email,phone,cpf,existing.id,tenantId);
+  else db.prepare('INSERT INTO customers (id,tenant_id,external_id,name,email,phone,cpf) VALUES (?,?,?,?,?,?,?)').run(randomUUID(),tenantId,externalId,name,email,phone,cpf);
+  return true;
+}
 
 export async function syncBling(tenantId:string){
   const connection=db.prepare("SELECT last_sync_at FROM integration_connections WHERE tenant_id=? AND provider='bling'").get(tenantId) as {last_sync_at:string|null}|undefined;
@@ -21,25 +29,20 @@ export async function syncBling(tenantId:string){
   let contacts=0,ignoredContacts=0,sales=0;
   for(let page=1;page<=10;page++){
     const params=new URLSearchParams({pagina:String(page),limite:'100',dataAlteracaoInicial:since.slice(0,10)}),items=await getPage<Contact>(tenantId,'contatos',params);
-    db.transaction(()=>items.forEach(item=>{
-      const externalId=`bling:${item.id}`,email=item.email?.trim()||null,phone=(item.celular?.trim()||item.telefone?.trim()||'').replace(/\D/g,''),name=item.nome?.trim()||'',cpf=normalizeCpf(item.numeroDocumento||'');
-      if(name.length<2||phone.length<10||!validCpf(cpf)){ignoredContacts++;return;}
-      const existing=db.prepare('SELECT id FROM customers WHERE tenant_id=? AND (external_id=? OR cpf=?) ORDER BY CASE WHEN external_id=? THEN 0 ELSE 1 END LIMIT 1').get(tenantId,externalId,cpf,externalId) as {id:string}|undefined;
-      if(existing)db.prepare('UPDATE customers SET external_id=?,name=?,email=COALESCE(?,email),phone=?,cpf=?,deleted_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?').run(externalId,name,email,phone,cpf,existing.id,tenantId);
-      else db.prepare('INSERT INTO customers (id,tenant_id,external_id,name,email,phone,cpf) VALUES (?,?,?,?,?,?,?)').run(randomUUID(),tenantId,externalId,name,email,phone,cpf);
-      contacts++;
-    }))();
+    db.transaction(()=>items.forEach(item=>upsertContact(tenantId,item)?contacts++:ignoredContacts++))();
     if(items.length<100)break;
   }
   for(let page=1;page<=10;page++){
-    const params=new URLSearchParams({pagina:String(page),limite:'100',dataAlteracaoInicial:since.slice(0,10)}),items=await getPage<Order>(tenantId,'pedidos/vendas',params);
+    const params=new URLSearchParams({pagina:String(page),limite:'100',dataAlteracaoInicial:since.slice(0,10)}),items=await getPage<Order>(tenantId,'pedidos/vendas',params),missing=[...new Set(items.map(item=>item.contato?.id).filter((id):id is string|number=>id!==undefined).filter(id=>!db.prepare('SELECT 1 FROM customers WHERE tenant_id=? AND external_id=?').get(tenantId,`bling:${id}`)))];
+    for(let offset=0;offset<missing.length;offset+=100){const contactParams=new URLSearchParams({pagina:'1',limite:'100'});missing.slice(offset,offset+100).forEach(id=>contactParams.append('idsContatos[]',String(id)));const fetched=await getPage<Contact>(tenantId,'contatos',contactParams);db.transaction(()=>fetched.forEach(item=>upsertContact(tenantId,item)?contacts++:ignoredContacts++))();}
     db.transaction(()=>items.forEach(item=>{
       const customer=item.contato?.id!==undefined?db.prepare('SELECT id,enrolled_at FROM customers WHERE tenant_id=? AND external_id=? AND deleted_at IS NULL').get(tenantId,`bling:${item.contato.id}`) as {id:string;enrolled_at:string|null}|undefined:undefined;
       const totalCents=Math.max(0,Math.round(Number(item.total??0)*100)),date=occurredAt(item.dataSaida??item.data),saleId=randomUUID();
       const externalId=`bling:${item.id}`,orderNumber=String(item.numeroLoja||item.numero||item.id),result=db.prepare("INSERT OR IGNORE INTO sales (id,tenant_id,customer_id,external_id,order_number,total_cents,occurred_at,source) VALUES (?,?,?,?,?,?,?,'bling')").run(saleId,tenantId,customer?.id??null,externalId,orderNumber,totalCents,date);
-      db.prepare('UPDATE sales SET order_number=COALESCE(order_number,?) WHERE tenant_id=? AND external_id=?').run(orderNumber,tenantId,externalId);
-      if(!result.changes)return;sales++;
-      if(customer?.enrolled_at&&new Date(date)>=new Date(customer.enrolled_at)){const bonus=calculateSalePoints(tenantId,totalCents,date);creditSalePoints(tenantId,customer.id,saleId,bonus.points,'Pontos por venda importada do Bling');}
+      const stored=db.prepare('SELECT id,customer_id FROM sales WHERE tenant_id=? AND external_id=?').get(tenantId,externalId) as {id:string;customer_id:string|null};
+      db.prepare('UPDATE sales SET order_number=COALESCE(order_number,?),customer_id=COALESCE(customer_id,?) WHERE tenant_id=? AND external_id=?').run(orderNumber,customer?.id??null,tenantId,externalId);
+      if(result.changes)sales++;
+      if(customer?.enrolled_at&&new Date(date)>=new Date(customer.enrolled_at)&&!db.prepare("SELECT 1 FROM loyalty_ledger WHERE tenant_id=? AND sale_id=? AND entry_type='earn'").get(tenantId,stored.id)){const bonus=calculateSalePoints(tenantId,totalCents,date);creditSalePoints(tenantId,customer.id,stored.id,bonus.points,'Pontos por venda importada do Bling');}
     }))();
     if(items.length<100)break;
   }
