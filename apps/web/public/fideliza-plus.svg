@@ -18,7 +18,7 @@
     <path fill="url(#shine)" d="M560 535h184c42 0 70-17 80-58h-31c-14 23-35 32-68 32H565z" opacity=".65"/>
     <path fill="url(#teal)" d="M808 244h24c11 0 18 9 16 20l-6 32h36c11 0 18 9 16 20l-4 21c-2 9-9 14-19 14h-34l-6 32c-2 11-10 18-21 18h-23c-11 0-18-9-16-20l5-31h-32c-11 0-18-9-16-20l4-19c2-10 9-15 19-15h34l6-32c2-11 7-20 17-20z"/>
   </g>
-  <g transform="translate(124) scale(1.24 1) translate(-124)"><text class="wordmark" x="124" y="834" fill="url(#navyWord)" textLength="1010" lengthAdjust="spacingAndGlyphs">FIDELIZA</text><path d="m1050 833 24-50 24 50z" fill="url(#teal)"/></g>
+  <g><text class="wordmark" x="124" y="834" fill="url(#navyWord)" textLength="1010" lengthAdjust="spacingAndGlyphs">FIDELIZA</text><path d="m1050 833 24-50 24 50z" fill="url(#teal)"/></g>
   <g fill="#08a69f"><rect x="176" y="895" width="202" height="4" rx="2"/><text class="plusword" x="417" y="925" textLength="425" lengthAdjust="spacingAndGlyphs">PLUS</text><rect x="884" y="895" width="202" height="4" rx="2"/></g>
   <text class="tagline" x="226" y="985" fill="#111d35" textLength="810" lengthAdjust="spacingAndGlyphs">MAIS RELACIONAMENTO, MAIS RESULTADOS.</text>
 </svg>

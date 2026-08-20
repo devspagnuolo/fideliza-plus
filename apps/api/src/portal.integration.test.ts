@@ -26,6 +26,16 @@ describe('portais separados do Fideliza+', () => {
     for (const suffix of ['', '-shm', '-wal']) fs.rmSync(`${databasePath}${suffix}`, { force: true });
   });
 
+  it('oferece somente programas de lojas disponíveis no seletor público', async () => {
+    const stores = await request(app).get('/customer/stores').expect(200);
+    expect(stores.body.map((store: { slug: string }) => store.slug)).toEqual(expect.arrayContaining(['loja-a', 'loja-b']));
+    db.prepare("UPDATE tenants SET login_blocked=1 WHERE id='tenant-portal-b'").run();
+    const available = await request(app).get('/customer/stores?search=Loja').expect(200);
+    expect(available.body.map((store: { slug: string }) => store.slug)).toEqual(['loja-a']);
+    await request(app).get('/customer/store/loja-b').expect(404);
+    db.prepare("UPDATE tenants SET login_blocked=0 WHERE id='tenant-portal-b'").run();
+  });
+
   it('cadastra o consumidor na loja correta e isola sua sessão', async () => {
     const consumer = request.agent(app);
     await consumer.post('/customer/auth/register').set('x-fideliza-request', 'web').send({
