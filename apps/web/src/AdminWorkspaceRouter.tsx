@@ -7,7 +7,7 @@ export function AdvancedWorkspace(props: { page: string; subpage: string; all: a
   const [current, setCurrent] = useState(props.all);
   useEffect(() => setCurrent(props.all), [props.all]);
   const refresh = async () => setCurrent(await api('/platform/overview'));
-  if (isSystemWorkspace(props.page)) {
+  if (isSystemWorkspace(props.page, props.subpage)) {
     return <AdminSystemWorkspace page={props.page} subpage={props.subpage} />;
   }
   if (isNativeWorkspace(props.page, props.subpage)) {
