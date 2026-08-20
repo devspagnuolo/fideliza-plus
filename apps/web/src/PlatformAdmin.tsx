@@ -72,6 +72,15 @@ export function PlatformAdmin() {
   const navigate = (nextPage: string, nextSubpage: string) => {
     setPage(nextPage); setSubpage(nextSubpage); setExpanded(value => ({ ...value, [nextPage]: true })); setMobile(false); setSearchOpen(false); scrollTo({ top: 0, behavior: 'smooth' });
   };
+  const toggleMenuGroup = (nextPage: string, firstSubpage: string) => {
+    setExpanded(value => ({ ...value, [nextPage]: !value[nextPage] }));
+    if (page !== nextPage) {
+      setPage(nextPage);
+      setSubpage(firstSubpage);
+      setSearchOpen(false);
+      scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
   const searchResults = useMemo(() => menu.flatMap(item => item.children.map(child => ({ page: item.id, parent: item.label, child }))).filter(item => `${item.parent} ${item.child}`.toLowerCase().includes(search.toLowerCase())).slice(0, 12), [search]);
 
   async function login(event: React.FormEvent<HTMLFormElement>) {
@@ -93,7 +102,7 @@ export function PlatformAdmin() {
     <aside className={mobile ? 'open' : ''}>
       <div className="pa-logo"><BrandLogo compact={collapsed} inverse context="Administração SaaS" /><button className="pa-collapse" title={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => { const next = !collapsed; setCollapsed(next); localStorage.setItem('fideliza_admin_sidebar', next ? 'collapsed' : 'expanded'); }}>{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}</button><button className="pa-mobile-close" onClick={() => setMobile(false)} aria-label="Fechar menu"><X /></button></div>
       <button className="pa-nav-search" onClick={() => setSearchOpen(true)}><Search /><span>Localizar módulo</span><kbd>Ctrl K</kbd></button>
-      <nav>{menu.map(item => { const Icon = item.icon, open = !!expanded[item.id]; return <div className="pa-nav-group" key={item.id}><button className={page === item.id ? 'active' : ''} title={item.label} onClick={() => { navigate(item.id, item.children[0]); setExpanded(value => ({ ...value, [item.id]: !value[item.id] })); }}><Icon /><span>{item.label}</span><ChevronDown className={open ? 'rotated' : ''} /></button>{open && <div className="pa-subnav">{item.children.map(child => <button className={page === item.id && subpage === child ? 'selected' : ''} onClick={() => navigate(item.id, child)} key={child}>{child}</button>)}</div>}</div>; })}</nav>
+      <nav aria-label="Módulos administrativos">{menu.map(item => { const Icon = item.icon, open = !!expanded[item.id], groupId = `admin-menu-${item.id}`; return <div className="pa-nav-group" key={item.id}><button type="button" className={page === item.id ? 'active' : ''} title={item.label} aria-expanded={open} aria-controls={groupId} onClick={() => toggleMenuGroup(item.id, item.children[0])}><Icon /><span>{item.label}</span><ChevronDown className={open ? 'rotated' : ''} /></button>{open && <div className="pa-subnav" id={groupId}>{item.children.map(child => <button type="button" className={page === item.id && subpage === child ? 'selected' : ''} onClick={() => navigate(item.id, child)} key={child}>{child}</button>)}</div>}</div>; })}</nav>
       <div className="pa-user"><span>{String(admin.name || 'A')[0]}</span><div><b>{admin.name}</b><small>{admin.role === 'super_admin' ? 'Super Admin' : admin.role}</small></div><button title="Sair" onClick={async () => { await api('/platform/auth/logout', { method: 'POST' }); location.reload(); }}><LogOut /></button></div>
     </aside>
     {mobile && <button aria-label="Fechar menu" className="pa-backdrop" onClick={() => setMobile(false)} />}
