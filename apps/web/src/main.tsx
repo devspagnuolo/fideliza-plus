@@ -17,10 +17,12 @@ import { SalesWorkspace } from './SalesWorkspace';
 import { ChartHoverTooltip } from './ChartHoverTooltip';
 import { CustomerPortal } from './CustomerPortal';
 import { PlatformAdmin } from './PlatformAdmin';
+import { AccessHub } from './AccessHub';
 import './styles.css';
 import './layout-controls.css';
 import './chart-axis.css';
 import './mobile-shell.css';
+import './brand-theme.css';
 
 type Page = 'dashboard' | 'customers' | 'sales' | 'campaigns' | 'settings';
 type Customer = { id:string; name:string; email?:string; phone?:string; points_balance:number };
@@ -34,7 +36,7 @@ function Login({onLogin}:{onLogin:()=>void}) {
   async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();try{await api('/auth/login',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))});onLogin();}catch(reason){const message=(reason as Error).message;if(message==='Código do autenticador necessário')setTwoFactor(true);setError(message);}}
   return <main className="login"><section className="login-card"><Brand/><h1>Bem-vinda de volta</h1><p>Acompanhe seus clientes e transforme dados em novas vendas.</p><form onSubmit={submit}><label>E-mail<input name="email" type="email" defaultValue="admin@vivimoda.local" required/></label><label>Senha<input name="password" type="password" defaultValue="Vivi@123" required/></label>{twoFactor&&<label>Código do autenticador<input name="totpCode" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoFocus required/></label>}{error&&<div className="error">{error}</div>}<button>Entrar</button></form><a className="recovery-link" href="/reset-password">Esqueci minha senha</a><small>Ambiente piloto · Vivi Moda Plus Size</small></section><aside><Gift size={72}/><h2>Clientes fiéis.<br/>Negócios mais fortes.</h2></aside></main>;
 }
-function Brand(){return <div className="brand"><span>F+</span><div>Fideliza<em>+</em><small>Relacionamento que gera crescimento</small></div></div>;}
+function Brand(){return <div className="brand"><span>FP+</span><div>Fideliza<em>+</em><small>Mais relacionamento, mais resultados.</small></div></div>;}
 function PageHeader({eyebrow,title,description,action}:{eyebrow:string;title:string;description:string;action?:React.ReactNode}){return <header><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{description}</p></div>{action}</header>;}
 function Metric({icon,label,value}:{icon:React.ReactNode;label:string;value:string|number}){return <section className="metric"><div>{icon}</div><span>{label}</span><strong>{value}</strong></section>;}
 
@@ -51,5 +53,5 @@ function Campaigns(){const[items,setItems]=useState<Campaign[]>([]);const[open,s
 function SettingsPage(){return <SettingsWorkspace/>}
 
 function Shell(){const[page,setPage]=useState<Page>('dashboard'),[collapsed,setCollapsed]=useState(()=>localStorage.getItem('fideliza:sidebar-collapsed')==='true');const toggle=()=>setCollapsed(value=>{localStorage.setItem('fideliza:sidebar-collapsed',String(!value));return!value});const pages={dashboard:<Dashboard/>,customers:<Customers/>,sales:<SalesWorkspace/>,campaigns:<Campaigns/>,settings:<SettingsPage/>};return <div className={`app ${collapsed?'sidebar-collapsed':''}`}><aside className="sidebar"><button className="sidebar-toggle" onClick={toggle} title={collapsed?'Expandir menu':'Recolher menu'}>{collapsed?<PanelLeftOpen/>:<PanelLeftClose/>}</button><Brand/><nav>{([['dashboard',LayoutDashboard,'Início'],['customers',Users,'Clientes'],['sales',ShoppingBag,'Vendas'],['campaigns',Megaphone,'Campanhas'],['settings',Settings,'Configurações']]as const).map(([id,Icon,label])=><button className={page===id?'active':''} onClick={()=>setPage(id)} key={id} title={label}><Icon size={20}/><span>{label}</span></button>)}</nav><SidebarProfile/><button className="logout" onClick={async()=>{await api('/auth/logout',{method:'POST'});location.reload()}}><LogOut size={18}/><span>Sair</span></button></aside><main className="content">{pages[page]}</main></div>}
-function App(){const[ready,setReady]=useState(false);const[logged,setLogged]=useState<boolean>();const check=()=>api('/me').then(()=>setLogged(true)).catch(()=>setLogged(false));useEffect(()=>{if(location.pathname.startsWith('/cliente/')||location.pathname==='/admin'){setReady(true);return}check().finally(()=>setReady(true))},[]);if(location.pathname.startsWith('/cliente/'))return <CustomerPortal/>;if(location.pathname==='/admin')return <PlatformAdmin/>;if(location.pathname==='/reset-password')return <PasswordRecovery/>;if(!ready)return null;return logged?<Shell/>:<Login onLogin={check}/>;}
+function App(){const[ready,setReady]=useState(false);const[logged,setLogged]=useState<boolean>();const check=()=>api('/me').then(()=>setLogged(true)).catch(()=>setLogged(false));useEffect(()=>{if(location.pathname.startsWith('/cliente/')||location.pathname==='/admin'||location.pathname==='/acesso'){setReady(true);return}check().finally(()=>setReady(true))},[]);if(location.pathname==='/acesso')return <AccessHub/>;if(location.pathname.startsWith('/cliente/')){const storeSlug=decodeURIComponent(location.pathname.split('/')[2]||'');if(storeSlug)localStorage.setItem('fideliza:last-store',storeSlug);return <CustomerPortal/>}if(location.pathname==='/admin')return <PlatformAdmin/>;if(location.pathname==='/reset-password')return <PasswordRecovery/>;if(!ready)return null;return logged?<Shell/>:<Login onLogin={check}/>;}
 createRoot(document.getElementById('root')!).render(<><App/><PwaLifecycle/><ChartHoverTooltip/></>);

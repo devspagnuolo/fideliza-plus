@@ -1,0 +1,14 @@
+:root{--fideliza-navy:#061a3a;--fideliza-blue:#0b3268;--fideliza-teal:#00a99d;--fideliza-teal-dark:#00877f;--fideliza-soft:#e8f7f5}
+.brand>span,.portal-logo,.cp-brand>span,.cp-user>span,.cp-avatar{background:linear-gradient(135deg,var(--fideliza-blue),var(--fideliza-teal))!important}
+.brand em,.eyebrow,.portal-company small,.cp-title small,.cp-card-head small,.cp-welcome>div>small{color:var(--fideliza-teal-dark)!important}
+.primary,.login form button,.portal-submit,.admin-login form button{background:linear-gradient(110deg,var(--fideliza-blue),var(--fideliza-teal))!important}
+.sidebar,.customer-portal>aside,.pa-shell>aside{background:var(--fideliza-navy)!important}
+.customer-portal{--p:var(--fideliza-teal-dark);--ink:var(--fideliza-navy)}
+.cp-welcome,.login>aside{background:linear-gradient(125deg,var(--fideliza-navy),var(--fideliza-blue) 58%,var(--fideliza-teal))!important}
+.pa-content button:not(.pa-purpose-row):not(.pa-row-button),.pa-advanced-head>button,.pa-cnpj button,.pa-list-tools>button{background:var(--fideliza-teal-dark)}
+.pa-content header small,.pa-workspace-title>svg,.pa-manager-toolbar>span svg,.pa-advanced-tools svg,.pa-detail header small{color:var(--fideliza-teal-dark)!important}
+.pa-kpi-button{background:#fff!important;color:var(--fideliza-navy)!important}
+.pa-kpi-button span{color:#5f6979!important}.pa-kpi-button b{color:var(--fideliza-navy)!important}.pa-kpi-button small{color:var(--fideliza-teal-dark)!important}
+.pa-module-hero,.pa-advanced-head{background:linear-gradient(120deg,var(--fideliza-navy),var(--fideliza-blue))!important}
+.pa-chart-column,.pa-record-trend i{background:linear-gradient(180deg,var(--fideliza-teal),var(--fideliza-blue))!important}
+.admin-login .portal-logo{width:190px;height:120px;border-radius:0;background:url('/fideliza-plus-oficial.jpg') center/contain no-repeat!important;color:transparent;font-size:0}
