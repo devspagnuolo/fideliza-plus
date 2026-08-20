@@ -141,5 +141,18 @@ describe('portais separados do Fideliza+', () => {
       'branding.primary': '#0b2b5b', 'feature.customer_portal': 'true',
     }).expect(204);
     expect(db.prepare("SELECT value FROM global_settings WHERE key='branding.primary'").get()).toEqual({ value: '#0b2b5b' });
+
+    await platform.patch('/platform/plans/essential').set('x-fideliza-request', 'web').send({
+      name: 'Essencial', monthlyPriceCents: 10900, userLimit: 6, consumerLimit: 6000, storageMb: 1024, active: true,
+    }).expect(204);
+    expect(db.prepare("SELECT monthly_price_cents,user_limit FROM platform_plans WHERE code='essential'").get()).toEqual({
+      monthly_price_cents: 10900, user_limit: 6,
+    });
+
+    db.prepare("INSERT INTO jobs(id,tenant_id,type,status,error,attempts) VALUES('job-retry','tenant-portal-a','sync_bling','failed','timeout',3)").run();
+    const system = await platform.get('/platform/system').expect(200);
+    expect(system.body).toEqual(expect.objectContaining({ jobs: expect.any(Array), connectors: expect.any(Array), sessions: expect.any(Array) }));
+    await platform.post('/platform/jobs/job-retry/retry').set('x-fideliza-request', 'web').expect(202);
+    expect(db.prepare("SELECT status,error FROM jobs WHERE id='job-retry'").get()).toEqual({ status: 'queued', error: null });
   });
 });
