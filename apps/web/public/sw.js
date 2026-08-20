@@ -1,5 +1,5 @@
-const CACHE = 'fideliza-shell-v2';
-const SHELL = ['/', '/offline.html', '/manifest.webmanifest', '/icons/fideliza.svg'];
+const CACHE = 'fideliza-shell-v3';
+const SHELL = ['/', '/offline.html', '/manifest.webmanifest', '/icons/fideliza.svg', '/fideliza-plus.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));

@@ -4,7 +4,7 @@ import{api}from'./api';
 
 const money=(v=0)=>(v/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const date=(v?:string)=>v?new Date(v).toLocaleDateString('pt-BR'):'—';
-const statusName=(v:string)=>({active:'Ativa',trialing:'Em teste',suspended:'Suspensa',canceled:'Cancelada',pending:'Pendente',paid:'Paga',overdue:'Vencida'}as Record<string,string>)[v]||v;
+const statusName=(v?:string)=>v?(({active:'Ativa',trialing:'Em teste',suspended:'Suspensa',canceled:'Cancelada',pending:'Pendente',paid:'Paga',overdue:'Vencida'}as Record<string,string>)[v]||v):'Cadastro pendente';
 function Empty({children}:{children:string}){return <div className="pa-empty">{children}</div>}
 function Header({icon:Icon,title,text}:{icon:any,title:string,text:string}){return <div className="pa-workspace-title"><Icon/><div><h2>{title}</h2><p>{text}</p></div></div>}
 function SearchBox({value,onChange,placeholder='Pesquisar'}:{value:string,onChange:(v:string)=>void,placeholder?:string}){return <label className="pa-core-search"><Search/><input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}/></label>}
