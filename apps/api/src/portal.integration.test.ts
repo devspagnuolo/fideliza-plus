@@ -115,5 +115,31 @@ describe('portais separados do Fideliza+', () => {
     }).expect(204);
     await platform.delete(`/platform/modules/security/lgpd/${created.body.id}`).set('x-fideliza-request', 'web').expect(204);
     expect((await platform.get('/platform/modules/security/lgpd').expect(200)).body.records).toHaveLength(0);
+
+    const ticket = await platform.post('/platform/support/tickets').set('x-fideliza-request', 'web').send({
+      tenantId: 'tenant-portal-a', subject: 'Falha na integração', description: 'Sincronização precisa de análise.',
+      priority: 'high', assignedTo: 'Suporte N2', slaDueAt: '2026-08-21T12:00:00',
+    }).expect(201);
+    await platform.patch(`/platform/support/tickets/${ticket.body.id}`).set('x-fideliza-request', 'web').send({
+      status: 'resolved', priority: 'high', assignedTo: 'Suporte N2', slaDueAt: '2026-08-21T12:00:00',
+    }).expect(204);
+    expect(db.prepare('SELECT status,resolved_at FROM support_tickets WHERE id=?').get(ticket.body.id)).toEqual(
+      expect.objectContaining({ status: 'resolved', resolved_at: expect.any(String) }),
+    );
+
+    const incident = await platform.post('/platform/incidents').set('x-fideliza-request', 'web').send({
+      title: 'Latência elevada', description: 'API acima do limite operacional.', severity: 'critical',
+    }).expect(201);
+    await platform.patch(`/platform/incidents/${incident.body.id}`).set('x-fideliza-request', 'web').send({
+      status: 'resolved', severity: 'high', description: 'Capacidade normalizada e monitorada.',
+    }).expect(204);
+    expect(db.prepare('SELECT status,resolved_at FROM platform_incidents WHERE id=?').get(incident.body.id)).toEqual(
+      expect.objectContaining({ status: 'resolved', resolved_at: expect.any(String) }),
+    );
+
+    await platform.patch('/platform/settings').set('x-fideliza-request', 'web').send({
+      'branding.primary': '#0b2b5b', 'feature.customer_portal': 'true',
+    }).expect(204);
+    expect(db.prepare("SELECT value FROM global_settings WHERE key='branding.primary'").get()).toEqual({ value: '#0b2b5b' });
   });
 });
