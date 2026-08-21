@@ -77,8 +77,16 @@ CREATE INDEX IF NOT EXISTS idx_customer_accounts_tenant ON customer_accounts(ten
 db.prepare("INSERT OR IGNORE INTO subscriptions (id,tenant_id,plan_code,status) SELECT 'sub-'||id,id,'pilot','trialing' FROM tenants").run();
 ensureColumn('tenants', 'responsible_name', 'TEXT');
 ensureColumn('tenants', 'login_blocked', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('tenants', 'customer_portal_enabled', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('subscriptions', 'joined_at', 'TEXT');
 ensureColumn('users', 'mfa_required', 'INTEGER NOT NULL DEFAULT 0');
+const customerPortalRollout='2026-08-20-enable-vivi-customer-portal';
+if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(customerPortalRollout)){
+  db.transaction(()=>{
+    db.prepare("UPDATE tenants SET customer_portal_enabled=CASE WHEN slug='vivi-moda-plus-size' THEN 1 ELSE 0 END").run();
+    db.prepare('INSERT INTO migrations (name) VALUES (?)').run(customerPortalRollout);
+  })();
+}
 db.exec(`CREATE TABLE IF NOT EXISTS platform_plans (
   code TEXT PRIMARY KEY,name TEXT NOT NULL,monthly_price_cents INTEGER NOT NULL DEFAULT 0,
   user_limit INTEGER NOT NULL DEFAULT 1,consumer_limit INTEGER NOT NULL DEFAULT 100,

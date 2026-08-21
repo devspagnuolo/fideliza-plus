@@ -5,7 +5,14 @@ import { hashToken } from './security.js';
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.cookies?.fideliza_session as string | undefined;
   if (!token) return res.status(401).json({ error: 'Não autenticado' });
-  const row = db.prepare(`SELECT u.id userId, u.tenant_id tenantId, u.role, u.name FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at > datetime('now') AND u.active=1`).get(hashToken(token)) as Request['auth'];
+  const row = db.prepare(`SELECT u.id userId, u.tenant_id tenantId, u.role, u.name
+    FROM sessions s
+    JOIN users u ON u.id=s.user_id
+    JOIN tenants t ON t.id=u.tenant_id
+    LEFT JOIN subscriptions sub ON sub.tenant_id=t.id
+    WHERE s.token_hash=? AND s.expires_at > datetime('now') AND u.active=1
+      AND COALESCE(t.login_blocked,0)=0
+      AND COALESCE(sub.status,'trialing') IN ('active','trialing')`).get(hashToken(token)) as Request['auth'];
   if (!row) return res.status(401).json({ error: 'Sessão inválida' });
   req.auth = row; next();
 }

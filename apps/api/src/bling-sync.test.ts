@@ -80,19 +80,20 @@ describe('sincronização Bling',()=>{
   it('processa exclusão e ignora evento antigo recebido fora de ordem',async()=>{
     scenario='lifecycle';situationAccess=true;lifecycleStatus='active';lifecycleTotal=250;
     const payload=(eventId:string,event:string,date:string,data:object)=>JSON.stringify({eventId,date,version:'v1',event,companyId:'company',data});
-    db.prepare("INSERT INTO integration_webhook_events (id,provider,external_event_id,tenant_id,event_type,occurred_at,payload) VALUES (?,'bling',?,'lifecycle-tenant','order.deleted',?,?)").run('delete-event','delete-event','2026-08-21T12:00:00.000Z',payload('delete-event','order.deleted','2026-08-21T12:00:00.000Z',{id:30}));
+    const oldEventAt=new Date(Date.now()-86_400_000).toISOString(),deleteEventAt=new Date(Date.now()+86_400_000).toISOString(),manualOverrideAt=new Date(Date.now()+172_800_000).toISOString();
+    db.prepare("INSERT INTO integration_webhook_events (id,provider,external_event_id,tenant_id,event_type,occurred_at,payload) VALUES (?,'bling',?,'lifecycle-tenant','order.deleted',?,?)").run('delete-event','delete-event',deleteEventAt,payload('delete-event','order.deleted',deleteEventAt,{id:30}));
     expect(await syncBling('lifecycle-tenant')).toMatchObject({webhookEvents:1,reversedSales:1,adjustedPoints:250});
     expect((db.prepare("SELECT points_balance FROM customers WHERE id='lifecycle-customer'").get() as {points_balance:number}).points_balance).toBe(-150);
     expect((db.prepare("SELECT status FROM integration_webhook_events WHERE id='delete-event'").get() as {status:string}).status).toBe('processed');
     expect((db.prepare("SELECT order_number,total_cents FROM sales WHERE external_id='bling:30'").get() as {order_number:string;total_cents:number})).toEqual({order_number:'300',total_cents:25000});
 
-    db.prepare("INSERT INTO integration_webhook_events (id,provider,external_event_id,tenant_id,event_type,occurred_at,payload) VALUES (?,'bling',?,'lifecycle-tenant','order.updated',?,?)").run('old-event','old-event','2026-08-19T12:00:00.000Z',payload('old-event','order.updated','2026-08-19T12:00:00.000Z',{id:30,numero:300,data:'2026-08-10',total:250,contato:{id:30},situacao:{id:1,valor:0}}));
+    db.prepare("INSERT INTO integration_webhook_events (id,provider,external_event_id,tenant_id,event_type,occurred_at,payload) VALUES (?,'bling',?,'lifecycle-tenant','order.updated',?,?)").run('old-event','old-event',oldEventAt,payload('old-event','order.updated',oldEventAt,{id:30,numero:300,data:'2026-08-10',total:250,contato:{id:30},situacao:{id:1,valor:0}}));
     expect(await syncBling('lifecycle-tenant')).toMatchObject({webhookEvents:1,reinstatedSales:0,adjustedPoints:0});
     expect((db.prepare("SELECT points_balance FROM customers WHERE id='lifecycle-customer'").get() as {points_balance:number}).points_balance).toBe(-150);
     expect((db.prepare("SELECT reversed_at FROM sales WHERE external_id='bling:30'").get() as {reversed_at:string|null}).reversed_at).toBeTruthy();
 
     db.prepare("UPDATE sales SET reversal_source='manual' WHERE external_id='bling:30'").run();
-    db.prepare("INSERT INTO integration_webhook_events (id,provider,external_event_id,tenant_id,event_type,occurred_at,payload) VALUES (?,'bling',?,'lifecycle-tenant','order.updated',?,?)").run('manual-override-event','manual-override-event','2026-08-22T12:00:00.000Z',payload('manual-override-event','order.updated','2026-08-22T12:00:00.000Z',{id:30,numero:300,data:'2026-08-10',total:250,contato:{id:30},situacao:{id:1,valor:0}}));
+    db.prepare("INSERT INTO integration_webhook_events (id,provider,external_event_id,tenant_id,event_type,occurred_at,payload) VALUES (?,'bling',?,'lifecycle-tenant','order.updated',?,?)").run('manual-override-event','manual-override-event',manualOverrideAt,payload('manual-override-event','order.updated',manualOverrideAt,{id:30,numero:300,data:'2026-08-10',total:250,contato:{id:30},situacao:{id:1,valor:0}}));
     expect(await syncBling('lifecycle-tenant')).toMatchObject({webhookEvents:1,reinstatedSales:0,adjustedPoints:0});
     expect((db.prepare("SELECT reversed_at,reversal_source FROM sales WHERE external_id='bling:30'").get() as {reversed_at:string|null;reversal_source:string|null})).toMatchObject({reversal_source:'manual'});
   },20_000);

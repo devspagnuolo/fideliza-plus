@@ -49,6 +49,15 @@ describe('API multiempresa',()=>{
     await agent.post('/campaigns').send({name:'Campanha teste',channel:'email'}).expect(403);
   });
 
+  it('encerra o acesso do lojista quando a empresa é bloqueada',async()=>{
+    const agent=request.agent(app);
+    await agent.post('/auth/login').send({email:'owner-b@example.com',password:'Senha@123'}).expect(200);
+    db.prepare("UPDATE tenants SET login_blocked=1 WHERE id='tenant-b'").run();
+    await agent.get('/dashboard').expect(401);
+    await agent.post('/auth/login').send({email:'owner-b@example.com',password:'Senha@123'}).expect(401);
+    db.prepare("UPDATE tenants SET login_blocked=0 WHERE id='tenant-b'").run();
+  });
+
   it('mantém contrato legado e disponibiliza a API v1',async()=>{
     const legacy=request.agent(app),versioned=request.agent(app);
     await legacy.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);

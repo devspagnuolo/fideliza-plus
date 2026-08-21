@@ -14,7 +14,7 @@ function activationFor(tenantId:string) {
   const data=db.prepare(`SELECT
     (SELECT segment IS NOT NULL AND length(trim(segment))>0 FROM tenants WHERE id=?) profile,
     (SELECT COUNT(*) FROM users WHERE tenant_id=? AND active=1) users,
-    (SELECT COUNT(*) FROM customers WHERE tenant_id=?) customers,
+    (SELECT COUNT(*) FROM customers WHERE tenant_id=? AND deleted_at IS NULL AND enrolled_at IS NOT NULL AND cpf IS NOT NULL AND length(trim(name))>=2 AND length(COALESCE(phone,''))>=10) customers,
     (SELECT COUNT(*) FROM sales WHERE tenant_id=? AND reversed_at IS NULL) sales,
     (SELECT COUNT(*) FROM campaigns WHERE tenant_id=?) campaigns`).get(tenantId,tenantId,tenantId,tenantId,tenantId) as {profile:number;users:number;customers:number;sales:number;campaigns:number};
   const steps=[
@@ -33,7 +33,7 @@ growthRoutes.get('/onboarding',(req,res)=>res.json(activationFor(req.auth!.tenan
 growthRoutes.get('/dashboard',(req,res)=>{
   const tenantId=req.auth!.tenantId;
   const stats=db.prepare(`SELECT
-    (SELECT COUNT(*) FROM customers WHERE tenant_id=?) customers,
+    (SELECT COUNT(*) FROM customers WHERE tenant_id=? AND deleted_at IS NULL AND enrolled_at IS NOT NULL AND cpf IS NOT NULL AND length(trim(name))>=2 AND length(COALESCE(phone,''))>=10) customers,
     (SELECT COALESCE(SUM(total_cents),0) FROM sales WHERE tenant_id=? AND reversed_at IS NULL AND occurred_at>=datetime('now','-30 days')) revenueCents,
     (SELECT COUNT(*) FROM sales WHERE tenant_id=? AND reversed_at IS NULL AND occurred_at>=datetime('now','-30 days')) sales,
     (SELECT COUNT(DISTINCT customer_id) FROM sales WHERE tenant_id=? AND customer_id IS NOT NULL AND reversed_at IS NULL AND occurred_at>=datetime('now','-30 days')) activeCustomers`).get(tenantId,tenantId,tenantId,tenantId) as any;

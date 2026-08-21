@@ -17,8 +17,8 @@ const { app } = await import('./app.js');
 
 describe('portais separados do Fideliza+', () => {
   beforeAll(() => {
-    db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('tenant-portal-a', 'Loja Portal A', 'loja-a');
-    db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('tenant-portal-b', 'Loja Portal B', 'loja-b');
+    db.prepare('INSERT INTO tenants (id,name,slug,customer_portal_enabled) VALUES (?,?,?,1)').run('tenant-portal-a', 'Loja Portal A', 'loja-a');
+    db.prepare('INSERT INTO tenants (id,name,slug,customer_portal_enabled) VALUES (?,?,?,1)').run('tenant-portal-b', 'Loja Portal B', 'loja-b');
   });
 
   afterAll(() => {
@@ -34,6 +34,11 @@ describe('portais separados do Fideliza+', () => {
     expect(available.body.map((store: { slug: string }) => store.slug)).toEqual(['loja-a']);
     await request(app).get('/customer/store/loja-b').expect(404);
     db.prepare("UPDATE tenants SET login_blocked=0 WHERE id='tenant-portal-b'").run();
+    db.prepare("UPDATE tenants SET customer_portal_enabled=0 WHERE id='tenant-portal-b'").run();
+    const unpublished = await request(app).get('/customer/stores').expect(200);
+    expect(unpublished.body.map((store: { slug: string }) => store.slug)).not.toContain('loja-b');
+    await request(app).get('/customer/store/loja-b').expect(404);
+    db.prepare("UPDATE tenants SET customer_portal_enabled=1 WHERE id='tenant-portal-b'").run();
   });
 
   it('cadastra o consumidor na loja correta e isola sua sessão', async () => {
@@ -51,6 +56,7 @@ describe('portais separados do Fideliza+', () => {
     const me = await consumer.get('/customer/me').expect(200);
     expect(me.body).toMatchObject({ companyName: 'Loja Portal A', slug: 'loja-a' });
     expect((await consumer.get('/customer/dashboard').expect(200)).body.customer.name).toBe('Cliente Portal');
+    expect(db.prepare("SELECT status FROM outbound_messages WHERE tenant_id='tenant-portal-a' AND template='customer.welcome'").get()).toEqual({ status: 'queued' });
 
     const customerId = me.body.customerId;
     db.prepare('UPDATE customers SET points_balance=500 WHERE id=?').run(customerId);
@@ -80,6 +86,10 @@ describe('portais separados do Fideliza+', () => {
     await otherStore.post('/customer/auth/login').set('x-fideliza-request', 'web').send({
       tenantSlug: 'loja-b', cpf: '52998224725', password: 'Cliente@123',
     }).expect(401);
+
+    db.prepare("UPDATE tenants SET login_blocked=1 WHERE id='tenant-portal-a'").run();
+    await consumer.get('/customer/me').expect(401);
+    db.prepare("UPDATE tenants SET login_blocked=0 WHERE id='tenant-portal-a'").run();
   });
 
   it('provisiona o proprietário da plataforma e administra assinaturas', async () => {

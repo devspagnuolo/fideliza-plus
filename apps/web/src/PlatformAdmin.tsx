@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, BarChart3, Building2, ChevronDown, CreditCard, Headphones, LayoutDashboard, LockKeyhole, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Plug, RefreshCw, Search, Settings, Users, WalletCards, Wrench, X } from 'lucide-react';
+import { Activity, BarChart3, Building2, ChevronDown, CreditCard, Headphones, KeyRound, LayoutDashboard, LockKeyhole, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Plug, RefreshCw, Search, Settings, Users, WalletCards, Wrench, X } from 'lucide-react';
 import { api } from './api';
 import { PurposeAdminSubpage } from './AdminSubpages';
 import { CompaniesWorkspace, UsersWorkspace } from './AdminCoreWorkspaces';
@@ -53,6 +53,8 @@ export function PlatformAdmin() {
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(new Date());
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   const load = async () => {
     setRefreshing(true);
@@ -89,13 +91,24 @@ export function PlatformAdmin() {
     catch (reason) { setError((reason as Error).message); }
   }
 
+  async function changePassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setPasswordError('');
+    const values = Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>;
+    if (values.newPassword !== values.confirmPassword) return setPasswordError('A confirmação da nova senha não confere.');
+    try {
+      await api('/platform/me/password', { method: 'PUT', body: JSON.stringify({ currentPassword: values.currentPassword, newPassword: values.newPassword }) });
+      setPasswordOpen(false); setNotice('Senha administrativa alterada. As demais sessões foram encerradas.');
+    } catch (reason) { setPasswordError((reason as Error).message); }
+  }
+
   if (admin === undefined) return <main className="pa-loading"><BrandLogo full /><span>Validando acesso administrativo...</span></main>;
   if (!admin) return <main className="admin-login"><section><BrandLogo full /><small>ADMINISTRAÇÃO DA PLATAFORMA</small><h1>Central Fideliza Plus</h1><p>Gestão segura de empresas, receita e operação SaaS.</p><form onSubmit={login}><label>E-mail<input name="email" type="email" autoComplete="username" required /></label><label>Senha<input name="password" type="password" autoComplete="current-password" minLength={10} required /></label>{error && <div className="error">{error}</div>}<button>Entrar no painel</button></form><a href="/acesso">Voltar para a seleção de acesso</a></section></main>;
   if (!dash || !all) return <main className="pa-loading"><BrandLogo full /><span>Preparando a central de comando...</span></main>;
 
   const current = menu.find(item => item.id === page)!;
   const core = ['companies', 'users'].includes(page);
-  const advanced = ['finance', 'plans', 'integrations', 'operations', 'monitoring', 'security', 'support', 'settings'].includes(page);
+  const advanced = ['finance', 'plans', 'integrations', 'operations', 'monitoring', 'security', 'support', 'settings'].includes(page)
+    || (page === 'analytics' && subpage === 'Relatórios personalizados');
   const executive = page === 'dashboard' && subpage === 'Visão geral';
 
   return <main className={`pa-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
@@ -103,7 +116,7 @@ export function PlatformAdmin() {
       <div className="pa-logo"><BrandLogo compact={collapsed} inverse context="Administração SaaS" /><button className="pa-collapse" title={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => { const next = !collapsed; setCollapsed(next); localStorage.setItem('fideliza_admin_sidebar', next ? 'collapsed' : 'expanded'); }}>{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}</button><button className="pa-mobile-close" onClick={() => setMobile(false)} aria-label="Fechar menu"><X /></button></div>
       <button className="pa-nav-search" onClick={() => setSearchOpen(true)}><Search /><span>Localizar módulo</span><kbd>Ctrl K</kbd></button>
       <nav aria-label="Módulos administrativos">{menu.map(item => { const Icon = item.icon, open = !!expanded[item.id], groupId = `admin-menu-${item.id}`; return <div className="pa-nav-group" key={item.id}><button type="button" className={page === item.id ? 'active' : ''} title={item.label} aria-expanded={open} aria-controls={groupId} onClick={() => toggleMenuGroup(item.id, item.children[0])}><Icon /><span>{item.label}</span><ChevronDown className={open ? 'rotated' : ''} /></button>{open && <div className="pa-subnav" id={groupId}>{item.children.map(child => <button type="button" className={page === item.id && subpage === child ? 'selected' : ''} onClick={() => navigate(item.id, child)} key={child}>{child}</button>)}</div>}</div>; })}</nav>
-      <div className="pa-user"><span>{String(admin.name || 'A')[0]}</span><div><b>{admin.name}</b><small>{admin.role === 'super_admin' ? 'Super Admin' : admin.role}</small></div><button title="Sair" onClick={async () => { await api('/platform/auth/logout', { method: 'POST' }); location.reload(); }}><LogOut /></button></div>
+      <div className="pa-user"><span>{String(admin.name || 'A')[0]}</span><div><b>{admin.name}</b><small>{admin.role === 'super_admin' ? 'Super Admin' : admin.role}</small></div><button title="Alterar senha" onClick={() => { setPasswordError(''); setPasswordOpen(true); }}><KeyRound /></button><button title="Sair" onClick={async () => { await api('/platform/auth/logout', { method: 'POST' }); location.reload(); }}><LogOut /></button></div>
     </aside>
     {mobile && <button aria-label="Fechar menu" className="pa-backdrop" onClick={() => setMobile(false)} />}
 
@@ -118,6 +131,7 @@ export function PlatformAdmin() {
     </section>
 
     {searchOpen && <><button className="pa-search-backdrop" onClick={() => setSearchOpen(false)} aria-label="Fechar busca" /><section className="pa-command-search" role="dialog" aria-modal="true" aria-label="Localizar módulo"><header><Search /><input autoFocus value={search} onChange={event => setSearch(event.target.value)} placeholder="Digite uma página, indicador ou configuração..." /><kbd>ESC</kbd></header><div>{searchResults.map(result => <button key={`${result.page}-${result.child}`} onClick={() => navigate(result.page, result.child)}><span><b>{result.child}</b><small>{result.parent}</small></span><ArrowResult /></button>)}</div><footer>Use a busca para navegar rapidamente por toda a administração.</footer></section></>}
+    {passwordOpen && <><button className="pa-password-backdrop" onClick={() => setPasswordOpen(false)} aria-label="Fechar alteração de senha"/><section className="pa-password-modal" role="dialog" aria-modal="true" aria-label="Alterar senha administrativa"><header><div><small>SEGURANÇA DA CONTA</small><h2>Alterar senha</h2></div><button type="button" onClick={() => setPasswordOpen(false)} aria-label="Fechar"><X/></button></header><form onSubmit={changePassword}><label>Senha atual<input name="currentPassword" type="password" autoComplete="current-password" minLength={10} required/></label><label>Nova senha<input name="newPassword" type="password" autoComplete="new-password" minLength={12} required/><small>Use maiúscula, minúscula, número e símbolo.</small></label><label>Confirmar nova senha<input name="confirmPassword" type="password" autoComplete="new-password" minLength={12} required/></label>{passwordError&&<div className="error">{passwordError}</div>}<button>Salvar nova senha</button></form></section></>}
   </main>;
 }
 

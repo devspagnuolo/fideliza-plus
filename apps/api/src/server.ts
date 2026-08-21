@@ -1,11 +1,14 @@
 import './database/migrate.js';
-import './database/seed.js';
 import { app } from './app.js';
 import { config } from './config.js';
 import { db } from './database/db.js';
 import { startBackupSchedule, stopBackupSchedule } from './database/backup-schedule.js';
 import { startWorker } from './worker.js';
 import { startAutomationSchedule } from './automation-schedule.js';
+
+if (!config.isProduction || process.env.SEED_DEMO_DATA === 'true') {
+  await import('./database/seed.js');
+}
 
 const server = app.listen(config.port, () => console.log(`Fideliza+ API em http://localhost:${config.port}`));
 const worker = startWorker();
