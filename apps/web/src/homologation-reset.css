@@ -1,0 +1,7 @@
+.pa-reset-zone{margin-top:18px;border:1px solid #f1bcc4!important;background:#fff8f9!important}
+.pa-reset-zone h3{color:#9e2438}.pa-reset-zone p{color:#75545b;line-height:1.5}
+.pa-reset-zone>button.danger,.pa-reset-zone form>button.danger{border:1px solid #d7475f;background:#fff;color:#b62d45;border-radius:10px;padding:10px 13px;font-weight:800}
+.pa-reset-zone form{display:grid;gap:11px;margin-top:15px;padding-top:15px;border-top:1px solid #f1d6da}
+.pa-reset-zone form label{display:grid;gap:6px;color:#5f3039;font-size:12px;font-weight:800}
+.pa-reset-zone form input{border:1px solid #dfc2c7;border-radius:9px;background:#fff;padding:11px}
+.pa-reset-zone form>button.danger{background:#b62d45;color:#fff}

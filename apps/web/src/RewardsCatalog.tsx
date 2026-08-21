@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArchiveRestore, Gift, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { api } from './api';
 import './rewards.css';
+import './coupon-validation.css';
 
 type Reward = { id: string; name: string; description?: string; points_cost: number; stock: number | null; active: number; redemptions: number };
 type Customer = { id: string; name: string; points_balance: number };
+type Redemption = { id: string; reward_name: string; customer_name: string; customer_cpf?: string; points_spent: number; status: string; redemption_code?: string; order_number?: string; used_at?: string; created_at: string };
 type Filter = 'active' | 'archived' | 'all';
 
 function RewardForm({ reward, onCancel, onSaved }: { reward?: Reward; onCancel: () => void; onSaved: (message: string) => void }) {
@@ -51,14 +53,16 @@ function RewardForm({ reward, onCancel, onSaved }: { reward?: Reward; onCancel: 
 export function RewardsCatalog() {
   const [items, setItems] = useState<Reward[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [redemptions, setRedemptions] = useState<Redemption[]>([]);
   const [editing, setEditing] = useState<Reward | 'new' | null>(null);
   const [filter, setFilter] = useState<Filter>('active');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const load = async () => {
-    const [rewards, customerList] = await Promise.all([api<Reward[]>('/rewards'), api<Customer[]>('/customers')]);
+    const [rewards, customerList, redemptionList] = await Promise.all([api<Reward[]>('/rewards'), api<Customer[]>('/customers'), api<Redemption[]>('/reward-redemptions')]);
     setItems(rewards);
     setCustomers(customerList);
+    setRedemptions(redemptionList);
   };
   useEffect(() => { load().catch(reason => setError((reason as Error).message)); }, []);
   const visible = useMemo(() => items.filter(item => filter === 'all' || (filter === 'active' ? item.active : !item.active)), [items, filter]);
@@ -94,6 +98,18 @@ export function RewardsCatalog() {
       await saved('Recompensa reativada e disponível novamente.');
     } catch (reason) { setError((reason as Error).message); }
   }
+  async function validateCoupon(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = Object.fromEntries(new FormData(form));
+    try {
+      const result = await api<{ reward: string; customer: string; orderNumber: string }>('/reward-redemptions/validate', { method: 'POST', body: JSON.stringify(values) });
+      setMessage(`${result.reward} utilizado por ${result.customer} e vinculado ao pedido ${result.orderNumber}.`);
+      setError('');
+      form.reset();
+      await load();
+    } catch (reason) { setError((reason as Error).message); }
+  }
 
   return <section className="panel rewards">
     <div className="panel-title reward-title">
@@ -111,6 +127,11 @@ export function RewardsCatalog() {
     </div>
     {message && <div className="campaign-feedback">{message}</div>}
     {error && <div className="reward-error">{error}</div>}
+    <section className="reward-validation">
+      <div><small>VALIDAÇÃO NO CAIXA</small><h3>Utilizar cupom por código</h3><p>Informe o código apresentado pelo cliente e vincule o benefício ao pedido de venda.</p></div>
+      <form onSubmit={validateCoupon}><label>Código do cupom<input name="code" placeholder="FZ-XXXXXXXX" autoComplete="off" required/></label><label>Número do pedido<input name="orderNumber" placeholder="Ex.: 25781" required/></label><button>Validar e vincular</button></form>
+    </section>
+    <section className="reward-redemption-log"><header><div><small>HISTÓRICO AUDITÁVEL</small><h3>Resgates recentes</h3></div><span>{redemptions.length} registro(s)</span></header>{redemptions.length?redemptions.slice(0,20).map(item=><div key={item.id}><span><b>{item.reward_name}</b><small>{item.customer_name}{item.customer_cpf?` · CPF final ${item.customer_cpf.slice(-4)}`:''}</small></span><span className={`reward-use-status ${item.status}`}>{item.status==='confirmed'?'Disponível':item.status==='ready_for_use'?'Aguardando caixa':item.status==='used'?'Utilizado':item.status}</span><span><b>{item.redemption_code||'Código não gerado'}</b><small>{item.order_number?`Pedido ${item.order_number}`:new Date(item.created_at).toLocaleDateString('pt-BR')}</small></span></div>):<p>Nenhum resgate registrado.</p>}</section>
     <div className="reward-grid">
       {visible.map(item => <article key={item.id} className={!item.active ? 'archived' : ''}>
         <header><span className={item.active ? 'reward-status active' : 'reward-status'}>{item.active ? 'Ativa' : 'Arquivada'}</span><span>{item.redemptions || 0} resgate(s)</span></header>

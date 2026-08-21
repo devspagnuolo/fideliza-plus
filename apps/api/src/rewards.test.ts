@@ -17,7 +17,9 @@ describe('catálogo de recompensas', () => {
     db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('reward-a', 'Vivi Moda', 'reward-a');
     db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('reward-b', 'Outra Loja', 'reward-b');
     db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('reward-owner', 'reward-a', 'Viviane', 'rewards@example.com', hashPassword('Senha@123'), 'owner');
-    db.prepare('INSERT INTO customers (id,tenant_id,name,points_balance) VALUES (?,?,?,?)').run('reward-customer', 'reward-a', 'Cliente Fiel', 200);
+    db.prepare('INSERT INTO customers (id,tenant_id,name,cpf,phone,points_balance,enrolled_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)').run('reward-customer', 'reward-a', 'Cliente Fiel', '52998224725', '11999990001', 200);
+    db.prepare('UPDATE tenants SET customer_portal_enabled=1 WHERE id=?').run('reward-a');
+    db.prepare('INSERT INTO customer_accounts(id,tenant_id,customer_id,password_hash)VALUES(?,?,?,?)').run('reward-account','reward-a','reward-customer',hashPassword('Cliente@123'));
     db.prepare('INSERT INTO customers (id,tenant_id,name,points_balance) VALUES (?,?,?,?)').run('reward-other', 'reward-b', 'Outro Cliente', 500);
     db.prepare("INSERT INTO rewards (id,tenant_id,name,points_cost,stock) VALUES ('reward-other-tenant','reward-b','Outro prêmio',100,2)").run();
   });
@@ -38,6 +40,17 @@ describe('catálogo de recompensas', () => {
     expect((db.prepare("SELECT points_balance FROM customers WHERE id='reward-customer'").get() as { points_balance: number }).points_balance).toBe(50);
     expect((db.prepare('SELECT stock FROM rewards WHERE id=?').get(reward.body.id) as { stock: number }).stock).toBe(0);
     expect((db.prepare('SELECT COUNT(*) total FROM reward_redemptions').get() as { total: number }).total).toBe(1);
+
+    const customer = request.agent(app);
+    await customer.post('/customer/auth/login').set('x-fideliza-request', 'web').send({ tenantSlug: 'reward-a', cpf: '52998224725', password: 'Cliente@123' }).expect(200);
+    const released = await customer.post(`/customer/redemptions/${redeemed.body.id}/use`).set('x-fideliza-request', 'web').send({}).expect(200);
+    expect(released.body.code).toMatch(/^FZ-[A-F0-9]{8}$/);
+    const repeated = await customer.post(`/customer/redemptions/${redeemed.body.id}/use`).set('x-fideliza-request', 'web').send({}).expect(200);
+    expect(repeated.body.code).toBe(released.body.code);
+
+    await owner.post('/reward-redemptions/validate').set('x-fideliza-request', 'web').send({ code: released.body.code, orderNumber: '25781' }).expect(200);
+    await owner.post('/reward-redemptions/validate').set('x-fideliza-request', 'web').send({ code: released.body.code, orderNumber: '25782' }).expect(409);
+    expect(db.prepare('SELECT status,order_number,used_by,used_at FROM reward_redemptions WHERE id=?').get(redeemed.body.id)).toMatchObject({ status: 'used', order_number: '25781', used_by: 'reward-owner' });
   });
 
   it('edita, exclui e arquiva recompensas preservando histórico e isolamento', async () => {

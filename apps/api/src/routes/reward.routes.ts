@@ -106,4 +106,28 @@ rewardRoutes.post('/rewards/:id/redeem', (req, res) => {
   }
 });
 
-rewardRoutes.get('/reward-redemptions', (req, res) => res.json(db.prepare('SELECT rr.id,rr.points_spent,rr.status,rr.created_at,r.name reward_name,c.name customer_name FROM reward_redemptions rr JOIN rewards r ON r.id=rr.reward_id JOIN customers c ON c.id=rr.customer_id WHERE rr.tenant_id=? ORDER BY rr.created_at DESC LIMIT 100').all(req.auth!.tenantId)));
+rewardRoutes.get('/reward-redemptions', (req, res) => res.json(db.prepare(`SELECT rr.id,rr.points_spent,rr.status,rr.redemption_code,rr.code_generated_at,rr.used_at,rr.order_number,rr.created_at,r.name reward_name,c.name customer_name,c.cpf customer_cpf,u.name used_by_name FROM reward_redemptions rr JOIN rewards r ON r.id=rr.reward_id JOIN customers c ON c.id=rr.customer_id LEFT JOIN users u ON u.id=rr.used_by WHERE rr.tenant_id=? ORDER BY rr.created_at DESC LIMIT 200`).all(req.auth!.tenantId)));
+
+rewardRoutes.post('/reward-redemptions/validate', requireRole('owner', 'manager', 'operator'), (req, res) => {
+  const parsed = z.object({ code: z.string().trim().min(8).max(20), orderNumber: z.string().trim().min(1).max(80) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Informe o código e o número do pedido' });
+  const code = parsed.data.code.replace(/\s/g, '').toUpperCase();
+  try {
+    const result = db.transaction(() => {
+      const redemption = db.prepare(`SELECT rr.id,rr.status,rr.used_at,r.name reward_name,c.name customer_name FROM reward_redemptions rr JOIN rewards r ON r.id=rr.reward_id JOIN customers c ON c.id=rr.customer_id WHERE rr.tenant_id=? AND upper(rr.redemption_code)=?`).get(req.auth!.tenantId, code) as any;
+      if (!redemption) throw new Error('NOT_FOUND');
+      if (redemption.status === 'used') throw new Error('USED');
+      if (redemption.status !== 'ready_for_use') throw new Error('STATUS');
+      const update = db.prepare("UPDATE reward_redemptions SET status='used',used_at=CURRENT_TIMESTAMP,used_by=?,order_number=? WHERE id=? AND tenant_id=? AND status='ready_for_use'").run(req.auth!.userId, parsed.data.orderNumber, redemption.id, req.auth!.tenantId);
+      if (!update.changes) throw new Error('RACE');
+      return { id: redemption.id, reward: redemption.reward_name, customer: redemption.customer_name, orderNumber: parsed.data.orderNumber, status: 'used' };
+    })();
+    audit(req.auth!.tenantId, req.auth!.userId, 'use', 'reward_redemption', result.id, { code, orderNumber: result.orderNumber });
+    res.json(result);
+  } catch (error) {
+    const code = (error as Error).message;
+    if (code === 'NOT_FOUND') return res.status(404).json({ error: 'Código não encontrado para esta loja' });
+    if (code === 'USED') return res.status(409).json({ error: 'Este código já foi utilizado' });
+    return res.status(409).json({ error: 'Código ainda não liberado ou em processamento' });
+  }
+});

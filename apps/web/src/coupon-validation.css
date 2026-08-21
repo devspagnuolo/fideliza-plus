@@ -1,0 +1,15 @@
+.reward-validation{margin-top:18px;border-radius:17px;padding:20px;background:linear-gradient(125deg,#072442,#075b68);color:#fff;display:grid;grid-template-columns:1fr 1.4fr;gap:24px;align-items:end}
+.reward-validation small,.reward-redemption-log>header small{color:#2dd4c8;font-weight:850;letter-spacing:.1em}
+.reward-validation h3{font-size:22px;margin:5px 0}.reward-validation p{color:#c8dde3;margin:0}
+.reward-validation form{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+.reward-validation label{display:grid;gap:6px;font-size:11px;font-weight:800}
+.reward-validation input{min-width:0;border:1px solid #ffffff42;border-radius:10px;padding:11px;background:#fff;color:#071a37;text-transform:uppercase}
+.reward-validation button{border:0;border-radius:10px;background:#15b9ad;color:#fff;padding:12px 15px;font-weight:850;white-space:nowrap}
+.reward-redemption-log{margin-top:18px;border:1px solid #dfe8eb;border-radius:16px;background:#fff;overflow:hidden}
+.reward-redemption-log>header,.reward-redemption-log>div{display:grid;grid-template-columns:1.5fr .8fr 1fr;gap:15px;align-items:center;padding:14px 18px;border-bottom:1px solid #e8edef}
+.reward-redemption-log>header{grid-template-columns:1fr auto}.reward-redemption-log h3{margin:4px 0 0;color:#071a37}.reward-redemption-log>header>span{color:#71808c}
+.reward-redemption-log>div:last-child{border-bottom:0}.reward-redemption-log>div>span{display:grid;gap:3px}.reward-redemption-log small{color:#71808c}
+.reward-use-status{justify-self:start;border-radius:20px;padding:6px 9px;background:#eef1f3;color:#586978;font-weight:800;font-size:11px}
+.reward-use-status.ready_for_use{background:#fff3cf;color:#8b6610}.reward-use-status.used{background:#e3f8f1;color:#087d67}
+@media(max-width:1050px){.reward-validation{grid-template-columns:1fr}}
+@media(max-width:720px){.reward-validation form{grid-template-columns:1fr}.reward-redemption-log>div{grid-template-columns:1fr}.reward-redemption-log>header{grid-template-columns:1fr auto}.reward-use-status{justify-self:start}}

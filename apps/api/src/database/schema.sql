@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS rewards (
 CREATE TABLE IF NOT EXISTS reward_redemptions (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), reward_id TEXT NOT NULL REFERENCES rewards(id),
   customer_id TEXT NOT NULL REFERENCES customers(id), points_spent INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'confirmed',
-  redeemed_by TEXT REFERENCES users(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  redeemed_by TEXT REFERENCES users(id), redemption_code TEXT, code_generated_at TEXT, used_at TEXT,
+  used_by TEXT REFERENCES users(id), order_number TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS campaigns (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, audience_rule TEXT NOT NULL DEFAULT '{}',
@@ -122,6 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_tenant_date ON sales(tenant_id, occurred_at
 CREATE INDEX IF NOT EXISTS idx_ledger_tenant_customer ON loyalty_ledger(tenant_id, customer_id);
 CREATE INDEX IF NOT EXISTS idx_rewards_tenant_active ON rewards(tenant_id,active);
 CREATE INDEX IF NOT EXISTS idx_redemptions_tenant_customer ON reward_redemptions(tenant_id,customer_id,created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_redemptions_code ON reward_redemptions(redemption_code) WHERE redemption_code IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_promotions_tenant_period ON loyalty_promotions(tenant_id, active, starts_at, ends_at);
 CREATE INDEX IF NOT EXISTS idx_gie_tenant_status ON gie_recommendations(tenant_id, status, priority);
 CREATE INDEX IF NOT EXISTS idx_deliveries_tenant_status ON campaign_deliveries(tenant_id, status, created_at);
