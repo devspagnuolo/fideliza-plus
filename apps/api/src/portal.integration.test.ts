@@ -53,13 +53,21 @@ describe('portais separados do Fideliza+', () => {
       cpf: '529.982.247-25',
       phone: '(11) 99999-9999',
       email: 'cliente@portal.test',
-      password: 'Cliente@123',
+      password: '  Cliente@123  ',
       acceptTerms: true,
     }).expect(201);
 
     const me = await consumer.get('/customer/me').expect(200);
     expect(me.body).toMatchObject({ companyName: 'Loja Portal A', slug: 'loja-a' });
     expect((await consumer.get('/customer/dashboard').expect(200)).body.customer.name).toBe('Cliente Portal');
+
+    // O cadastro abre uma sessão automaticamente, portanto validamos também
+    // um novo login sem cookies para garantir que a senha digitada foi persistida corretamente.
+    const freshLogin = request.agent(app);
+    await freshLogin.post('/customer/auth/login').set('x-fideliza-request', 'web').send({
+      tenantSlug: 'loja-a', cpf: '52998224725', password: 'Cliente@123',
+    }).expect(200);
+    expect((await freshLogin.get('/customer/me').expect(200)).body.customerId).toBe(me.body.customerId);
     expect(db.prepare("SELECT status FROM outbound_messages WHERE tenant_id='tenant-portal-a' AND template='customer.welcome'").get()).toEqual({ status: 'queued' });
     expect(db.prepare("SELECT document_version,privacy_version,source FROM customer_consents WHERE tenant_id='tenant-portal-a' AND purpose='loyalty'").get()).toEqual({ document_version: '2026-08-22', privacy_version: '2026-08-22', source: 'customer_portal' });
 
