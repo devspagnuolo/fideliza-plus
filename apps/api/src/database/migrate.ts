@@ -47,6 +47,10 @@ ensureColumn('customers', 'status', "TEXT NOT NULL DEFAULT 'active'");
 ensureColumn('customers', 'updated_at', 'TEXT');
 ensureColumn('customers', 'enrolled_at', 'TEXT');
 ensureColumn('customers', 'deleted_at', 'TEXT');
+ensureColumn('customer_consents', 'document_version', 'TEXT');
+ensureColumn('customer_consents', 'privacy_version', 'TEXT');
+ensureColumn('customer_consents', 'ip_address', 'TEXT');
+ensureColumn('customer_consents', 'user_agent', 'TEXT');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_external ON customers(tenant_id,external_id) WHERE external_id IS NOT NULL');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_cpf ON users(tenant_id,cpf) WHERE cpf IS NOT NULL');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_cnpj ON tenants(cnpj) WHERE cnpj IS NOT NULL');
@@ -189,7 +193,7 @@ CREATE TABLE IF NOT EXISTS billing_events(
 CREATE TABLE IF NOT EXISTS outbound_messages(
   id TEXT PRIMARY KEY,tenant_id TEXT REFERENCES tenants(id),recipient TEXT NOT NULL,channel TEXT NOT NULL,template TEXT NOT NULL,
   subject TEXT,message TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'queued',external_id TEXT,error TEXT,scheduled_at TEXT,
-  sent_at TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  sent_at TEXT,attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS customer_verifications(
   id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
@@ -199,6 +203,7 @@ CREATE TABLE IF NOT EXISTS customer_verifications(
 CREATE INDEX IF NOT EXISTS idx_access_logs_date ON platform_access_logs(created_at,user_type);
 CREATE INDEX IF NOT EXISTS idx_billing_events_tenant ON billing_events(tenant_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_outbound_status ON outbound_messages(status,scheduled_at);`);
+ensureColumn('outbound_messages', 'attempts', 'INTEGER NOT NULL DEFAULT 0');
 db.exec(`CREATE TABLE IF NOT EXISTS platform_module_records(
  id TEXT PRIMARY KEY,module TEXT NOT NULL,section TEXT NOT NULL,tenant_id TEXT REFERENCES tenants(id),title TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',priority TEXT NOT NULL DEFAULT 'medium',owner TEXT,due_at TEXT,payload TEXT NOT NULL DEFAULT '{}',created_by TEXT REFERENCES platform_admins(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

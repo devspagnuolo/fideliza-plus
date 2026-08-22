@@ -6,6 +6,7 @@ import { CompaniesWorkspace, UsersWorkspace } from './AdminCoreWorkspaces';
 import { AdvancedWorkspace } from './AdminWorkspaceRouter';
 import { AdminExecutiveDashboard } from './AdminExecutiveDashboard';
 import { BrandLogo } from './BrandLogo';
+import { LegalFooter } from './LegalPages';
 import './platform-admin.css';
 
 const menu = [
@@ -102,7 +103,7 @@ export function PlatformAdmin() {
   }
 
   if (admin === undefined) return <main className="pa-loading"><BrandLogo full /><span>Validando acesso administrativo...</span></main>;
-  if (!admin) return <main className="admin-login"><section><BrandLogo full /><small>ADMINISTRAÇÃO DA PLATAFORMA</small><h1>Central Fideliza Plus</h1><p>Gestão segura de empresas, receita e operação SaaS.</p><form onSubmit={login}><label>E-mail<input name="email" type="email" autoComplete="username" required /></label><label>Senha<input name="password" type="password" autoComplete="current-password" minLength={10} required /></label>{error && <div className="error">{error}</div>}<button>Entrar no painel</button></form><a href="/acesso">Voltar para a seleção de acesso</a></section></main>;
+  if (!admin) return <main className="admin-login"><section><BrandLogo full /><small>ADMINISTRAÇÃO DA PLATAFORMA</small><h1>Central Fideliza Plus</h1><p>Gestão segura de empresas, receita e operação SaaS.</p><form onSubmit={login}><label>E-mail<input name="email" type="email" autoComplete="username" required /></label><label>Senha<input name="password" type="password" autoComplete="current-password" minLength={10} required /></label>{error && <div className="error">{error}</div>}<button>Entrar no painel</button></form><a href="/acesso">Voltar para a seleção de acesso</a><LegalFooter compact /></section></main>;
   if (!dash || !all) return <main className="pa-loading"><BrandLogo full /><span>Preparando a central de comando...</span></main>;
 
   const current = menu.find(item => item.id === page)!;

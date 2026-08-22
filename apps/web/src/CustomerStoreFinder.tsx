@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Search, ShieldCheck, Store } from 'lucide-react';
 import { api } from './api';
 import { BrandLogo } from './BrandLogo';
+import { LegalFooter } from './LegalPages';
 import './customer-store-finder.css';
 
 type StoreProgram = { name: string; slug: string; segment?: string; logoData?: string };
@@ -40,6 +41,7 @@ export function CustomerStoreFinder() {
         {!loading && !error && !visible.length && <div className="store-message"><Store /><b>Nenhuma loja encontrada</b><span>Confira o nome informado ou solicite o link à loja.</span></div>}
       </div>
       <footer><ShieldCheck /> Seus dados e seu saldo ficam separados e protegidos em cada loja.</footer>
+      <LegalFooter compact />
     </section>
   </main>;
 }

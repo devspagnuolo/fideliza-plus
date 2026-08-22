@@ -109,7 +109,9 @@ CREATE TABLE IF NOT EXISTS units (
 );
 CREATE TABLE IF NOT EXISTS customer_consents (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-  purpose TEXT NOT NULL, granted INTEGER NOT NULL, source TEXT NOT NULL DEFAULT 'manual', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  purpose TEXT NOT NULL, granted INTEGER NOT NULL, source TEXT NOT NULL DEFAULT 'manual',
+  document_version TEXT, privacy_version TEXT, ip_address TEXT, user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS audit_logs (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), user_id TEXT REFERENCES users(id), action TEXT NOT NULL,

@@ -57,6 +57,7 @@ describe('portais separados do Fideliza+', () => {
     expect(me.body).toMatchObject({ companyName: 'Loja Portal A', slug: 'loja-a' });
     expect((await consumer.get('/customer/dashboard').expect(200)).body.customer.name).toBe('Cliente Portal');
     expect(db.prepare("SELECT status FROM outbound_messages WHERE tenant_id='tenant-portal-a' AND template='customer.welcome'").get()).toEqual({ status: 'queued' });
+    expect(db.prepare("SELECT document_version,privacy_version,source FROM customer_consents WHERE tenant_id='tenant-portal-a' AND purpose='loyalty'").get()).toEqual({ document_version: '2026-08-22', privacy_version: '2026-08-22', source: 'customer_portal' });
 
     const customerId = me.body.customerId;
     db.prepare('UPDATE customers SET points_balance=500 WHERE id=?').run(customerId);

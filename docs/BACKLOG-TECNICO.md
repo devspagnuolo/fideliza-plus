@@ -59,4 +59,4 @@ Créditos novos recebem validade configurável por empresa e podem ser expirados
 - backup e restauração testados;
 - trilha de auditoria para dados e pontos;
 - métricas de ativação, retenção e receita atribuída disponíveis;
-- termos, política de privacidade e processos LGPD aprovados.
+- revisão e aprovação jurídica das páginas já publicadas de Termos, Política de Privacidade, Cookies e Programa de Fidelidade.

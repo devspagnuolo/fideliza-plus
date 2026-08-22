@@ -34,9 +34,10 @@ A cobrança automática ainda não movimenta dinheiro. A próxima etapa é conec
 
 ## Pendências antes da abertura pública
 
+- realizar revisão jurídica final dos documentos públicos em `/privacidade`, `/termos`, `/termos-programa` e `/cookies`;
+
 - verificação do telefone do consumidor por código temporário;
 - recuperação de senha específica do consumidor e do administrador da plataforma;
-- aceite versionado de termos e política de privacidade;
 - provedor de pagamento e conciliação de cobranças;
 - trilha de auditoria dedicada às mudanças de assinatura;
 - suporte a múltiplos administradores da plataforma com 2FA;

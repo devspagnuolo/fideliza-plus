@@ -1,5 +1,6 @@
 import { Building2, ChevronRight, ShieldCheck, Users } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
+import { LegalFooter } from './LegalPages';
 import './access-hub.css';
 
 export function AccessHub() {
@@ -13,5 +14,6 @@ export function AccessHub() {
       <a href="/admin"><ShieldCheck /><span><b>Administro a plataforma</b><small>Empresas, assinaturas, segurança e operação SaaS.</small></span><ChevronRight /></a>
       <a href="/cliente"><Users /><span><b>Sou cliente</b><small>Encontre sua loja e acesse pontos, extrato e recompensas.</small></span><ChevronRight /></a>
     </div>
+    <LegalFooter compact />
   </section></main>;
 }

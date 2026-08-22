@@ -50,6 +50,8 @@ Essa credencial é somente para desenvolvimento. API: `http://localhost:3333`; s
 
 Em produção, os acessos oficiais são `https://fidelizaplus.com.br` para empresas, `https://fidelizaplus.com.br/cliente/vivi-moda-plus-size` para consumidores da loja piloto e `https://fidelizaplus.com.br/admin` para a administração central do Fideliza+. Localmente, use `http://localhost:5173`, mantendo os mesmos caminhos. Configure as variáveis `PLATFORM_ADMIN_*` antes do primeiro acesso administrativo. Consulte `docs/PORTAIS-E-ASSINATURAS.md`.
 
+Os documentos públicos estão disponíveis em `/privacidade`, `/termos`, `/termos-programa` e `/cookies`. O cadastro de consumidores registra a versão aceita dos Termos do Programa e da Política de Privacidade, além da data, origem e evidências técnicas do aceite.
+
 Novas integrações devem usar o prefixo versionado `/api/v1` (por exemplo, `GET /api/v1/customers`). As rotas sem prefixo permanecem compatíveis com a interface atual durante a transição.
 
 Integrações externas podem usar `GET /public/v1/customers` e `GET /public/v1/sales` com `Authorization: Bearer fz_live_...`. A chave é exibida somente na criação, armazenada como hash, limitada a 120 requisições por minuto e pode ser revogada nas configurações.
