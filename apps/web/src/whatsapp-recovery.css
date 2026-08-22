@@ -1,0 +1,53 @@
+.recovery-channels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.recovery-channels button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  border: 1px solid #d7deea;
+  border-radius: 12px;
+  background: #fff;
+  color: #526078;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+.recovery-channels button.active {
+  border-color: #0a9d94;
+  background: #e8faf6;
+  color: #087f7a;
+  box-shadow: inset 0 0 0 1px #0a9d94;
+}
+.recovery-channels svg { width: 19px; }
+.customer-recovery .recovery-consent {
+  display: flex;
+  grid-template-columns: none;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f5f8fb;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.customer-recovery .recovery-consent input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.recovery-change {
+  display: block;
+  margin: 15px auto 0;
+  border: 0;
+  background: transparent;
+  color: #087f7a;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}

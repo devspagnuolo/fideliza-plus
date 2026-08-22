@@ -12,6 +12,7 @@ describe('configuração de produção', () => {
   it('exige credenciais externas completas', () => {
     expect(() => validateProductionEnvironment({ ...valid, BLING_CLIENT_ID: 'id' })).toThrow(/BLING_CLIENT_SECRET/);
     expect(() => validateProductionEnvironment({ ...valid, WHATSAPP_ACCESS_TOKEN: 'token' })).toThrow(/WHATSAPP_PHONE_NUMBER_ID/);
+    expect(() => validateProductionEnvironment({ ...valid, WHATSAPP_ACCESS_TOKEN: 'token', WHATSAPP_PHONE_NUMBER_ID: 'phone' })).toThrow(/WHATSAPP_PASSWORD_RESET_TEMPLATE/);
     expect(() => validateProductionEnvironment({ ...valid, RESEND_API_KEY: 'key' })).toThrow(/EMAIL_FROM/);
   });
   it('rejeita política de backup inválida', () => {

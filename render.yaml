@@ -32,6 +32,18 @@ services:
         sync: false
       - key: EMAIL_FROM
         value: Fideliza Plus <contato@fidelizaplus.com.br>
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
+        sync: false
+      - key: WHATSAPP_PASSWORD_RESET_TEMPLATE
+        value: fideliza_password_reset
+      - key: WHATSAPP_TEMPLATE_LANGUAGE
+        value: pt_BR
+      - key: META_GRAPH_VERSION
+        value: v25.0
       - key: PLATFORM_ADMIN_NAME
         value: Rafael
       - key: PLATFORM_ADMIN_EMAIL

@@ -205,6 +205,8 @@ CREATE INDEX IF NOT EXISTS idx_access_logs_date ON platform_access_logs(created_
 CREATE INDEX IF NOT EXISTS idx_billing_events_tenant ON billing_events(tenant_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_outbound_status ON outbound_messages(status,scheduled_at);`);
 ensureColumn('outbound_messages', 'attempts', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('customer_password_reset_tokens', 'delivery_channel', "TEXT NOT NULL DEFAULT 'email'");
+ensureColumn('customer_password_reset_tokens', 'attempts', 'INTEGER NOT NULL DEFAULT 0');
 db.exec(`CREATE TABLE IF NOT EXISTS platform_module_records(
  id TEXT PRIMARY KEY,module TEXT NOT NULL,section TEXT NOT NULL,tenant_id TEXT REFERENCES tenants(id),title TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',priority TEXT NOT NULL DEFAULT 'medium',owner TEXT,due_at TEXT,payload TEXT NOT NULL DEFAULT '{}',created_by TEXT REFERENCES platform_admins(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

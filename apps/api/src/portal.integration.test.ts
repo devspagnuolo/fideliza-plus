@@ -96,7 +96,8 @@ describe('portais separados do Fideliza+', () => {
       tenantSlug: 'loja-a', cpf: '11144477735', email: 'nao-existe@portal.test',
     }).expect(202);
     expect(unknownRecovery.body).toEqual({
-      message: 'Se os dados estiverem cadastrados, enviaremos um link de redefinição válido por 30 minutos.',
+      channel: 'email',
+      message: 'Se os dados estiverem cadastrados, enviaremos um link por e-mail válido por 30 minutos.',
     });
 
     const recovery = await request(app).post('/customer/auth/forgot-password').send({
@@ -119,6 +120,28 @@ describe('portais separados do Fideliza+', () => {
     }).expect(401);
     await request(app).post('/customer/auth/login').send({
       tenantSlug: 'loja-a', cpf: '52998224725', password: 'NovaCliente123',
+    }).expect(200);
+
+    const whatsappRecovery = await request(app).post('/customer/auth/forgot-password').send({
+      tenantSlug: 'loja-a', cpf: '529.982.247-25', channel: 'whatsapp',
+      phone: '11988887777', consentWhatsApp: true,
+    }).expect(202);
+    expect(whatsappRecovery.body).toMatchObject({ channel: 'whatsapp', developmentToken: expect.stringMatching(/^\d{6}$/) });
+    expect(db.prepare("SELECT channel,status,recipient FROM outbound_messages WHERE tenant_id='tenant-portal-a' AND template='customer.password_reset_otp'").get()).toEqual({
+      channel: 'whatsapp', status: 'queued', recipient: '11988887777',
+    });
+    expect(db.prepare("SELECT granted,source FROM customer_consents WHERE tenant_id='tenant-portal-a' AND purpose='security_whatsapp' ORDER BY created_at DESC LIMIT 1").get()).toEqual({ granted: 1, source: 'password_recovery' });
+    await request(app).post('/customer/auth/reset-password-code').send({
+      tenantSlug: 'loja-a', cpf: '52998224725', code: '000000', password: 'SenhaWhatsApp123',
+    }).expect(400);
+    await request(app).post('/customer/auth/reset-password-code').send({
+      tenantSlug: 'loja-a', cpf: '52998224725', code: whatsappRecovery.body.developmentToken, password: 'SenhaWhatsApp123',
+    }).expect(204);
+    await request(app).post('/customer/auth/login').send({
+      tenantSlug: 'loja-a', cpf: '52998224725', password: 'NovaCliente123',
+    }).expect(401);
+    await request(app).post('/customer/auth/login').send({
+      tenantSlug: 'loja-a', cpf: '52998224725', password: 'SenhaWhatsApp123',
     }).expect(200);
 
     db.prepare("UPDATE tenants SET login_blocked=1 WHERE id='tenant-portal-a'").run();
