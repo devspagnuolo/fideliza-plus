@@ -88,6 +88,35 @@ describe('portais separados do Fideliza+', () => {
       tenantSlug: 'loja-b', cpf: '52998224725', password: 'Cliente@123',
     }).expect(401);
 
+    const unknownRecovery = await request(app).post('/customer/auth/forgot-password').send({
+      tenantSlug: 'loja-a', cpf: '11144477735', email: 'nao-existe@portal.test',
+    }).expect(202);
+    expect(unknownRecovery.body).toEqual({
+      message: 'Se os dados estiverem cadastrados, enviaremos um link de redefinição válido por 30 minutos.',
+    });
+
+    const recovery = await request(app).post('/customer/auth/forgot-password').send({
+      tenantSlug: 'loja-a', cpf: '529.982.247-25', email: 'novo@portal.test',
+    }).expect(202);
+    expect(recovery.body.developmentToken).toEqual(expect.any(String));
+    const queuedReset = db.prepare("SELECT status,message FROM outbound_messages WHERE tenant_id='tenant-portal-a' AND template='customer.password_reset'").get() as {status:string;message:string};
+    expect(queuedReset.status).toBe('queued');
+    expect(queuedReset.message).toContain('/cliente/loja-a/recuperar?token=');
+
+    await request(app).post('/customer/auth/reset-password').send({
+      token: recovery.body.developmentToken, password: 'NovaCliente123',
+    }).expect(204);
+    await consumer.get('/customer/me').expect(401);
+    await request(app).post('/customer/auth/reset-password').send({
+      token: recovery.body.developmentToken, password: 'OutraSenha123',
+    }).expect(400);
+    await request(app).post('/customer/auth/login').send({
+      tenantSlug: 'loja-a', cpf: '52998224725', password: 'Cliente@123',
+    }).expect(401);
+    await request(app).post('/customer/auth/login').send({
+      tenantSlug: 'loja-a', cpf: '52998224725', password: 'NovaCliente123',
+    }).expect(200);
+
     db.prepare("UPDATE tenants SET login_blocked=1 WHERE id='tenant-portal-a'").run();
     await consumer.get('/customer/me').expect(401);
     db.prepare("UPDATE tenants SET login_blocked=0 WHERE id='tenant-portal-a'").run();
