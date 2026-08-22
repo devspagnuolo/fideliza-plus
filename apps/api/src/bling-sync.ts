@@ -21,6 +21,11 @@ async function refresh(tenantId:string,connection:Connection){const tokens=await
 async function tokenFor(tenantId:string,force=false){const connection=db.prepare("SELECT access_token_encrypted,refresh_token_encrypted,expires_at,last_sync_at FROM integration_connections WHERE tenant_id=? AND provider='bling' AND status='connected'").get(tenantId) as Connection|undefined;if(!connection)throw new Error('Bling não conectado');const token=force||new Date(connection.expires_at).getTime()<Date.now()+60_000?await refresh(tenantId,connection):decryptSecret(connection.access_token_encrypted);return {token,connection};}
 async function getPage<T>(tenantId:string,path:string,params=new URLSearchParams()){let auth=await tokenFor(tenantId);const execute=async(token:string)=>{await respectRateLimit();return fetch(`https://api.bling.com.br/Api/v3/${path}?${params}`,{headers:{authorization:`Bearer ${token}`,'enable-jwt':'1',accept:'application/json'}});};let response=await execute(auth.token);if(response.status===401){auth=await tokenFor(tenantId,true);response=await execute(auth.token);}const body=await response.json().catch(()=>({})) as {data?:T[];message?:string;error?:{message?:string;description?:string}};if(!response.ok){const detail=body.error?.message||body.error?.description||body.message;throw new Error(detail?`Bling ${path}: ${detail} (HTTP ${response.status})`:`Bling ${path}: acesso recusado (HTTP ${response.status})`);}return body.data??[];}
 const occurredAt=(value?:string)=>{if(!value)return new Date().toISOString();const date=new Date(value.length===10?`${value}T12:00:00-03:00`:value);return Number.isNaN(date.getTime())?new Date().toISOString():date.toISOString();};
+const saoPauloDate=(value:string)=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
+function isEligibleAfterEnrollment(rawOrderDate:string|undefined,orderDate:string,enrolledAt:string){
+  if(rawOrderDate?.length===10)return rawOrderDate>=saoPauloDate(enrolledAt);
+  return new Date(orderDate)>=new Date(enrolledAt);
+}
 const normalized=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const isReversedStatus=(value:string)=>/(cancel|exclu|estorn|devolv|anulad)/.test(normalized(value));
 
@@ -64,7 +69,7 @@ function reconcileOrder(tenantId:string,item:Order,situations:Map<string,Situati
   if(existing?.external_updated_at&&new Date(existing.external_updated_at)>new Date(externalUpdatedAt))return;
 
   const customer=customerForOrder(tenantId,item),hasContact=item.contato?.id!==undefined,customerId=hasContact?customer?.id??null:existing?.customer_id??null;
-  const totalCents=deleted&&existing?existing.total_cents:Math.max(0,Math.round(Number(item.total??0)*100)),date=deleted&&existing?existing.occurred_at:occurredAt(item.dataSaida??item.data),orderNumber=deleted&&existing?existing.order_number??String(item.id):String(item.numeroLoja||item.numero||item.id),state=orderState(item,situations,deleted);
+  const rawOrderDate=item.dataSaida??item.data,totalCents=deleted&&existing?existing.total_cents:Math.max(0,Math.round(Number(item.total??0)*100)),date=deleted&&existing?existing.occurred_at:occurredAt(rawOrderDate),orderNumber=deleted&&existing?existing.order_number??String(item.id):String(item.numeroLoja||item.numero||item.id),state=orderState(item,situations,deleted);
   const manualReversal=existing?.reversal_source==='manual',reversed=manualReversal?true:state.known||deleted?state.reversed:Boolean(existing?.reversed_at),saleId=existing?.id??randomUUID(),reversedAt=reversed?existing?.reversed_at??externalUpdatedAt:null,reversalSource=reversed?(manualReversal?'manual':'bling'):null;
 
   if(!existing){
@@ -77,7 +82,7 @@ function reconcileOrder(tenantId:string,item:Order,situations:Map<string,Situati
   }
 
   let desiredPoints=0;
-  if(!reversed&&customerId&&customer?.enrolled_at&&new Date(date)>=new Date(customer.enrolled_at))desiredPoints=calculateSalePoints(tenantId,totalCents,date).points;
+  if(!reversed&&customerId&&customer?.enrolled_at&&isEligibleAfterEnrollment(rawOrderDate,date,customer.enrolled_at))desiredPoints=calculateSalePoints(tenantId,totalCents,date).points;
   if(customerId){
     const reason=reversed?'Estorno automático por cancelamento ou exclusão no Bling':existing?.reversed_at?'Reativação automática do pedido no Bling':'Conciliação automática de pontos do pedido Bling',adjustment=reconcileSalePoints(tenantId,customerId,saleId,desiredPoints,reason);
     stats.adjustedPoints+=Math.abs(adjustment.delta);

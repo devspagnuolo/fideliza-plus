@@ -24,8 +24,10 @@ createTenant('lifecycle-tenant');
 db.prepare('INSERT INTO customers (id,tenant_id,name,email,phone,cpf,enrolled_at) VALUES (?,?,?,?,?,?,?)').run('lifecycle-customer','lifecycle-tenant','Cliente Ciclo','ciclo@example.com','11999998888','52998224725','2026-08-01T12:00:00.000Z');
 createTenant('limited-scope-tenant');
 db.prepare('INSERT INTO customers (id,tenant_id,name,email,phone,cpf,enrolled_at) VALUES (?,?,?,?,?,?,?)').run('limited-scope-customer','limited-scope-tenant','Cliente Escopo','escopo@example.com','11999998888','52998224725','2026-08-01T12:00:00.000Z');
+createTenant('same-day-tenant');
+db.prepare('INSERT INTO customers (id,tenant_id,name,email,phone,cpf,enrolled_at) VALUES (?,?,?,?,?,?,?)').run('same-day-customer','same-day-tenant','Cliente do mesmo dia','mesmodia@example.com','11977776666','93541134780','2026-08-10T20:00:00.000Z');
 
-let scenario:'reconciliation'|'lifecycle'='reconciliation';
+let scenario:'reconciliation'|'lifecycle'|'same-day'='reconciliation';
 let lifecycleStatus:'active'|'canceled'='active';
 let lifecycleTotal=200;
 let situationAccess=true;
@@ -37,9 +39,10 @@ vi.stubGlobal('fetch',vi.fn(async(urlValue:string)=>{
   else if(pathname.endsWith('/situacoes/modulos/500'))data=[{id:1,nome:'Em aberto',idHerdado:0},{id:2,nome:'Cancelado',idHerdado:2}];
   else if(pathname.endsWith('/contatos')){
     if(scenario==='lifecycle')data=[{id:30,nome:'Cliente Ciclo',email:'ciclo@example.com',celular:'11999998888',numeroDocumento:'52998224725'}];
+    else if(scenario==='same-day')data=[{id:40,nome:'Cliente do mesmo dia',email:'mesmodia@example.com',celular:'11977776666',numeroDocumento:'93541134780'}];
     else data=url.searchParams.getAll('idsContatos[]').includes('11')?[{id:11,nome:'Cliente já cadastrada',email:'cliente@example.com',celular:'11988887777',numeroDocumento:'11144477735'}]:[{id:10,nome:'Cliente Bling',email:'bling@example.com',celular:'11999990000',numeroDocumento:'52998224725'}];
   }else if(pathname.endsWith('/pedidos/vendas')){
-    data=scenario==='lifecycle'?[{id:30,numero:300,data:'2026-08-10',total:lifecycleTotal,contato:{id:30},situacao:{id:lifecycleStatus==='active'?1:2,valor:lifecycleStatus==='active'?0:2}}]:[{id:20,data:'2026-08-10',total:150,contato:{id:10},situacao:{id:1,valor:0}},{id:21,numero:987,data:'2026-08-10',total:200,contato:{id:11},situacao:{id:1,valor:0}}];
+    data=scenario==='lifecycle'?[{id:30,numero:300,data:'2026-08-10',total:lifecycleTotal,contato:{id:30},situacao:{id:lifecycleStatus==='active'?1:2,valor:lifecycleStatus==='active'?0:2}}]:scenario==='same-day'?[{id:40,numero:400,data:'2026-08-10',total:125,contato:{id:40},situacao:{id:1,valor:0}}]:[{id:20,data:'2026-08-10',total:150,contato:{id:10},situacao:{id:1,valor:0}},{id:21,numero:987,data:'2026-08-10',total:200,contato:{id:11},situacao:{id:1,valor:0}}];
   }
   return new Response(JSON.stringify({data}),{status:200,headers:{'content-type':'application/json'}});
 }));
@@ -55,6 +58,13 @@ describe('sincronização Bling',()=>{
     expect((db.prepare("SELECT customer_id,order_number FROM sales WHERE external_id='bling:21'").get() as {customer_id:string;order_number:string})).toEqual({customer_id:'enrolled-customer',order_number:'987'});
     expect((db.prepare("SELECT points_balance FROM customers WHERE external_id='bling:10'").get() as {points_balance:number}).points_balance).toBe(0);
     expect((db.prepare("SELECT COUNT(*) count FROM loyalty_ledger WHERE customer_id='enrolled-customer' AND entry_type='earn'").get() as {count:number}).count).toBe(1);
+  });
+
+  it('pontua compra do mesmo dia quando o Bling não fornece o horário do pedido',async()=>{
+    scenario='same-day';situationAccess=true;
+    expect(await syncBling('same-day-tenant')).toMatchObject({sales:1,adjustedPoints:125});
+    expect((db.prepare("SELECT external_id,points_balance FROM customers WHERE id='same-day-customer'").get() as {external_id:string;points_balance:number})).toEqual({external_id:'bling:40',points_balance:125});
+    expect((db.prepare("SELECT customer_id FROM sales WHERE tenant_id='same-day-tenant' AND external_id='bling:40'").get() as {customer_id:string}).customer_id).toBe('same-day-customer');
   });
 
   it('estorna, não duplica, permite saldo devedor e reativa apenas a diferença correta',async()=>{
