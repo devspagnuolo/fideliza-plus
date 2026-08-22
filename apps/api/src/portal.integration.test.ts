@@ -175,12 +175,20 @@ describe('portais separados do Fideliza+', () => {
     await platform.post('/platform/jobs/job-retry/retry').set('x-fideliza-request', 'web').expect(202);
     expect(db.prepare("SELECT status,error FROM jobs WHERE id='job-retry'").get()).toEqual({ status: 'queued', error: null });
 
+    await platform.put('/platform/me/profile').set('x-fideliza-request', 'web').send({
+      name: 'Administrador Atualizado', email: 'contato@fideliza.test',
+      currentPassword: process.env.PLATFORM_ADMIN_PASSWORD, newPassword: 'NovaSenha@1234',
+    }).expect(200);
+    expect(db.prepare("SELECT name,email FROM platform_admins WHERE email='contato@fideliza.test'").get()).toEqual({
+      name: 'Administrador Atualizado', email: 'contato@fideliza.test',
+    });
+
     const reset = await platform.post('/platform/companies/tenant-portal-a/homologation-reset').set('x-fideliza-request', 'web').send({
       confirmation: 'REINICIAR loja-a', adminName: 'Nova Gestora', adminEmail: 'nova.gestora@loja.test', temporaryPassword: 'Temporaria@123',
     }).expect(200);
     expect(reset.body).toMatchObject({ ok: true, company: 'Loja Portal A', removed: { customers: 1, sales: 1 } });
     expect(db.prepare("SELECT COUNT(*) total FROM customers WHERE tenant_id='tenant-portal-a'").get()).toEqual({ total: 0 });
     expect(db.prepare("SELECT name,email,role FROM users WHERE tenant_id='tenant-portal-a'").get()).toEqual({ name: 'Nova Gestora', email: 'nova.gestora@loja.test', role: 'owner' });
-    expect(db.prepare("SELECT email FROM platform_admins WHERE email=?").get(process.env.PLATFORM_ADMIN_EMAIL)).toEqual({ email: process.env.PLATFORM_ADMIN_EMAIL });
+    expect(db.prepare("SELECT email FROM platform_admins WHERE email='contato@fideliza.test'").get()).toEqual({ email: 'contato@fideliza.test' });
   });
 });
