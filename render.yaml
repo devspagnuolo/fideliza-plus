@@ -28,6 +28,10 @@ services:
         sync: false
       - key: BLING_CLIENT_SECRET
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: Fideliza Plus <contato@fidelizaplus.com.br>
       - key: PLATFORM_ADMIN_NAME
         value: Rafael
       - key: PLATFORM_ADMIN_EMAIL

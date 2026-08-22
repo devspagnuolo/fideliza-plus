@@ -42,6 +42,10 @@ describe('portais separados do Fideliza+', () => {
   });
 
   it('cadastra o consumidor na loja correta e isola sua sessão', async () => {
+    await request(app).post('/customer/auth/register').send({
+      tenantSlug: 'loja-a', name: 'Sem e-mail', cpf: '11144477735', phone: '11999999999',
+      password: 'Cliente@123', acceptTerms: true,
+    }).expect(400);
     const consumer = request.agent(app);
     await consumer.post('/customer/auth/register').set('x-fideliza-request', 'web').send({
       tenantSlug: 'loja-a',
@@ -80,7 +84,7 @@ describe('portais separados do Fideliza+', () => {
     const duplicate = request.agent(app);
     await duplicate.post('/customer/auth/register').set('x-fideliza-request', 'web').send({
       tenantSlug: 'loja-a', name: 'Outro nome', cpf: '52998224725', phone: '11999999999',
-      password: 'Cliente@123', acceptTerms: true,
+      email: 'outro@portal.test', password: 'Cliente@123', acceptTerms: true,
     }).expect(409);
 
     const otherStore = request.agent(app);
