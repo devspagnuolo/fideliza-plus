@@ -110,9 +110,14 @@ describe('sincronização Bling',()=>{
 
   it('continua sincronizando e reconhece cancelamento quando o mapa de situações retorna 403',async()=>{
     scenario='lifecycle';situationAccess=false;lifecycleStatus='canceled';lifecycleTotal=200;
+    const warning=vi.spyOn(console,'warn').mockImplementation(()=>undefined);
     expect(await syncBling('limited-scope-tenant')).toMatchObject({sales:1,adjustedPoints:0,situationMappingAvailable:false});
+    expect(await syncBling('limited-scope-tenant')).toMatchObject({situationMappingAvailable:false});
+    expect(warning).toHaveBeenCalledTimes(1);
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining('fallback por códigos ativado'));
     expect((db.prepare("SELECT customer_id,external_status,reversed_at FROM sales WHERE tenant_id='limited-scope-tenant' AND external_id='bling:30'").get() as {customer_id:string;external_status:string;reversed_at:string|null})).toMatchObject({customer_id:'limited-scope-customer',external_status:'Cancelado'});
     expect((db.prepare("SELECT reversed_at FROM sales WHERE tenant_id='limited-scope-tenant' AND external_id='bling:30'").get() as {reversed_at:string|null}).reversed_at).toBeTruthy();
+    warning.mockRestore();
     situationAccess=true;
   });
 });

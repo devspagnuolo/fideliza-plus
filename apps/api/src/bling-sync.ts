@@ -15,6 +15,8 @@ type SyncStats={contacts:number;ignoredContacts:number;sales:number;updatedSales
 
 let lastRequestAt=0;
 const runningSyncs=new Map<string,Promise<SyncResult>>();
+const situationMappingRetryAt=new Map<string,number>();
+const situationMappingRetryMs=Math.max(300_000,Number(process.env.BLING_SITUATION_RETRY_MS??21_600_000));
 type SyncResult=SyncStats&{since:string;completedAt:string;situationMappingAvailable:boolean};
 async function respectRateLimit(){const wait=Math.max(0,350-(Date.now()-lastRequestAt));if(wait)await new Promise(resolve=>setTimeout(resolve,wait));lastRequestAt=Date.now();}
 async function refresh(tenantId:string,connection:Connection){const tokens=await exchangeBlingToken('refresh_token',decryptSecret(connection.refresh_token_encrypted));const expiresAt=new Date(Date.now()+tokens.expiresIn*1000).toISOString();db.prepare("UPDATE integration_connections SET access_token_encrypted=?,refresh_token_encrypted=?,expires_at=?,status='connected',updated_at=CURRENT_TIMESTAMP WHERE tenant_id=? AND provider='bling'").run(encryptSecret(tokens.accessToken),encryptSecret(tokens.refreshToken),expiresAt,tenantId);return tokens.accessToken;}
@@ -45,6 +47,23 @@ async function loadSituationMap(tenantId:string){
   const situations=await getPage<Situation>(tenantId,`situacoes/modulos/${salesModule.id}`);
   if(!situations.length)throw new Error('Bling não retornou as situações de pedidos de venda');
   return new Map(situations.map(item=>[String(item.id),item]));
+}
+
+async function situationMapForSync(tenantId:string){
+  const retryAt=situationMappingRetryAt.get(tenantId)??0;
+  if(retryAt>Date.now())return new Map<string,Situation>();
+  try{
+    const situations=await loadSituationMap(tenantId);
+    situationMappingRetryAt.delete(tenantId);
+    return situations;
+  }catch(error){
+    const message=(error as Error).message,accessDenied=/situacoes\/modulos.*HTTP 403/i.test(message);
+    if(accessDenied){
+      situationMappingRetryAt.set(tenantId,Date.now()+situationMappingRetryMs);
+      console.warn(`Integração Bling: mapa de situações sem permissão; fallback por códigos ativado (nova tentativa em ${Math.round(situationMappingRetryMs/3_600_000)}h).`);
+    }else console.warn(`Integração Bling: mapa de situações temporariamente indisponível; fallback por códigos ativado: ${message}`);
+    return new Map<string,Situation>();
+  }
 }
 
 function orderState(item:Order,situations:Map<string,Situation>,deleted=false){
@@ -131,7 +150,7 @@ async function performSync(tenantId:string):Promise<SyncResult>{
   const connection=db.prepare("SELECT last_sync_at FROM integration_connections WHERE tenant_id=? AND provider='bling'").get(tenantId) as {last_sync_at:string|null}|undefined;
   if(!connection)throw new Error('Bling não conectado');
   const since=connection.last_sync_at??new Date(Date.now()-365*86_400_000).toISOString(),startedAt=new Date().toISOString(),stats:SyncStats={contacts:0,ignoredContacts:0,sales:0,updatedSales:0,reversedSales:0,reinstatedSales:0,adjustedPoints:0,webhookEvents:0,failedWebhookEvents:0};
-  const situations=await loadSituationMap(tenantId).catch(error=>{console.warn(`Mapa de situações do Bling indisponível; usando os códigos do pedido: ${(error as Error).message}`);return new Map<string,Situation>();});
+  const situations=await situationMapForSync(tenantId);
   for(let page=1;page<=1000;page++){
     const params=new URLSearchParams({pagina:String(page),limite:'100',dataAlteracaoInicial:since.slice(0,10)}),items=await getPage<Contact>(tenantId,'contatos',params);
     db.transaction(()=>items.forEach(item=>upsertContact(tenantId,item)?stats.contacts++:stats.ignoredContacts++))();
