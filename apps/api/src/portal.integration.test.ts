@@ -116,9 +116,18 @@ describe('portais separados do Fideliza+', () => {
     expect(queuedReset.status).toBe('queued');
     expect(queuedReset.message).toContain('/cliente/loja-a/recuperar?token=');
 
-    await request(app).post('/customer/auth/reset-password').send({
+    for(let attempt=0;attempt<10;attempt++)await request(app).post('/customer/auth/login').send({
+      tenantSlug: 'loja-a', cpf: '529.982.247-25', password: 'SenhaIncorreta123',
+    }).expect(401);
+    await request(app).post('/customer/auth/login').send({
+      tenantSlug: 'loja-a', cpf: '529.982.247-25', password: 'SenhaIncorreta123',
+    }).expect(429);
+
+    const resetSession=request.agent(app);
+    await resetSession.post('/customer/auth/reset-password').send({
       token: recovery.body.developmentToken, password: 'NovaCliente123',
-    }).expect(204);
+    }).expect(200);
+    expect((await resetSession.get('/customer/me').expect(200)).body.customerId).toBe(customerId);
     await consumer.get('/customer/me').expect(401);
     await request(app).post('/customer/auth/reset-password').send({
       token: recovery.body.developmentToken, password: 'OutraSenha123',
@@ -142,9 +151,11 @@ describe('portais separados do Fideliza+', () => {
     await request(app).post('/customer/auth/reset-password-code').send({
       tenantSlug: 'loja-a', cpf: '52998224725', code: '000000', password: 'SenhaWhatsApp123',
     }).expect(400);
-    await request(app).post('/customer/auth/reset-password-code').send({
+    const whatsappResetSession=request.agent(app);
+    await whatsappResetSession.post('/customer/auth/reset-password-code').send({
       tenantSlug: 'loja-a', cpf: '52998224725', code: whatsappRecovery.body.developmentToken, password: 'SenhaWhatsApp123',
-    }).expect(204);
+    }).expect(200);
+    expect((await whatsappResetSession.get('/customer/me').expect(200)).body.customerId).toBe(customerId);
     await request(app).post('/customer/auth/login').send({
       tenantSlug: 'loja-a', cpf: '52998224725', password: 'NovaCliente123',
     }).expect(401);

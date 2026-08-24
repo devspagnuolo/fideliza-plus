@@ -1,9 +1,16 @@
 import { Building2, ChevronRight, ShieldCheck, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { BrandLogo } from './BrandLogo';
 import { LegalFooter } from './LegalPages';
 import './access-hub.css';
 
 export function AccessHub() {
+  const [standalone,setStandalone]=useState(false);
+  useEffect(()=>{
+    const installed=window.matchMedia('(display-mode: standalone)').matches||Boolean((navigator as Navigator&{standalone?:boolean}).standalone);
+    if(installed){setStandalone(true);location.replace('/cliente');}
+  },[]);
+  if(standalone)return <main className="access-hub"><section><BrandLogo full/><p>Abrindo o portal da cliente…</p></section></main>;
   return <main className="access-hub"><section>
     <BrandLogo full />
     <small>ACESSO SEGURO E PERSONALIZADO</small>

@@ -5,6 +5,8 @@ services:
     plan: starter
     healthCheckPath: /ready
     autoDeployTrigger: commit
+    domains:
+      - api.fidelizaplus.com.br
     disk:
       name: fideliza-data
       mountPath: /data
@@ -62,7 +64,7 @@ services:
     autoDeployTrigger: commit
     envVars:
       - key: VITE_API_URL
-        value: https://fideliza-plus-api.onrender.com
+        value: https://api.fidelizaplus.com.br
     routes:
       - type: rewrite
         source: /*

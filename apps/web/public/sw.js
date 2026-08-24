@@ -1,4 +1,4 @@
-const CACHE = 'fideliza-shell-v4';
+const CACHE = 'fideliza-shell-v5';
 const SHELL = ['/', '/offline.html', '/manifest.webmanifest', '/icons/fideliza-official.svg', '/fideliza-plus.svg'];
 
 self.addEventListener('install', event => {
