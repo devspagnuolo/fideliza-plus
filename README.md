@@ -26,6 +26,11 @@ MVP SaaS multiempresa para fidelização e inteligência de crescimento de peque
 - API pública versionada com chaves revogáveis e escopos de leitura.
 - catálogo de recompensas com estoque e resgate transacional por pontos.
 - experimentos A/B de campanhas e atribuição de receita por janela configurável.
+- central de atendimento integrada entre cliente, lojista e Administração, com resposta, ajuste de pontos e reprocessamento de pedido;
+- vitrine de ofertas com intenção de compra e funil de tratativa do lojista;
+- benefícios por cupom ou produto, com imagem, estoque e regras comerciais;
+- mudança de plano por solicitação e aprovação administrativa auditável;
+- cobrança com conciliação e histórico de follow-up.
 
 ## Executar localmente
 

@@ -5,5 +5,6 @@ import { SecurityPanel } from './SecurityPanel';
 import { ApiKeysPanel } from './ApiKeysPanel';
 import { CompanyProfilePanel } from './CompanyProfilePanel';
 import { CnpjLookup } from './CnpjLookup';
+import { PlanManagement } from './PlanManagement';
 
-export function OperationsPanel(){return <><CnpjLookup/><CompanyProfilePanel/><HealthPanel/><SecurityPanel/><BlingIntegration/><BlingReconciliation/><ApiKeysPanel/></>;}
+export function OperationsPanel(){return <><PlanManagement/><CnpjLookup/><CompanyProfilePanel/><HealthPanel/><SecurityPanel/><BlingIntegration/><BlingReconciliation/><ApiKeysPanel/></>;}

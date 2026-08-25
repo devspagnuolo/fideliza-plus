@@ -216,6 +216,71 @@ CREATE INDEX IF NOT EXISTS idx_platform_module_records_view ON platform_module_r
 CREATE TABLE IF NOT EXISTS platform_configuration_history(
  id TEXT PRIMARY KEY,module TEXT NOT NULL,section TEXT NOT NULL,record_id TEXT,admin_id TEXT REFERENCES platform_admins(id),before_value TEXT,after_value TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );`);
+
+// Fluxos SaaS integrados: atendimento, cobranca, catalogo e ofertas.
+ensureColumn('support_tickets','source',"TEXT NOT NULL DEFAULT 'platform'");
+ensureColumn('support_tickets','customer_id','TEXT REFERENCES customers(id)');
+ensureColumn('support_tickets','customer_request_id','TEXT');
+ensureColumn('support_tickets','category',"TEXT NOT NULL DEFAULT 'other'");
+ensureColumn('support_tickets','first_response_at','TEXT');
+ensureColumn('support_tickets','last_response_at','TEXT');
+ensureColumn('customer_support_requests','support_ticket_id','TEXT');
+ensureColumn('rewards','reward_type',"TEXT NOT NULL DEFAULT 'coupon'");
+ensureColumn('rewards','image_data','TEXT');
+ensureColumn('rewards','product_sku','TEXT');
+ensureColumn('rewards','discount_type','TEXT');
+ensureColumn('rewards','discount_value','INTEGER');
+ensureColumn('rewards','minimum_order_cents','INTEGER NOT NULL DEFAULT 0');
+db.exec(`CREATE TABLE IF NOT EXISTS support_ticket_events(
+ id TEXT PRIMARY KEY,ticket_id TEXT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+ tenant_id TEXT REFERENCES tenants(id),actor_type TEXT NOT NULL,actor_id TEXT,action TEXT NOT NULL,
+ message TEXT,metadata TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_support_ticket_events ON support_ticket_events(ticket_id,created_at);
+CREATE TABLE IF NOT EXISTS billing_followups(
+ id TEXT PRIMARY KEY,invoice_id TEXT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+ tenant_id TEXT NOT NULL REFERENCES tenants(id),channel TEXT NOT NULL DEFAULT 'internal',status TEXT NOT NULL DEFAULT 'open',
+ note TEXT NOT NULL,outcome TEXT,next_action_at TEXT,created_by TEXT REFERENCES platform_admins(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_billing_followups ON billing_followups(invoice_id,next_action_at,created_at);
+CREATE TABLE IF NOT EXISTS store_offers(
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),name TEXT NOT NULL,description TEXT,
+ product_sku TEXT,price_cents INTEGER NOT NULL,original_price_cents INTEGER,image_data TEXT,stock INTEGER,
+ status TEXT NOT NULL DEFAULT 'draft',starts_at TEXT,ends_at TEXT,created_by TEXT REFERENCES users(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_store_offers_public ON store_offers(tenant_id,status,starts_at,ends_at);
+CREATE TABLE IF NOT EXISTS offer_interests(
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),offer_id TEXT NOT NULL REFERENCES store_offers(id),
+ customer_id TEXT NOT NULL REFERENCES customers(id),status TEXT NOT NULL DEFAULT 'new',message TEXT,
+ preferred_contact TEXT NOT NULL DEFAULT 'whatsapp',internal_notes TEXT,assigned_to TEXT REFERENCES users(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(offer_id,customer_id)
+);
+CREATE INDEX IF NOT EXISTS idx_offer_interests_queue ON offer_interests(tenant_id,status,created_at);
+CREATE TABLE IF NOT EXISTS plan_change_requests(
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),from_plan_code TEXT,to_plan_code TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending',reason TEXT,admin_notes TEXT,requested_by TEXT REFERENCES users(id),
+ reviewed_by TEXT REFERENCES platform_admins(id),reviewed_at TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_plan_change_requests ON plan_change_requests(tenant_id,status,created_at);`);
+
+const supportBridge='2026-08-25-bridge-customer-support';
+if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(supportBridge)){
+  db.transaction(()=>{
+    const requests=db.prepare('SELECT id,tenant_id,customer_id,subject,message,category,status,response,created_at,updated_at FROM customer_support_requests WHERE support_ticket_id IS NULL').all() as any[];
+    for(const request of requests){
+      const ticketId=`support-${request.id}`;
+      db.prepare(`INSERT OR IGNORE INTO support_tickets(id,tenant_id,subject,description,status,priority,source,customer_id,customer_request_id,category,created_at,updated_at)
+        VALUES(?,?,?,?,?,'medium','customer',?,?,?,?,?)`).run(ticketId,request.tenant_id,request.subject,request.message,request.status,request.customer_id,request.id,request.category,request.created_at,request.updated_at);
+      db.prepare('UPDATE customer_support_requests SET support_ticket_id=? WHERE id=?').run(ticketId,request.id);
+      db.prepare("INSERT OR IGNORE INTO support_ticket_events(id,ticket_id,tenant_id,actor_type,actor_id,action,message,created_at) VALUES(?,?,?,?,?,'created',?,?)")
+        .run(`event-${request.id}`,ticketId,request.tenant_id,'customer',request.customer_id,request.message,request.created_at);
+    }
+    db.prepare('INSERT INTO migrations(name) VALUES(?)').run(supportBridge);
+  })();
+}
 const permissions=[
  ['super_admin','platform.manage','Gerenciar toda a plataforma e configurações globais'],['super_admin','billing.manage','Gerenciar assinaturas, cobranças e conciliação'],
  ['owner','company.manage','Gerenciar cadastro, equipe e integrações da própria empresa'],['owner','billing.read','Consultar plano, faturas e pagamentos da própria empresa'],

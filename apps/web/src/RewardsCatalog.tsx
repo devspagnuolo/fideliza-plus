@@ -4,7 +4,7 @@ import { api } from './api';
 import './rewards.css';
 import './coupon-validation.css';
 
-type Reward = { id: string; name: string; description?: string; points_cost: number; stock: number | null; active: number; redemptions: number };
+type Reward = { id: string; name: string; description?: string; points_cost: number; stock: number | null; active: number; redemptions: number;reward_type:'coupon'|'product';image_data?:string;product_sku?:string;discount_type?:'percent'|'fixed';discount_value?:number;minimum_order_cents:number };
 type Customer = { id: string; name: string; points_balance: number };
 type Redemption = { id: string; reward_name: string; customer_name: string; customer_cpf?: string; points_spent: number; status: string; redemption_code?: string; order_number?: string; used_at?: string; created_at: string };
 type Filter = 'active' | 'archived' | 'all';
@@ -12,16 +12,19 @@ type Filter = 'active' | 'archived' | 'all';
 function RewardForm({ reward, onCancel, onSaved }: { reward?: Reward; onCancel: () => void; onSaved: (message: string) => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const[type,setType]=useState<'coupon'|'product'>(reward?.reward_type||'coupon'),[preview,setPreview]=useState(reward?.image_data||'');
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError('');
     const values = Object.fromEntries(new FormData(event.currentTarget));
+    const file=(event.currentTarget.elements.namedItem('image')as HTMLInputElement)?.files?.[0];let uploaded='';if(file){if(file.size>1_200_000){setSaving(false);return setError('A imagem deve ter no máximo 1,2 MB.')}uploaded=await new Promise<string>((ok,fail)=>{const reader=new FileReader();reader.onload=()=>ok(String(reader.result));reader.onerror=()=>fail(new Error('Imagem inválida'));reader.readAsDataURL(file)})}
     const payload = {
       name: String(values.name),
       description: String(values.description || ''),
       pointsCost: Number(values.pointsCost),
       stock: values.stock === '' ? null : Number(values.stock),
+      rewardType:type,imageData:uploaded||preview||undefined,productSku:String(values.productSku||''),discountType:type==='coupon'?String(values.discountType) as 'percent'|'fixed':undefined,discountValue:type==='coupon'?Number(values.discountValue):undefined,minimumOrderCents:Math.round(Number(values.minimumOrder||0)*100),
     };
     try {
       await api(reward ? `/rewards/${reward.id}` : '/rewards', { method: reward ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
@@ -38,12 +41,14 @@ function RewardForm({ reward, onCancel, onSaved }: { reward?: Reward; onCancel: 
       <small>GESTÃO DO CATÁLOGO</small>
       <h3>{reward ? 'Editar recompensa' : 'Nova recompensa'}</h3>
       <p>Defina o benefício, o custo em pontos e o estoque disponível.</p>
+      <label>Tipo de recompensa<select value={type} onChange={e=>setType(e.target.value as any)}><option value="coupon">Cupom de desconto</option><option value="product">Produto físico</option></select></label>
       <label>Nome do benefício<input name="name" defaultValue={reward?.name || ''} maxLength={100} required autoFocus /></label>
       <label>Descrição<textarea name="description" defaultValue={reward?.description || ''} maxLength={500} rows={3} /></label>
       <div className="reward-form-grid">
         <label>Custo em pontos<input name="pointsCost" type="number" min="1" step="1" defaultValue={reward?.points_cost || ''} required /></label>
         <label>Estoque <small>Deixe vazio para ilimitado</small><input name="stock" type="number" min="0" step="1" defaultValue={reward?.stock ?? ''} /></label>
       </div>
+      {type==='product'?<><label>Código/SKU do produto<input name="productSku" defaultValue={reward?.product_sku||''}/></label><label>Imagem do produto<input name="image" type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const f=e.target.files?.[0];if(f){const r=new FileReader();r.onload=()=>setPreview(String(r.result));r.readAsDataURL(f)}}}/></label>{preview&&<img className="reward-image-preview" src={preview} alt="Prévia do produto"/>}</>:<div className="reward-form-grid"><label>Tipo do desconto<select name="discountType" defaultValue={reward?.discount_type||'percent'}><option value="percent">Percentual (%)</option><option value="fixed">Valor fixo (centavos)</option></select></label><label>Valor do desconto<input name="discountValue" type="number" min="1" defaultValue={reward?.discount_value||''} required/></label><label>Pedido mínimo (R$)<input name="minimumOrder" type="number" min="0" step="0.01" defaultValue={(reward?.minimum_order_cents||0)/100}/></label></div>}
       {error && <div className="reward-error">{error}</div>}
       <div className="reward-modal-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button disabled={saving}>{saving ? 'Salvando…' : reward ? 'Salvar alterações' : 'Criar recompensa'}</button></div>
     </form>
@@ -135,7 +140,7 @@ export function RewardsCatalog() {
     <div className="reward-grid">
       {visible.map(item => <article key={item.id} className={!item.active ? 'archived' : ''}>
         <header><span className={item.active ? 'reward-status active' : 'reward-status'}>{item.active ? 'Ativa' : 'Arquivada'}</span><span>{item.redemptions || 0} resgate(s)</span></header>
-        <div><h3>{item.name}</h3><p>{item.description || 'Benefício exclusivo Fideliza Plus'}</p><b>{item.points_cost.toLocaleString('pt-BR')} pontos</b><small>{item.stock === null ? 'Estoque ilimitado' : `${item.stock} disponível(is)`}</small></div>
+        <div>{item.image_data&&<img className="reward-product-image" src={item.image_data} alt={item.name}/>}<small>{item.reward_type==='product'?'PRODUTO':'CUPOM'}</small><h3>{item.name}</h3><p>{item.description || 'Benefício exclusivo Fideliza Plus'}</p><b>{item.points_cost.toLocaleString('pt-BR')} pontos</b><small>{item.stock === null ? 'Estoque ilimitado' : `${item.stock} disponível(is)`}</small></div>
         <div className="reward-manage">
           <button className="secondary" onClick={() => setEditing(item)}><Pencil /> Editar</button>
           {item.active ? <button className="danger" onClick={() => remove(item)}><Trash2 /> Excluir</button> : <button className="secondary" onClick={() => restore(item)}><ArchiveRestore /> Reativar</button>}

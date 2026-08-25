@@ -9,7 +9,7 @@ export const rewardRoutes = Router();
 rewardRoutes.use(requireAuth);
 
 rewardRoutes.get('/rewards', (req, res) => res.json(db.prepare(`
-  SELECT id,name,description,points_cost,stock,active,created_at,
+  SELECT id,name,description,points_cost,stock,active,created_at,reward_type,image_data,product_sku,discount_type,discount_value,minimum_order_cents,
     (SELECT COUNT(*) FROM reward_redemptions rr WHERE rr.reward_id=rewards.id AND rr.tenant_id=rewards.tenant_id) redemptions
   FROM rewards WHERE tenant_id=? ORDER BY active DESC,points_cost,name
 `).all(req.auth!.tenantId)));
@@ -19,19 +19,28 @@ const rewardFields = z.object({
   description: z.string().trim().max(500).optional(),
   pointsCost: z.number().int().positive(),
   stock: z.number().int().nonnegative().nullable().optional(),
+  rewardType: z.enum(['coupon','product']).default('coupon'),
+  imageData: z.string().max(1_600_000).refine(value=>!value||/^data:image\/(png|jpe?g|webp);base64,/i.test(value)).optional(),
+  productSku: z.string().trim().max(80).optional(),
+  discountType: z.enum(['percent','fixed']).optional(),
+  discountValue: z.number().int().positive().optional(),
+  minimumOrderCents: z.number().int().nonnegative().default(0),
+}).superRefine((value,ctx)=>{
+  if(value.rewardType==='product'&&!value.imageData)ctx.addIssue({code:'custom',path:['imageData'],message:'Inclua uma imagem do produto'});
+  if((value.discountType&&!value.discountValue)||(!value.discountType&&value.discountValue))ctx.addIssue({code:'custom',path:['discountValue'],message:'Informe o tipo e o valor do desconto'});
 });
 
 rewardRoutes.post('/rewards', requireRole('owner', 'manager'), (req, res) => {
   const parsed = rewardFields.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Recompensa inválida' });
   const id = randomUUID();
-  db.prepare('INSERT INTO rewards (id,tenant_id,name,description,points_cost,stock) VALUES (?,?,?,?,?,?)')
-    .run(id, req.auth!.tenantId, parsed.data.name, parsed.data.description || null, parsed.data.pointsCost, parsed.data.stock ?? null);
+  db.prepare('INSERT INTO rewards (id,tenant_id,name,description,points_cost,stock,reward_type,image_data,product_sku,discount_type,discount_value,minimum_order_cents) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id, req.auth!.tenantId, parsed.data.name, parsed.data.description || null, parsed.data.pointsCost, parsed.data.stock ?? null,parsed.data.rewardType,parsed.data.imageData||null,parsed.data.productSku||null,parsed.data.discountType||null,parsed.data.discountValue||null,parsed.data.minimumOrderCents);
   audit(req.auth!.tenantId, req.auth!.userId, 'create', 'reward', id, { pointsCost: parsed.data.pointsCost });
   res.status(201).json({ id });
 });
 
-const rewardUpdate = rewardFields.partial().extend({ active: z.boolean().optional() }).refine(
+const rewardUpdate = z.object({name:z.string().trim().min(2).max(100).optional(),description:z.string().trim().max(500).optional(),pointsCost:z.number().int().positive().optional(),stock:z.number().int().nonnegative().nullable().optional(),rewardType:z.enum(['coupon','product']).optional(),imageData:z.string().max(1_600_000).optional(),productSku:z.string().trim().max(80).optional(),discountType:z.enum(['percent','fixed']).nullable().optional(),discountValue:z.number().int().positive().nullable().optional(),minimumOrderCents:z.number().int().nonnegative().optional(),active:z.boolean().optional()}).refine(
   value => Object.keys(value).length > 0,
   'Informe ao menos uma alteração',
 );
@@ -40,7 +49,7 @@ rewardRoutes.patch('/rewards/:id', requireRole('owner', 'manager'), (req, res) =
   const parsed = rewardUpdate.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Alteração inválida' });
   const id = String(req.params.id);
-  const current = db.prepare('SELECT id FROM rewards WHERE id=? AND tenant_id=?').get(id, req.auth!.tenantId);
+  const current = db.prepare('SELECT * FROM rewards WHERE id=? AND tenant_id=?').get(id, req.auth!.tenantId) as any;
   if (!current) return res.status(404).json({ error: 'Recompensa não encontrada' });
   const changes = parsed.data;
   db.prepare(`UPDATE rewards SET
@@ -48,7 +57,7 @@ rewardRoutes.patch('/rewards/:id', requireRole('owner', 'manager'), (req, res) =
     description=CASE WHEN ? THEN ? ELSE description END,
     points_cost=COALESCE(?,points_cost),
     stock=CASE WHEN ? THEN ? ELSE stock END,
-    active=COALESCE(?,active)
+    active=COALESCE(?,active),reward_type=?,image_data=?,product_sku=?,discount_type=?,discount_value=?,minimum_order_cents=?
     WHERE id=? AND tenant_id=?`).run(
       changes.name ?? null,
       changes.description !== undefined ? 1 : 0,
@@ -57,6 +66,12 @@ rewardRoutes.patch('/rewards/:id', requireRole('owner', 'manager'), (req, res) =
       changes.stock !== undefined ? 1 : 0,
       changes.stock ?? null,
       changes.active === undefined ? null : changes.active ? 1 : 0,
+      changes.rewardType??current.reward_type,
+      changes.imageData===undefined?current.image_data:changes.imageData||null,
+      changes.productSku===undefined?current.product_sku:changes.productSku||null,
+      changes.discountType===undefined?current.discount_type:changes.discountType,
+      changes.discountValue===undefined?current.discount_value:changes.discountValue,
+      changes.minimumOrderCents??current.minimum_order_cents,
       id,
       req.auth!.tenantId,
     );
