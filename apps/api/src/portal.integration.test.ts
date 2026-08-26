@@ -251,6 +251,23 @@ describe('portais separados do Fideliza+', () => {
     await platform.post('/platform/jobs/job-retry/retry').set('x-fideliza-request', 'web').expect(202);
     expect(db.prepare("SELECT status,error FROM jobs WHERE id='job-retry'").get()).toEqual({ status: 'queued', error: null });
 
+    db.prepare("INSERT INTO api_keys(id,tenant_id,name,key_prefix,key_hash) VALUES('platform-key','tenant-portal-a','Integração teste','fz_test','hash-platform-key')").run();
+    db.prepare("INSERT INTO erp_connectors(id,tenant_id,name,provider,connection_type,status) VALUES('platform-erp','tenant-portal-a','ERP teste','generico','api','ready')").run();
+    db.prepare("INSERT INTO integration_webhook_events(id,provider,external_event_id,tenant_id,event_type,occurred_at,payload,status,last_error,attempts) VALUES('platform-hook','teste','event-1','tenant-portal-a','sale.updated',CURRENT_TIMESTAMP,'{}','failed','timeout',3)").run();
+    const commandCenter = await platform.get('/platform/system').expect(200);
+    expect(commandCenter.body).toEqual(expect.objectContaining({
+      apiKeys: expect.arrayContaining([expect.objectContaining({ id: 'platform-key', companyName: 'Loja Portal A' })]),
+      webhooks: expect.arrayContaining([expect.objectContaining({ id: 'platform-hook', attempts: 3 })]),
+      database: expect.objectContaining({ integrity: 'ok', pageCount: expect.any(Number), tables: expect.any(Number) }),
+      permissions: expect.any(Array), identities: expect.any(Object), settings: expect.any(Object), tenants: expect.any(Array),
+    }));
+    await platform.patch('/platform/api-keys/platform-key').set('x-fideliza-request', 'web').send({ active: false }).expect(204);
+    expect(db.prepare("SELECT active FROM api_keys WHERE id='platform-key'").get()).toEqual({ active: 0 });
+    await platform.patch('/platform/connectors/platform-erp').set('x-fideliza-request', 'web').send({ status: 'disabled' }).expect(204);
+    expect(db.prepare("SELECT status FROM erp_connectors WHERE id='platform-erp'").get()).toEqual({ status: 'disabled' });
+    await platform.post('/platform/webhooks/platform-hook/retry').set('x-fideliza-request', 'web').expect(202);
+    expect(db.prepare("SELECT status,last_error,attempts FROM integration_webhook_events WHERE id='platform-hook'").get()).toEqual({ status: 'accepted', last_error: null, attempts: 0 });
+
     await platform.put('/platform/me/profile').set('x-fideliza-request', 'web').send({
       name: 'Administrador Atualizado', email: 'contato@fideliza.test',
       currentPassword: process.env.PLATFORM_ADMIN_PASSWORD, newPassword: 'NovaSenha@1234',
