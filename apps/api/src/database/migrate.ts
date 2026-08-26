@@ -266,6 +266,33 @@ CREATE TABLE IF NOT EXISTS plan_change_requests(
 );
 CREATE INDEX IF NOT EXISTS idx_plan_change_requests ON plan_change_requests(tenant_id,status,created_at);`);
 
+// Ofertas comerciais pagas diretamente à loja, sem consumo de pontos.
+ensureColumn('store_offers','payment_type',"TEXT NOT NULL DEFAULT 'store'");
+ensureColumn('store_offers','payment_instructions','TEXT');
+ensureColumn('store_offers','payment_url','TEXT');
+ensureColumn('offer_interests','reservation_code','TEXT');
+ensureColumn('offer_interests','price_cents','INTEGER');
+ensureColumn('offer_interests','reserved_at','TEXT');
+ensureColumn('offer_interests','expires_at','TEXT');
+ensureColumn('offer_interests','paid_at','TEXT');
+ensureColumn('offer_interests','payment_method','TEXT');
+ensureColumn('offer_interests','order_number','TEXT');
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_offer_reservation_code ON offer_interests(reservation_code) WHERE reservation_code IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_offer_reservations_status ON offer_interests(tenant_id,status,reserved_at);`);
+
+const paidOffersMigration='2026-08-26-separate-paid-offers';
+if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(paidOffersMigration)){
+  db.transaction(()=>{
+    const products=db.prepare("SELECT * FROM rewards WHERE reward_type='product'").all() as any[];
+    for(const product of products){
+      db.prepare(`INSERT OR IGNORE INTO store_offers(id,tenant_id,name,description,product_sku,price_cents,image_data,stock,status,created_at,updated_at)
+        VALUES(?,?,?,?,?,0,?,?, 'draft',?,CURRENT_TIMESTAMP)`).run(`offer-${product.id}`,product.tenant_id,product.name,product.description,product.product_sku,product.image_data,product.stock,product.created_at);
+      db.prepare('UPDATE rewards SET active=0 WHERE id=?').run(product.id);
+    }
+    db.prepare('INSERT INTO migrations(name) VALUES(?)').run(paidOffersMigration);
+  })();
+}
+
 const supportBridge='2026-08-25-bridge-customer-support';
 if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(supportBridge)){
   db.transaction(()=>{

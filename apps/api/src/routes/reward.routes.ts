@@ -11,7 +11,7 @@ rewardRoutes.use(requireAuth);
 rewardRoutes.get('/rewards', (req, res) => res.json(db.prepare(`
   SELECT id,name,description,points_cost,stock,active,created_at,reward_type,image_data,product_sku,discount_type,discount_value,minimum_order_cents,
     (SELECT COUNT(*) FROM reward_redemptions rr WHERE rr.reward_id=rewards.id AND rr.tenant_id=rewards.tenant_id) redemptions
-  FROM rewards WHERE tenant_id=? ORDER BY active DESC,points_cost,name
+  FROM rewards WHERE tenant_id=? AND reward_type='coupon' ORDER BY active DESC,points_cost,name
 `).all(req.auth!.tenantId)));
 
 const rewardFields = z.object({
@@ -19,14 +19,13 @@ const rewardFields = z.object({
   description: z.string().trim().max(500).optional(),
   pointsCost: z.number().int().positive(),
   stock: z.number().int().nonnegative().nullable().optional(),
-  rewardType: z.enum(['coupon','product']).default('coupon'),
+  rewardType: z.literal('coupon').default('coupon'),
   imageData: z.string().max(1_600_000).refine(value=>!value||/^data:image\/(png|jpe?g|webp);base64,/i.test(value)).optional(),
   productSku: z.string().trim().max(80).optional(),
   discountType: z.enum(['percent','fixed']).optional(),
   discountValue: z.number().int().positive().optional(),
   minimumOrderCents: z.number().int().nonnegative().default(0),
 }).superRefine((value,ctx)=>{
-  if(value.rewardType==='product'&&!value.imageData)ctx.addIssue({code:'custom',path:['imageData'],message:'Inclua uma imagem do produto'});
   if((value.discountType&&!value.discountValue)||(!value.discountType&&value.discountValue))ctx.addIssue({code:'custom',path:['discountValue'],message:'Informe o tipo e o valor do desconto'});
 });
 
@@ -40,7 +39,7 @@ rewardRoutes.post('/rewards', requireRole('owner', 'manager'), (req, res) => {
   res.status(201).json({ id });
 });
 
-const rewardUpdate = z.object({name:z.string().trim().min(2).max(100).optional(),description:z.string().trim().max(500).optional(),pointsCost:z.number().int().positive().optional(),stock:z.number().int().nonnegative().nullable().optional(),rewardType:z.enum(['coupon','product']).optional(),imageData:z.string().max(1_600_000).optional(),productSku:z.string().trim().max(80).optional(),discountType:z.enum(['percent','fixed']).nullable().optional(),discountValue:z.number().int().positive().nullable().optional(),minimumOrderCents:z.number().int().nonnegative().optional(),active:z.boolean().optional()}).refine(
+const rewardUpdate = z.object({name:z.string().trim().min(2).max(100).optional(),description:z.string().trim().max(500).optional(),pointsCost:z.number().int().positive().optional(),stock:z.number().int().nonnegative().nullable().optional(),rewardType:z.literal('coupon').optional(),imageData:z.string().max(1_600_000).optional(),productSku:z.string().trim().max(80).optional(),discountType:z.enum(['percent','fixed']).nullable().optional(),discountValue:z.number().int().positive().nullable().optional(),minimumOrderCents:z.number().int().nonnegative().optional(),active:z.boolean().optional()}).refine(
   value => Object.keys(value).length > 0,
   'Informe ao menos uma alteração',
 );
