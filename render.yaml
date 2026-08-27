@@ -30,6 +30,16 @@ services:
         sync: false
       - key: BLING_CLIENT_SECRET
         sync: false
+      - key: ASAAS_ENVIRONMENT
+        value: sandbox
+      - key: ASAAS_API_KEY
+        sync: false
+      - key: ASAAS_WEBHOOK_TOKEN
+        sync: false
+      - key: ASAAS_WEBHOOK_URL
+        value: https://api.fidelizaplus.com.br/webhooks/asaas
+      - key: ASAAS_NOTIFICATION_EMAIL
+        value: contato@fidelizaplus.com.br
       - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM

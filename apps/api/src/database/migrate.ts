@@ -172,8 +172,16 @@ ensureColumn('invoices','boleto_url','TEXT');
 ensureColumn('invoices','invoice_pdf_url','TEXT');
 ensureColumn('invoices','notified_at','TEXT');
 ensureColumn('invoices','payment_reference','TEXT');
+ensureColumn('invoices','gateway',"TEXT NOT NULL DEFAULT 'manual'");
+ensureColumn('invoices','external_payment_id','TEXT');
+ensureColumn('invoices','external_status','TEXT');
+ensureColumn('invoices','invoice_url','TEXT');
+ensureColumn('invoices','bank_slip_url','TEXT');
+ensureColumn('invoices','pix_copy_paste','TEXT');
+ensureColumn('invoices','last_synced_at','TEXT');
 ensureColumn('subscriptions','payment_method',"TEXT NOT NULL DEFAULT 'boleto'");
 ensureColumn('subscriptions','billing_day','INTEGER NOT NULL DEFAULT 10');
+ensureColumn('subscriptions','gateway',"TEXT NOT NULL DEFAULT 'asaas'");
 ensureColumn('integration_connections','last_error','TEXT');
 ensureColumn('integration_webhook_events','processed_at','TEXT');
 ensureColumn('integration_webhook_events','last_error','TEXT');
@@ -244,6 +252,12 @@ CREATE TABLE IF NOT EXISTS billing_followups(
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_billing_followups ON billing_followups(invoice_id,next_action_at,created_at);
+CREATE TABLE IF NOT EXISTS payment_webhook_events(
+ id TEXT PRIMARY KEY,provider TEXT NOT NULL,external_event_id TEXT NOT NULL,event_type TEXT NOT NULL,
+ payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'processed',error TEXT,processed_at TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(provider,external_event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_payment_webhook_events ON payment_webhook_events(provider,event_type,created_at);
 CREATE TABLE IF NOT EXISTS store_offers(
  id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),name TEXT NOT NULL,description TEXT,
  product_sku TEXT,price_cents INTEGER NOT NULL,original_price_cents INTEGER,image_data TEXT,stock INTEGER,
@@ -265,6 +279,7 @@ CREATE TABLE IF NOT EXISTS plan_change_requests(
  reviewed_by TEXT REFERENCES platform_admins(id),reviewed_at TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_plan_change_requests ON plan_change_requests(tenant_id,status,created_at);`);
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_external_payment ON invoices(external_payment_id) WHERE external_payment_id IS NOT NULL');
 
 // Ofertas comerciais pagas diretamente à loja, sem consumo de pontos.
 ensureColumn('store_offers','payment_type',"TEXT NOT NULL DEFAULT 'store'");
