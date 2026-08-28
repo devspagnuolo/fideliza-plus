@@ -190,10 +190,12 @@ describe('portais separados do Fideliza+', () => {
 
     await platform.patch('/platform/subscriptions/tenant-portal-a').set('x-fideliza-request', 'web').send({
       planCode: 'growth', status: 'active', monthlyPriceCents: 14990, currentPeriodEnd: '2026-09-14',
+      paymentMethod: 'pix', billingDay: 14,
     }).expect(204);
 
-    const subscription = db.prepare('SELECT plan_code,status,monthly_price_cents FROM subscriptions WHERE tenant_id=?').get('tenant-portal-a');
-    expect(subscription).toEqual({ plan_code: 'growth', status: 'active', monthly_price_cents: 14990 });
+    const subscription = db.prepare('SELECT plan_code,status,monthly_price_cents,payment_method,billing_day FROM subscriptions WHERE tenant_id=?').get('tenant-portal-a');
+    expect(subscription).toEqual({ plan_code: 'growth', status: 'active', monthly_price_cents: 14990, payment_method: 'pix', billing_day: 14 });
+    expect(db.prepare("SELECT event_type FROM billing_events WHERE tenant_id=? AND event_type='subscription.updated'").get('tenant-portal-a')).toEqual({ event_type: 'subscription.updated' });
 
     const created = await platform.post('/platform/modules/security/lgpd').set('x-fideliza-request', 'web').send({
       title: 'Solicitação de acesso do titular', tenantId: 'tenant-portal-a', status: 'pending', priority: 'high',
