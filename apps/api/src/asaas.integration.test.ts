@@ -28,8 +28,10 @@ describe('integração financeira Asaas',()=>{
   afterAll(()=>{vi.restoreAllMocks();db.close();for(const suffix of['','-shm','-wal'])fs.rmSync(`${databasePath}${suffix}`,{force:true})});
 
   it('gera cliente e cobrança uma única vez mesmo reexecutando o ciclo',async()=>{
+    let customerAttempts=0;
     const fetchMock=vi.spyOn(globalThis,'fetch').mockImplementation(async(url,init)=>{
       const path=String(url);
+      if(path.endsWith('/customers')&&++customerAttempts===1)return new Response(JSON.stringify({errors:[{description:'O celular informado é inválido.'}]}),{status:400,headers:{'content-type':'application/json'}});
       if(path.endsWith('/customers'))return new Response(JSON.stringify({id:'cus_asaas_1'}),{status:200,headers:{'content-type':'application/json'}});
       if(path.endsWith('/payments'))return new Response(JSON.stringify({id:'pay_asaas_1',status:'PENDING',invoiceUrl:'https://sandbox.asaas.com/i/1',bankSlipUrl:'https://sandbox.asaas.com/b/1'}),{status:200,headers:{'content-type':'application/json'}});
       throw new Error(`URL não simulada: ${path} ${init?.method}`);
@@ -40,10 +42,12 @@ describe('integração financeira Asaas',()=>{
     expect(first.body).toMatchObject({processed:1,created:1,gatewayCreated:1,failures:[]});
     const second=await admin.post('/platform/billing/run').set('x-fideliza-request','web').send({}).expect(200);
     expect(second.body).toMatchObject({processed:1,created:0,gatewayCreated:0,failures:[]});
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const customerRequest=fetchMock.mock.calls.find(([url])=>String(url).endsWith('/customers'))?.[1];
-    expect(JSON.parse(String(customerRequest?.body))).toMatchObject({mobilePhone:'11999999999'});
-    expect(JSON.parse(String(customerRequest?.body))).not.toHaveProperty('phone');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const customerRequests=fetchMock.mock.calls.filter(([url])=>String(url).endsWith('/customers')).map(([,init])=>JSON.parse(String(init?.body)));
+    expect(customerRequests[0]).toMatchObject({mobilePhone:'11999999999'});
+    expect(customerRequests[0]).not.toHaveProperty('phone');
+    expect(customerRequests[1]).not.toHaveProperty('mobilePhone');
+    expect(customerRequests[1]).not.toHaveProperty('phone');
     expect(db.prepare("SELECT gateway,external_payment_id,status FROM invoices WHERE subscription_id='asaas-sub'").get()).toEqual({gateway:'asaas',external_payment_id:'pay_asaas_1',status:'pending'});
   });
 

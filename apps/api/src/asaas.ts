@@ -64,16 +64,16 @@ export async function ensureAsaasCustomer(tenantId: string) {
   if (row.externalCustomerId) return row.externalCustomerId as string;
   if (onlyDigits(row.cnpj).length !== 14 || !row.email) throw new Error('Complete CNPJ e e-mail da empresa antes de gerar cobranças');
   const phones = asaasPhones(row.phone);
-  const customer = await request('/customers', {
-    method: 'POST', body: JSON.stringify({
-      name: row.legalName || row.name,
-      cpfCnpj: onlyDigits(row.cnpj),
-      email: row.email,
-      ...phones,
-      externalReference: row.id,
-      notificationDisabled: false
-    })
-  });
+  const payload = { name: row.legalName || row.name, cpfCnpj: onlyDigits(row.cnpj), email: row.email,
+    externalReference: row.id, notificationDisabled: false };
+  let customer: Json;
+  try {
+    customer = await request('/customers', { method: 'POST', body: JSON.stringify({ ...payload, ...phones }) });
+  } catch (error) {
+    const invalidPhone = Object.keys(phones).length > 0 && /ASAAS_HTTP_400.*(telefone|celular|phone)/i.test((error as Error).message);
+    if (!invalidPhone) throw error;
+    customer = await request('/customers', { method: 'POST', body: JSON.stringify(payload) });
+  }
   db.prepare('UPDATE subscriptions SET external_customer_id=?,gateway=\'asaas\',updated_at=CURRENT_TIMESTAMP WHERE id=?').run(customer.id, row.subscriptionId);
   return customer.id as string;
 }
