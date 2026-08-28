@@ -41,6 +41,9 @@ describe('integração financeira Asaas',()=>{
     const second=await admin.post('/platform/billing/run').set('x-fideliza-request','web').send({}).expect(200);
     expect(second.body).toMatchObject({processed:1,created:0,gatewayCreated:0,failures:[]});
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    const customerRequest=fetchMock.mock.calls.find(([url])=>String(url).endsWith('/customers'))?.[1];
+    expect(JSON.parse(String(customerRequest?.body))).toMatchObject({mobilePhone:'11999999999'});
+    expect(JSON.parse(String(customerRequest?.body))).not.toHaveProperty('phone');
     expect(db.prepare("SELECT gateway,external_payment_id,status FROM invoices WHERE subscription_id='asaas-sub'").get()).toEqual({gateway:'asaas',external_payment_id:'pay_asaas_1',status:'pending'});
   });
 

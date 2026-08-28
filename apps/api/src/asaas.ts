@@ -32,6 +32,13 @@ async function request(path: string, init: RequestInit = {}) {
 }
 
 function onlyDigits(value: unknown) { return String(value ?? '').replace(/\D/g, ''); }
+function asaasPhones(value: unknown) {
+  let digits = onlyDigits(value);
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+  if (digits.length === 11 && digits[2] === '9') return { mobilePhone: digits };
+  if (digits.length === 10) return { phone: digits };
+  return {};
+}
 function dueDate(value: string) { return String(value).slice(0, 10); }
 function money(cents: number) { return Number((cents / 100).toFixed(2)); }
 
@@ -56,13 +63,13 @@ export async function ensureAsaasCustomer(tenantId: string) {
   if (!row) throw new Error('Empresa ou assinatura não encontrada');
   if (row.externalCustomerId) return row.externalCustomerId as string;
   if (onlyDigits(row.cnpj).length !== 14 || !row.email) throw new Error('Complete CNPJ e e-mail da empresa antes de gerar cobranças');
+  const phones = asaasPhones(row.phone);
   const customer = await request('/customers', {
     method: 'POST', body: JSON.stringify({
       name: row.legalName || row.name,
       cpfCnpj: onlyDigits(row.cnpj),
       email: row.email,
-      phone: onlyDigits(row.phone) || undefined,
-      mobilePhone: onlyDigits(row.phone) || undefined,
+      ...phones,
       externalReference: row.id,
       notificationDisabled: false
     })
