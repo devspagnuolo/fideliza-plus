@@ -197,6 +197,15 @@ describe('portais separados do Fideliza+', () => {
     expect(subscription).toEqual({ plan_code: 'growth', status: 'active', monthly_price_cents: 14990, payment_method: 'pix', billing_day: 14 });
     expect(db.prepare("SELECT event_type FROM billing_events WHERE tenant_id=? AND event_type='subscription.updated'").get('tenant-portal-a')).toEqual({ event_type: 'subscription.updated' });
 
+    await platform.patch('/platform/companies/tenant-portal-a/profile').set('x-fideliza-request', 'web').send({
+      name: 'Loja Portal A', legalName: 'Loja Portal A Ltda', cnpj: '11222333000181',
+      email: 'financeiro@loja-a.test', phone: '11999999999', responsibleName: 'Responsável A',
+      website: 'https://loja-a.test', address: 'Rua do Portal, 100', city: 'São Paulo', state: 'SP', postalCode: '01001000',
+    }).expect(204);
+    const companyDetail = await platform.get('/platform/companies/tenant-portal-a/detail').expect(200);
+    expect(companyDetail.body.company).toMatchObject({ legalName: 'Loja Portal A Ltda', city: 'São Paulo', state: 'SP' });
+    expect(companyDetail.body.customers).toEqual(expect.arrayContaining([expect.objectContaining({ cpf: '52998224725', accessActive: 1, purchases: 1 })]));
+
     const created = await platform.post('/platform/modules/security/lgpd').set('x-fideliza-request', 'web').send({
       title: 'Solicitação de acesso do titular', tenantId: 'tenant-portal-a', status: 'pending', priority: 'high',
       owner: 'Encarregado LGPD', dueAt: '2026-09-01', payload: { Titular: 'Cliente Portal', Canal: 'Portal' },
@@ -284,6 +293,9 @@ describe('portais separados do Fideliza+', () => {
     expect(reset.body).toMatchObject({ ok: true, company: 'Loja Portal A', removed: { customers: 1, sales: 1 } });
     expect(db.prepare("SELECT COUNT(*) total FROM customers WHERE tenant_id='tenant-portal-a'").get()).toEqual({ total: 0 });
     expect(db.prepare("SELECT name,email,role FROM users WHERE tenant_id='tenant-portal-a'").get()).toEqual({ name: 'Nova Gestora', email: 'nova.gestora@loja.test', role: 'owner' });
+    const companyUser = db.prepare("SELECT id FROM users WHERE tenant_id='tenant-portal-a'").get() as {id:string};
+    await platform.post(`/platform/companies/tenant-portal-a/users/${companyUser.id}/reset-password`).set('x-fideliza-request', 'web').send({ temporaryPassword: 'AcessoNovo@123' }).expect(204);
+    await request(app).post('/auth/login').set('x-fideliza-request', 'web').send({ email: 'nova.gestora@loja.test', password: 'AcessoNovo@123' }).expect(200);
     expect(db.prepare("SELECT email FROM platform_admins WHERE email='contato@fideliza.test'").get()).toEqual({ email: 'contato@fideliza.test' });
   });
 });
