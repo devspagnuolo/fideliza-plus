@@ -4,7 +4,7 @@ import { api } from './api';
 import { PurposeAdminSubpage } from './AdminSubpages';
 import { CompaniesWorkspace, UsersWorkspace } from './AdminCoreWorkspaces';
 import { AdvancedWorkspace } from './AdminWorkspaceRouter';
-import { AdminExecutiveDashboard } from './AdminExecutiveDashboard';
+import { AdminDashboardWorkspace } from './AdminDashboardWorkspace';
 import { BrandLogo } from './BrandLogo';
 import { LegalFooter } from './LegalPages';
 import './platform-admin.css';
@@ -109,7 +109,7 @@ export function PlatformAdmin() {
   const current = menu.find(item => item.id === page)!;
   const core = ['companies', 'users'].includes(page);
   const advanced = ['finance', 'plans', 'analytics', 'integrations', 'operations', 'monitoring', 'security', 'support', 'settings'].includes(page);
-  const executive = page === 'dashboard' && subpage === 'Visão geral';
+  const executive = page === 'dashboard';
 
   return <main className={`pa-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
     <aside className={mobile ? 'open' : ''}>
@@ -123,7 +123,7 @@ export function PlatformAdmin() {
     <section className="pa-content">
       <header className="pa-topbar"><button className="pa-menu" onClick={() => setMobile(true)} aria-label="Abrir menu"><Menu /></button><div className="pa-breadcrumb"><small>ADMINISTRAÇÃO / {current.label.toUpperCase()} / {subpage.toUpperCase()}</small><h1>{subpage}</h1><p>{pageDescription[page]}</p></div><div className="pa-topbar-actions"><button className="pa-global-search" onClick={() => setSearchOpen(true)}><Search /><span>Buscar</span><kbd>Ctrl K</kbd></button><button className="pa-refresh" onClick={() => void load()} disabled={refreshing} title="Atualizar dados"><RefreshCw className={refreshing ? 'spin' : ''} /></button><span className="pa-live"><i /> Produção operacional</span></div></header>
       {notice && <div className="pa-notice">{notice}<button onClick={() => setNotice('')}>×</button></div>}
-      {executive && <AdminExecutiveDashboard dash={dash} all={all} updatedAt={updatedAt} refreshing={refreshing} onRefresh={() => void load()} onNavigate={navigate} />}
+      {executive && <AdminDashboardWorkspace subpage={subpage} dash={dash} all={all} updatedAt={updatedAt} refreshing={refreshing} onRefresh={() => void load()} onNavigate={navigate} />}
       {core && page === 'companies' && <CompaniesWorkspace subpage={subpage} all={all} refresh={load} />}
       {core && page === 'users' && <UsersWorkspace subpage={subpage} all={all} refresh={load} />}
       {advanced && <AdvancedWorkspace page={page} subpage={subpage} all={all} />}
