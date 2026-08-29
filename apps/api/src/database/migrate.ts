@@ -338,6 +338,28 @@ CREATE TABLE IF NOT EXISTS platform_integration_events(
  metadata TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_platform_integration_events ON platform_integration_events(category,status,created_at);`);
+ensureColumn('jobs','priority',"INTEGER NOT NULL DEFAULT 5");
+ensureColumn('jobs','dead_lettered_at','TEXT');
+db.exec(`CREATE TABLE IF NOT EXISTS platform_queue_policies(
+ job_type TEXT PRIMARY KEY,display_name TEXT NOT NULL,paused INTEGER NOT NULL DEFAULT 0,concurrency INTEGER NOT NULL DEFAULT 1,
+ max_attempts INTEGER NOT NULL DEFAULT 3,retention_days INTEGER NOT NULL DEFAULT 30,updated_by TEXT REFERENCES platform_admins(id),
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS platform_operation_schedules(
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id),name TEXT NOT NULL,job_type TEXT NOT NULL,
+ frequency TEXT NOT NULL CHECK(frequency IN ('hourly','daily','weekly')),run_at TEXT NOT NULL DEFAULT '03:00',timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
+ payload TEXT,active INTEGER NOT NULL DEFAULT 1,last_run_at TEXT,next_run_at TEXT NOT NULL,last_status TEXT,last_error TEXT,
+ created_by TEXT REFERENCES platform_admins(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_operation_schedules_due ON platform_operation_schedules(active,next_run_at);
+CREATE TABLE IF NOT EXISTS platform_operation_exports(
+ id TEXT PRIMARY KEY,tenant_id TEXT REFERENCES tenants(id),dataset TEXT NOT NULL,format TEXT NOT NULL DEFAULT 'csv',status TEXT NOT NULL DEFAULT 'ready',
+ filters TEXT NOT NULL DEFAULT '{}',row_count INTEGER NOT NULL DEFAULT 0,error TEXT,expires_at TEXT NOT NULL,created_by TEXT REFERENCES platform_admins(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,downloaded_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_operation_exports ON platform_operation_exports(status,expires_at,created_at);
+INSERT OR IGNORE INTO platform_queue_policies(job_type,display_name)VALUES
+ ('sync_bling','Sincronização Bling'),('import_customers','Importação de clientes'),('import_sales','Importação de vendas'),('refresh_gie','Atualização de inteligência');`);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_external_payment ON invoices(external_payment_id) WHERE external_payment_id IS NOT NULL');
 
 // Ofertas comerciais pagas diretamente à loja, sem consumo de pontos.
