@@ -286,6 +286,37 @@ CREATE TABLE IF NOT EXISTS plan_change_requests(
  reviewed_by TEXT REFERENCES platform_admins(id),reviewed_at TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_plan_change_requests ON plan_change_requests(tenant_id,status,created_at);`);
+
+// Governanca comercial dos planos: extensoes, trials e regras deixam de ser configuracoes implicitas.
+db.exec(`CREATE TABLE IF NOT EXISTS plan_addons(
+ id TEXT PRIMARY KEY,code TEXT NOT NULL UNIQUE,name TEXT NOT NULL,description TEXT,
+ monthly_price_cents INTEGER NOT NULL DEFAULT 0,additional_users INTEGER NOT NULL DEFAULT 0,
+ additional_consumers INTEGER NOT NULL DEFAULT 0,additional_storage_mb INTEGER NOT NULL DEFAULT 0,
+ compatible_plans TEXT NOT NULL DEFAULT '[]',active INTEGER NOT NULL DEFAULT 1,
+ created_by TEXT REFERENCES platform_admins(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS plan_addon_assignments(
+ id TEXT PRIMARY KEY,addon_id TEXT NOT NULL REFERENCES plan_addons(id),tenant_id TEXT NOT NULL REFERENCES tenants(id),
+ quantity INTEGER NOT NULL DEFAULT 1,monthly_price_cents INTEGER NOT NULL,status TEXT NOT NULL DEFAULT 'active',
+ started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,ended_at TEXT,created_by TEXT REFERENCES platform_admins(id)
+);
+CREATE INDEX IF NOT EXISTS idx_plan_addon_assignments ON plan_addon_assignments(tenant_id,status);
+CREATE TABLE IF NOT EXISTS plan_trial_policies(
+ id TEXT PRIMARY KEY,name TEXT NOT NULL,plan_code TEXT NOT NULL REFERENCES platform_plans(code),duration_days INTEGER NOT NULL,
+ extension_days INTEGER NOT NULL DEFAULT 0,auto_convert INTEGER NOT NULL DEFAULT 0,
+ requires_payment_method INTEGER NOT NULL DEFAULT 0,conversion_plan_code TEXT REFERENCES platform_plans(code),
+ communication_days TEXT NOT NULL DEFAULT '[]',active INTEGER NOT NULL DEFAULT 1,created_by TEXT REFERENCES platform_admins(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS plan_commercial_rules(
+ id TEXT PRIMARY KEY,name TEXT NOT NULL,rule_type TEXT NOT NULL,source_plan_code TEXT REFERENCES platform_plans(code),
+ target_plan_code TEXT REFERENCES platform_plans(code),discount_percent INTEGER NOT NULL DEFAULT 0,
+ approval_required INTEGER NOT NULL DEFAULT 0,notice_days INTEGER NOT NULL DEFAULT 0,valid_from TEXT,valid_until TEXT,
+ active INTEGER NOT NULL DEFAULT 1,created_by TEXT REFERENCES platform_admins(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_plan_commercial_rules ON plan_commercial_rules(active,rule_type);`);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_external_payment ON invoices(external_payment_id) WHERE external_payment_id IS NOT NULL');
 
 // Ofertas comerciais pagas diretamente à loja, sem consumo de pontos.
