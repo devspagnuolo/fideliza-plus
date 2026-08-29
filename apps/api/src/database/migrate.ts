@@ -317,6 +317,13 @@ CREATE TABLE IF NOT EXISTS plan_commercial_rules(
  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_plan_commercial_rules ON plan_commercial_rules(active,rule_type);`);
+db.exec(`CREATE TABLE IF NOT EXISTS platform_analytics_reports(
+ id TEXT PRIMARY KEY,name TEXT NOT NULL,description TEXT,metrics TEXT NOT NULL DEFAULT '[]',dimensions TEXT NOT NULL DEFAULT '[]',
+ period TEXT NOT NULL DEFAULT '90',format TEXT NOT NULL DEFAULT 'csv',recipients TEXT,
+ active INTEGER NOT NULL DEFAULT 1,last_generated_at TEXT,created_by TEXT REFERENCES platform_admins(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_platform_analytics_reports ON platform_analytics_reports(active,created_at);`);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_external_payment ON invoices(external_payment_id) WHERE external_payment_id IS NOT NULL');
 
 // Ofertas comerciais pagas diretamente à loja, sem consumo de pontos.
