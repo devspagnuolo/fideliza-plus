@@ -252,6 +252,13 @@ CREATE TABLE IF NOT EXISTS billing_followups(
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_billing_followups ON billing_followups(invoice_id,next_action_at,created_at);
+CREATE TABLE IF NOT EXISTS platform_coupons(
+ id TEXT PRIMARY KEY,code TEXT NOT NULL UNIQUE,description TEXT,discount_type TEXT NOT NULL CHECK(discount_type IN ('percent','fixed')),
+ discount_value INTEGER NOT NULL,valid_from TEXT,valid_until TEXT,max_uses INTEGER,used_count INTEGER NOT NULL DEFAULT 0,
+ plan_code TEXT REFERENCES platform_plans(code),active INTEGER NOT NULL DEFAULT 1,created_by TEXT REFERENCES platform_admins(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_platform_coupons_active ON platform_coupons(active,valid_until);
 CREATE TABLE IF NOT EXISTS payment_webhook_events(
  id TEXT PRIMARY KEY,provider TEXT NOT NULL,external_event_id TEXT NOT NULL,event_type TEXT NOT NULL,
  payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'processed',error TEXT,processed_at TEXT,
