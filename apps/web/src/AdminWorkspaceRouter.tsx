@@ -5,6 +5,7 @@ import { AdminSystemWorkspace, isSystemWorkspace } from './AdminSystemWorkspaces
 import { AdminFinanceWorkspace } from './AdminFinanceWorkspace';
 import { AdminPlansWorkspace } from './AdminPlansWorkspace';
 import { AdminAnalyticsWorkspace } from './AdminAnalyticsWorkspace';
+import { AdminIntegrationsWorkspace } from './AdminIntegrationsWorkspace';
 
 export function AdvancedWorkspace(props: { page: string; subpage: string; all: any }) {
   const [current, setCurrent] = useState(props.all);
@@ -13,6 +14,7 @@ export function AdvancedWorkspace(props: { page: string; subpage: string; all: a
   if (props.page === 'finance') return <AdminFinanceWorkspace subpage={props.subpage} />;
   if (props.page === 'plans') return <AdminPlansWorkspace subpage={props.subpage} />;
   if (props.page === 'analytics') return <AdminAnalyticsWorkspace subpage={props.subpage} />;
+  if (props.page === 'integrations') return <AdminIntegrationsWorkspace subpage={props.subpage} />;
   if (isSystemWorkspace(props.page, props.subpage)) {
     return <AdminSystemWorkspace page={props.page} subpage={props.subpage} />;
   }

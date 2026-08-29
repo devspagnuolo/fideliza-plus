@@ -324,6 +324,20 @@ db.exec(`CREATE TABLE IF NOT EXISTS platform_analytics_reports(
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_platform_analytics_reports ON platform_analytics_reports(active,created_at);`);
+db.exec(`CREATE TABLE IF NOT EXISTS platform_integration_configs(
+ id TEXT PRIMARY KEY,tenant_id TEXT REFERENCES tenants(id),category TEXT NOT NULL CHECK(category IN ('api','webhook','erp','crm','payments','email','sso')),
+ name TEXT NOT NULL,provider TEXT NOT NULL,environment TEXT NOT NULL DEFAULT 'production',base_url TEXT,
+ config TEXT NOT NULL DEFAULT '{}',credentials_encrypted TEXT,credential_hint TEXT,status TEXT NOT NULL DEFAULT 'draft',
+ active INTEGER NOT NULL DEFAULT 1,last_test_at TEXT,last_sync_at TEXT,last_error TEXT,created_by TEXT REFERENCES platform_admins(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_platform_integration_configs ON platform_integration_configs(category,tenant_id,status,active);
+CREATE TABLE IF NOT EXISTS platform_integration_events(
+ id TEXT PRIMARY KEY,integration_id TEXT REFERENCES platform_integration_configs(id) ON DELETE SET NULL,tenant_id TEXT REFERENCES tenants(id),
+ category TEXT NOT NULL,provider TEXT NOT NULL,event_type TEXT NOT NULL,status TEXT NOT NULL,duration_ms INTEGER,message TEXT,
+ metadata TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_platform_integration_events ON platform_integration_events(category,status,created_at);`);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_external_payment ON invoices(external_payment_id) WHERE external_payment_id IS NOT NULL');
 
 // Ofertas comerciais pagas diretamente à loja, sem consumo de pontos.
