@@ -108,8 +108,7 @@ export function PlatformAdmin() {
 
   const current = menu.find(item => item.id === page)!;
   const core = ['companies', 'users'].includes(page);
-  const advanced = ['finance', 'plans', 'integrations', 'operations', 'monitoring', 'security', 'support', 'settings'].includes(page)
-    || (page === 'analytics' && subpage === 'Relatórios personalizados');
+  const advanced = ['finance', 'plans', 'analytics', 'integrations', 'operations', 'monitoring', 'security', 'support', 'settings'].includes(page);
   const executive = page === 'dashboard' && subpage === 'Visão geral';
 
   return <main className={`pa-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
