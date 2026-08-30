@@ -14,7 +14,7 @@ export function AccessHub() {
   return <main className="access-hub"><section>
     <BrandLogo full />
     <small>ACESSO SEGURO E PERSONALIZADO</small>
-    <h1>Como você usa o Fideliza Plus?</h1>
+    <h1>Como você usa o Fidelizei?</h1>
     <p>Um único aplicativo, com áreas, permissões e experiências separadas para cada perfil.</p>
     <div className="access-options">
       <a href="/"><Building2 /><span><b>Sou lojista</b><small>Gestão da empresa, clientes, vendas e campanhas.</small></span><ChevronRight /></a>

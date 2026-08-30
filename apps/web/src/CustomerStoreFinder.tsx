@@ -28,7 +28,7 @@ export function CustomerStoreFinder() {
       <BrandLogo full />
       <small>PORTAL DO CLIENTE</small>
       <h1>Encontre sua loja</h1>
-      <p>Escolha onde você participa do Fideliza Plus para consultar pontos, extrato e recompensas.</p>
+      <p>Escolha onde você participa do Fidelizei para consultar pontos, extrato e recompensas.</p>
       <label className="store-search"><Search /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar pelo nome da loja" aria-label="Buscar loja" /></label>
       <div className="store-results" aria-live="polite">
         {loading && <div className="store-message">Carregando programas disponíveis…</div>}

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="540" viewBox="420 330 760 540" role="img" aria-labelledby="title desc">
+  <title id="title">Fidelizei</title><desc id="desc">Símbolo FJ da marca Fidelizei.</desc>
+  <defs>
+    <linearGradient id="navy" x1="0" y1="0" x2=".9" y2="1"><stop offset="0" stop-color="#315d9d"/><stop offset=".35" stop-color="#1b3f78"/><stop offset=".72" stop-color="#0a214f"/><stop offset="1" stop-color="#030d2c"/></linearGradient>
+    <linearGradient id="teal" x1=".1" y1="0" x2=".9" y2="1"><stop offset="0" stop-color="#39e6dc"/><stop offset=".3" stop-color="#22c9c1"/><stop offset=".68" stop-color="#07948e"/><stop offset="1" stop-color="#006a6b"/></linearGradient>
+    <linearGradient id="tealShade" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1dd2c9"/><stop offset=".58" stop-color="#079d96"/><stop offset="1" stop-color="#006b6c"/></linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".24"/><stop offset=".55" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="softShadow" x="-12%" y="-12%" width="130%" height="135%"><feDropShadow dx="5" dy="7" stdDeviation="6" flood-color="#00102d" flood-opacity=".18"/></filter>
+  </defs>
+  <g filter="url(#softShadow)">
+    <path fill="url(#navy)" d="M461 833 519 478c10-62 62-109 126-109h291c-5 47-18 90-57 107H655c-23 0-38 18-42 39l-5 25h283l-34 107H590l-22 125c-7 38-38 61-77 61Z"/>
+    <path fill="url(#shine)" d="M519 478c10-62 62-109 126-109h291c-18 20-37 41-60 59-27 22-55 33-94 33H652c-44 0-72 23-85 63l-49 261c-6 29-24 44-50 48Z" opacity=".55"/>
+    <path fill="url(#tealShade)" d="M1084 369h56l-80 393c-9 43-39 71-86 71h-64c31-16 54-39 62-77l63-311c9-45 27-67 49-76Z"/>
+    <path fill="url(#teal)" d="M1068 369h52l-79 385c-9 44-33 68-72 78h-58c31-19 45-42 54-82l64-312c9-41 21-61 39-69Z"/>
+    <path fill="url(#shine)" d="M1070 379h31l-75 367c-8 38-25 62-56 77h-34c20-19 30-42 37-76l65-317c6-28 17-44 32-51Z" opacity=".7"/>
+  </g>
+</svg>

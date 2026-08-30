@@ -10,7 +10,7 @@ if (!config.isProduction || process.env.SEED_DEMO_DATA === 'true') {
   await import('./database/seed.js');
 }
 
-const server = app.listen(config.port, () => console.log(`Fideliza+ API em http://localhost:${config.port}`));
+const server = app.listen(config.port, () => console.log(`Fidelizei API em http://localhost:${config.port}`));
 const worker = startWorker();
 const backupSchedule = startBackupSchedule();
 const automationSchedule = startAutomationSchedule();

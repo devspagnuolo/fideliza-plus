@@ -56,7 +56,7 @@ commerceRoutes.post('/sales/:id/reverse', requireRole('owner', 'manager'), (req,
       if (sale.reversed_at) throw new Error('ALREADY_REVERSED');
       const adjustment=sale.customer_id?reconcileSalePoints(tenantId,sale.customer_id,id,0,'Estorno manual de venda'):{delta:0};
       const earned=Math.max(0,-adjustment.delta);
-      db.prepare("UPDATE sales SET reversed_at=?,reversal_source='manual',external_status=CASE WHEN source='bling' THEN 'Estornado manualmente no Fideliza+' ELSE external_status END WHERE id=? AND tenant_id=?").run(new Date().toISOString(), id, tenantId);
+      db.prepare("UPDATE sales SET reversed_at=?,reversal_source='manual',external_status=CASE WHEN source='bling' THEN 'Estornado manualmente no Fidelizei' ELSE external_status END WHERE id=? AND tenant_id=?").run(new Date().toISOString(), id, tenantId);
       audit(tenantId, req.auth!.userId, 'reverse_sale', 'sale', id, { points: earned });
       return { pointsReversed: earned };
     })();

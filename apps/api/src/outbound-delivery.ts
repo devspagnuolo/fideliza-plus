@@ -57,7 +57,7 @@ function sendEmail(item: OutboundMessage) {
     body: JSON.stringify({
       from: process.env.EMAIL_FROM,
       to: [item.recipient],
-      subject: item.subject || 'Fideliza Plus',
+      subject: item.subject || 'Fidelizei',
       text: item.message,
     }),
   });

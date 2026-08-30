@@ -4,7 +4,7 @@ type Delivery={id:string;channel:string;recipient:string;provider:string;campaig
 
 async function sendEmail(delivery:Delivery) {
   if(!process.env.RESEND_API_KEY)return {status:'simulated',externalId:null};
-  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{authorization:`Bearer ${process.env.RESEND_API_KEY}`,'content-type':'application/json','user-agent':'fideliza-plus/0.1','idempotency-key':delivery.id},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[delivery.recipient],subject:delivery.subject||'Novidades Fideliza+',text:(delivery.variant==='B'?delivery.variant_b_message:delivery.variant_a_message)||delivery.message||''})});
+  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{authorization:`Bearer ${process.env.RESEND_API_KEY}`,'content-type':'application/json','user-agent':'fideliza-plus/0.1','idempotency-key':delivery.id},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[delivery.recipient],subject:delivery.subject||'Novidades Fidelizei',text:(delivery.variant==='B'?delivery.variant_b_message:delivery.variant_a_message)||delivery.message||''})});
   const body=await response.json() as {id?:string;message?:string};
   if(!response.ok)throw new Error(body.message||`Resend HTTP ${response.status}`);
   return {status:'sent',externalId:body.id??null};

@@ -137,7 +137,7 @@ export function RewardsCatalog() {
     <div className="reward-grid">
       {visible.map(item => <article key={item.id} className={!item.active ? 'archived' : ''}>
         <header><span className={item.active ? 'reward-status active' : 'reward-status'}>{item.active ? 'Ativa' : 'Arquivada'}</span><span>{item.redemptions || 0} resgate(s)</span></header>
-        <div><small>CUPOM</small><h3>{item.name}</h3><p>{item.description || 'Benefício exclusivo Fideliza Plus'}</p><b>{item.points_cost.toLocaleString('pt-BR')} pontos</b><small>{item.stock === null ? 'Estoque ilimitado' : `${item.stock} disponível(is)`}</small></div>
+        <div><small>CUPOM</small><h3>{item.name}</h3><p>{item.description || 'Benefício exclusivo Fidelizei'}</p><b>{item.points_cost.toLocaleString('pt-BR')} pontos</b><small>{item.stock === null ? 'Estoque ilimitado' : `${item.stock} disponível(is)`}</small></div>
         <div className="reward-manage">
           <button className="secondary" onClick={() => setEditing(item)}><Pencil /> Editar</button>
           {item.active ? <button className="danger" onClick={() => remove(item)}><Trash2 /> Excluir</button> : <button className="secondary" onClick={() => restore(item)}><ArchiveRestore /> Reativar</button>}

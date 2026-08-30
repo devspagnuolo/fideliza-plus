@@ -104,7 +104,7 @@ export async function createAsaasPayment(invoiceId: string) {
       billingType: billingType(invoice.payment_method),
       value: money(invoice.amount_cents),
       dueDate: dueDate(invoice.due_at),
-      description: invoice.description || `Assinatura Fideliza Plus - ${invoice.companyName}`,
+      description: invoice.description || `Assinatura Fidelizei - ${invoice.companyName}`,
       externalReference: invoice.id
     })
   });
@@ -127,7 +127,7 @@ export async function setupAsaasWebhook() {
   const authToken = process.env.ASAAS_WEBHOOK_TOKEN;
   if (!authToken || authToken.length < 32) throw new Error('ASAAS_WEBHOOK_TOKEN deve ter pelo menos 32 caracteres');
   const body = {
-      name: 'Fideliza Plus',
+      name: 'Fidelizei',
       url: process.env.ASAAS_WEBHOOK_URL ?? 'https://api.fidelizaplus.com.br/webhooks/asaas',
       email: process.env.ASAAS_NOTIFICATION_EMAIL ?? 'contato@fidelizaplus.com.br',
       enabled: true,
@@ -155,7 +155,7 @@ export async function runAsaasBillingCycle() {
       if (!invoice) {
         invoice = { id: randomUUID(), externalPaymentId: null };
         db.prepare(`INSERT INTO invoices(id,tenant_id,subscription_id,amount_cents,status,due_at,description,payment_method,gateway)
-          VALUES(?,?,?,?,'pending',?,'Assinatura Fideliza Plus',?,'asaas')`).run(invoice.id, subscription.tenant_id, subscription.id, subscription.monthly_price_cents, subscription.current_period_end, subscription.payment_method);
+          VALUES(?,?,?,?,'pending',?,'Assinatura Fidelizei',?,'asaas')`).run(invoice.id, subscription.tenant_id, subscription.id, subscription.monthly_price_cents, subscription.current_period_end, subscription.payment_method);
         db.prepare(`INSERT INTO billing_events(id,tenant_id,invoice_id,event_type,description)
           VALUES(?,?,?,'invoice.created','Conta a receber gerada automaticamente')`).run(randomUUID(), subscription.tenant_id, invoice.id);
         created++;
@@ -168,7 +168,7 @@ export async function runAsaasBillingCycle() {
         const method = subscription.payment_method === 'boleto' ? 'boleto' : subscription.payment_method === 'pix' ? 'Pix' : 'cartão';
         const message = `Fatura ${invoice.id}: cobrança por ${method}, vencimento ${dueDate(subscription.current_period_end)}.${link ? ` Acesse: ${link}` : ''}`;
         db.prepare(`INSERT INTO outbound_messages(id,tenant_id,recipient,channel,template,subject,message,scheduled_at)
-          VALUES(?,?,?,'email','billing.reminder','Sua assinatura Fideliza Plus',?,CURRENT_TIMESTAMP)`).run(randomUUID(), subscription.tenant_id, subscription.email, message);
+          VALUES(?,?,?,'email','billing.reminder','Sua assinatura Fidelizei',?,CURRENT_TIMESTAMP)`).run(randomUUID(), subscription.tenant_id, subscription.email, message);
         db.prepare('UPDATE invoices SET notified_at=CURRENT_TIMESTAMP WHERE id=?').run(invoice.id);
         notifications++;
       }

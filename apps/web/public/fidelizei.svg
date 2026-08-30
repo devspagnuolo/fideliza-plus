@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1000" viewBox="100 300 1400 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Fidelizei</title><desc id="desc">Fidelizei — Mais relacionamento, mais resultados.</desc>
+  <defs>
+    <linearGradient id="navy" x1="0" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#315d9d"/><stop offset="0.35" stop-color="#1b3f78"/><stop offset="0.72" stop-color="#0a214f"/><stop offset="1" stop-color="#030d2c"/></linearGradient>
+    <linearGradient id="navyWord" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#234d89"/><stop offset="0.48" stop-color="#12346d"/><stop offset="1" stop-color="#07153c"/></linearGradient>
+    <linearGradient id="teal" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#39e6dc"/><stop offset="0.3" stop-color="#22c9c1"/><stop offset="0.68" stop-color="#07948e"/><stop offset="1" stop-color="#006a6b"/></linearGradient>
+    <linearGradient id="tealShade" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1dd2c9"/><stop offset="0.58" stop-color="#079d96"/><stop offset="1" stop-color="#006b6c"/></linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".24"/><stop offset=".55" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="softShadow" x="-12%" y="-12%" width="130%" height="135%"><feDropShadow dx="5" dy="7" stdDeviation="6" flood-color="#00102d" flood-opacity=".18"/></filter>
+    <style>.brand{font-family:Bahnschrift,"Arial Narrow",Arial,sans-serif;font-size:177px;font-weight:600;letter-spacing:10px}.tagline{font-family:Bahnschrift,Arial,sans-serif;font-size:34px;font-weight:400;letter-spacing:9px}</style>
+  </defs>
+  <g filter="url(#softShadow)"><path fill="url(#navy)" d="M461 833 L519 478 C529 416 581 369 645 369 H936 C931 416 918 459 879 476 H655 C632 476 617 494 613 515 L608 540 H891 L857 647 H590 L568 772 C561 810 530 833 491 833 Z"/><path fill="url(#shine)" d="M519 478 C529 416 581 369 645 369 H936 C918 389 899 410 876 428 C849 450 821 461 782 461 H652 C608 461 580 484 567 524 L518 785 C512 814 494 829 468 833 Z" opacity=".55"/><path fill="url(#tealShade)" d="M1084 369 H1140 L1060 762 C1051 805 1021 833 974 833 H910 C941 817 964 794 972 756 L1035 445 C1044 400 1062 378 1084 369 Z"/><path fill="url(#teal)" d="M1068 369 H1120 L1041 754 C1032 798 1008 822 969 832 H911 C942 813 956 790 965 750 L1029 438 C1038 397 1050 377 1068 369 Z"/><path fill="url(#shine)" d="M1070 379 H1101 L1026 746 C1018 784 1001 808 970 823 H936 C956 804 966 781 973 747 L1038 430 C1044 402 1055 386 1070 379 Z" opacity=".7"/></g>
+  <g><text class="brand" x="161" y="1068" fill="url(#navyWord)" textLength="1275" lengthAdjust="spacingAndGlyphs">FIDELIZEI</text></g>
+  <g fill="url(#teal)"><rect x="224" y="1141" width="539" height="4" rx="2"/><path d="M805 1115 L833 1168 H777 Z"/><rect x="848" y="1141" width="540" height="4" rx="2"/></g>
+  <text class="tagline" x="290" y="1254" fill="#0c1733" textLength="1032" lengthAdjust="spacingAndGlyphs">MAIS RELACIONAMENTO, MAIS RESULTADOS.</text>
+</svg>

@@ -41,7 +41,7 @@ export function AdminExecutiveDashboard({ dash, all, updatedAt, refreshing, onRe
     <section className="pa-command-hero">
       <div className="pa-command-copy">
         <span className="pa-command-kicker"><ShieldCheck /> CENTRAL DE COMANDO</span>
-        <h2>Visão executiva da Fideliza Plus</h2>
+        <h2>Visão executiva da Fidelizei</h2>
         <p>Receita, clientes, operação e riscos em uma leitura única para tomada de decisão.</p>
         <div className="pa-command-meta"><span><CheckCircle2 /> Ambiente de produção</span><span><Clock3 /> Atualizado às {updatedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div>
       </div>
