@@ -360,6 +360,36 @@ CREATE TABLE IF NOT EXISTS platform_operation_exports(
 CREATE INDEX IF NOT EXISTS idx_operation_exports ON platform_operation_exports(status,expires_at,created_at);
 INSERT OR IGNORE INTO platform_queue_policies(job_type,display_name)VALUES
  ('sync_bling','Sincronização Bling'),('import_customers','Importação de clientes'),('import_sales','Importação de vendas'),('refresh_gie','Atualização de inteligência');`);
+ensureColumn('platform_incidents','service','TEXT');
+ensureColumn('platform_incidents','impact','TEXT');
+ensureColumn('platform_incidents','commander','TEXT');
+ensureColumn('platform_incidents','acknowledged_at','TEXT');
+ensureColumn('platform_incidents','next_update_at','TEXT');
+ensureColumn('platform_incidents','root_cause','TEXT');
+db.exec(`CREATE TABLE IF NOT EXISTS platform_monitors(
+ id TEXT PRIMARY KEY,name TEXT NOT NULL,target TEXT NOT NULL CHECK(target IN ('api','database','worker','integrations','communications','payments')),
+ path TEXT,threshold_ms INTEGER NOT NULL DEFAULT 1000,expected_status INTEGER NOT NULL DEFAULT 200,interval_seconds INTEGER NOT NULL DEFAULT 300,
+ active INTEGER NOT NULL DEFAULT 1,status TEXT NOT NULL DEFAULT 'pending',last_checked_at TEXT,last_duration_ms INTEGER,last_error TEXT,
+ created_by TEXT REFERENCES platform_admins(id),created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_platform_monitors ON platform_monitors(target,active,status);
+CREATE TABLE IF NOT EXISTS platform_monitoring_snapshots(
+ id TEXT PRIMARY KEY,requests INTEGER NOT NULL,errors INTEGER NOT NULL,error_rate REAL NOT NULL,average_response_ms REAL NOT NULL,
+ queued_jobs INTEGER NOT NULL,processing_jobs INTEGER NOT NULL,failed_jobs INTEGER NOT NULL,integration_errors INTEGER NOT NULL,
+ outbound_failures INTEGER NOT NULL,open_incidents INTEGER NOT NULL,database_bytes INTEGER NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_monitoring_snapshots_date ON platform_monitoring_snapshots(created_at);
+CREATE TABLE IF NOT EXISTS platform_incident_events(
+ id TEXT PRIMARY KEY,incident_id TEXT NOT NULL REFERENCES platform_incidents(id) ON DELETE CASCADE,admin_id TEXT REFERENCES platform_admins(id),
+ action TEXT NOT NULL,message TEXT,metadata TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_incident_events ON platform_incident_events(incident_id,created_at);
+CREATE TABLE IF NOT EXISTS platform_log_queries(
+ id TEXT PRIMARY KEY,name TEXT NOT NULL,query TEXT NOT NULL,source TEXT NOT NULL DEFAULT 'all',severity TEXT NOT NULL DEFAULT 'all',
+ notify INTEGER NOT NULL DEFAULT 0,active INTEGER NOT NULL DEFAULT 1,created_by TEXT REFERENCES platform_admins(id),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_log_queries ON platform_log_queries(active,source);`);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_external_payment ON invoices(external_payment_id) WHERE external_payment_id IS NOT NULL');
 
 // Ofertas comerciais pagas diretamente à loja, sem consumo de pontos.
