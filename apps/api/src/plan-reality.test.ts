@@ -34,11 +34,21 @@ describe('planos comerciais aplicados de verdade',()=>{
     expect(response.body.plans.find((plan:any)=>plan.code==='growth').features).toEqual(expect.arrayContaining(['manager_dashboard','advanced_reports','public_api']));
   });
 
+  it('reflete imediatamente no site o preço e os limites atualizados pelo administrador',async()=>{
+    db.prepare("UPDATE platform_plans SET monthly_price_cents=5790,user_limit=3,consumer_limit=1250 WHERE code='pilot'").run();
+    const response=await request(app).get('/public/plans').expect(200);
+    expect(response.headers['cache-control']).toContain('no-store');
+    expect(response.body.plans.find((plan:any)=>plan.code==='pilot').monthlyPriceCents).toBe(5790);
+    expect(response.body.plans.find((plan:any)=>plan.code==='pilot')).toMatchObject({userLimit:3,consumerLimit:1250});
+    db.prepare("UPDATE platform_plans SET monthly_price_cents=4900,user_limit=2,consumer_limit=1000 WHERE code='pilot'").run();
+  });
+
   it('cria teste público por exatamente sete dias sem cobrança imediata',async()=>{
     const before=Date.now();
     const response=await request(app).post('/public/trials').set('x-fideliza-request','web').send({planCode:'essential',companyName:'Loja Trial',cnpj:'11222333000181',responsibleName:'Responsável Trial',email:'trial@plan.test',phone:'11999999999',password:'Trial@12345',acceptTerms:true}).expect(201);
-    const subscription=db.prepare('SELECT status,current_period_end FROM subscriptions WHERE tenant_id=?').get(response.body.tenantId)as any;
+    const subscription=db.prepare('SELECT status,current_period_end,monthly_price_cents monthlyPriceCents FROM subscriptions WHERE tenant_id=?').get(response.body.tenantId)as any;
     expect(subscription.status).toBe('trialing');
+    expect(subscription.monthlyPriceCents).toBe(9900);
     const days=(new Date(`${subscription.current_period_end}T00:00:00Z`).getTime()-before)/86_400_000;
     expect(days).toBeGreaterThan(6);
     expect(days).toBeLessThanOrEqual(7.1);
