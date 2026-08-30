@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { db } from './db.js';
+import { PLAN_CATALOG } from '../plan-catalog.js';
 
 const sql = fs.readFileSync(path.resolve(process.cwd(), 'src/database/schema.sql'), 'utf8');
 db.exec(sql);
@@ -126,14 +127,18 @@ CREATE INDEX IF NOT EXISTS idx_invoices_status_due ON invoices(status,due_at);
 CREATE INDEX IF NOT EXISTS idx_platform_audit_date ON platform_audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_support_status ON support_tickets(status,priority);
 CREATE INDEX IF NOT EXISTS idx_incidents_status ON platform_incidents(status,severity);`);
-const defaultPlans=[
-  ['pilot','Piloto',0,2,1000,250,'["crm","loyalty","dashboard","bling"]'],
-  ['essential','Essencial',9900,5,5000,1024,'["crm","loyalty","dashboard","campaigns","integrations"]'],
-  ['growth','Crescimento',19900,15,25000,5120,'["crm","loyalty","gie","campaigns","integrations","api"]'],
-  ['professional','Profissional',39900,50,100000,20480,'["all","priority_support","advanced_reports"]']
-];
+const defaultPlans=PLAN_CATALOG.map(plan=>[plan.code,plan.name,plan.monthlyPriceCents,plan.userLimit,plan.consumerLimit,plan.storageMb,JSON.stringify(plan.features)]);
 const insertPlan=db.prepare('INSERT OR IGNORE INTO platform_plans (code,name,monthly_price_cents,user_limit,consumer_limit,storage_mb,features) VALUES (?,?,?,?,?,?,?)');
 db.transaction(()=>defaultPlans.forEach(plan=>insertPlan.run(...plan)))();
+const planRealityMigration='plan-reality-v1';
+if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(planRealityMigration))db.transaction(()=>{const update=db.prepare('UPDATE platform_plans SET name=?,monthly_price_cents=?,user_limit=?,consumer_limit=?,storage_mb=?,features=?,active=1,updated_at=CURRENT_TIMESTAMP WHERE code=?');for(const plan of PLAN_CATALOG)update.run(plan.name,plan.monthlyPriceCents,plan.userLimit,plan.consumerLimit,plan.storageMb,JSON.stringify(plan.features),plan.code);db.prepare('INSERT INTO migrations(name)VALUES(?)').run(planRealityMigration)})();
+db.exec(`CREATE TABLE IF NOT EXISTS public_trial_signups (
+  id TEXT PRIMARY KEY,tenant_id TEXT REFERENCES tenants(id),plan_code TEXT NOT NULL REFERENCES platform_plans(code),
+  company_name TEXT NOT NULL,cnpj TEXT NOT NULL,email TEXT NOT NULL,responsible_name TEXT NOT NULL,phone TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'activated',source TEXT NOT NULL DEFAULT 'public_plans',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);CREATE INDEX IF NOT EXISTS idx_trial_signups_created ON public_trial_signups(created_at,status);
+CREATE TRIGGER IF NOT EXISTS subscriptions_trial_7_days_insert AFTER INSERT ON subscriptions WHEN NEW.status='trialing' BEGIN UPDATE subscriptions SET current_period_start=CURRENT_TIMESTAMP,current_period_end=date('now','+7 days') WHERE id=NEW.id; END;
+CREATE TRIGGER IF NOT EXISTS subscriptions_trial_7_days_update AFTER UPDATE OF status ON subscriptions WHEN NEW.status='trialing' AND OLD.status<>'trialing' BEGIN UPDATE subscriptions SET current_period_start=CURRENT_TIMESTAMP,current_period_end=date('now','+7 days') WHERE id=NEW.id; END;`);
 ensureColumn('loyalty_ledger', 'entry_type', "TEXT NOT NULL DEFAULT 'adjustment'");
 ensureColumn('loyalty_ledger', 'expires_at', 'TEXT');
 ensureColumn('loyalty_ledger', 'expired_at', 'TEXT');

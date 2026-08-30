@@ -1,0 +1,31 @@
+import type { NextFunction, Request, Response } from 'express';
+import { db } from './database/db.js';
+
+export const PLAN_FEATURES = {
+  CORE_CRM: 'core_crm', LOYALTY: 'loyalty', REWARDS: 'rewards', CUSTOMER_PORTAL: 'customer_portal',
+  ERP_INTEGRATIONS: 'erp_integrations', BASIC_REPORTS: 'basic_reports', CAMPAIGNS_BASIC: 'campaigns_basic',
+  OPERATIONAL_DASHBOARD: 'operational_dashboard', OFFERS: 'offers', MANAGER_DASHBOARD: 'manager_dashboard',
+  CAMPAIGNS_ADVANCED: 'campaigns_advanced', GIE: 'gie', PUBLIC_API: 'public_api',
+  ADVANCED_REPORTS: 'advanced_reports', AUTOMATIONS: 'automations', PRIORITY_SUPPORT: 'priority_support',
+  MULTI_UNIT: 'multi_unit', AUDIT_EXPORT: 'audit_export'
+} as const;
+
+export type PlanFeature = typeof PLAN_FEATURES[keyof typeof PLAN_FEATURES];
+export type PlanDefinition = {code:string;name:string;tagline:string;monthlyPriceCents:number;userLimit:number;consumerLimit:number;storageMb:number;features:PlanFeature[];highlight?:boolean};
+
+const core:PlanFeature[]=[PLAN_FEATURES.CORE_CRM,PLAN_FEATURES.LOYALTY,PLAN_FEATURES.REWARDS,PLAN_FEATURES.CUSTOMER_PORTAL,PLAN_FEATURES.ERP_INTEGRATIONS,PLAN_FEATURES.BASIC_REPORTS];
+export const PLAN_CATALOG:PlanDefinition[]=[
+  {code:'pilot',name:'Piloto',tagline:'Valide a operação de fidelidade com o essencial.',monthlyPriceCents:4900,userLimit:2,consumerLimit:1000,storageMb:250,features:[...core]},
+  {code:'essential',name:'Essencial',tagline:'Organize a operação e comece a se relacionar em escala.',monthlyPriceCents:9900,userLimit:5,consumerLimit:5000,storageMb:1024,features:[...core,PLAN_FEATURES.CAMPAIGNS_BASIC,PLAN_FEATURES.OPERATIONAL_DASHBOARD,PLAN_FEATURES.OFFERS]},
+  {code:'growth',name:'Crescimento',tagline:'Transforme dados em campanhas, inteligência e recorrência.',monthlyPriceCents:19900,userLimit:15,consumerLimit:25000,storageMb:5120,highlight:true,features:[...core,PLAN_FEATURES.CAMPAIGNS_BASIC,PLAN_FEATURES.OPERATIONAL_DASHBOARD,PLAN_FEATURES.OFFERS,PLAN_FEATURES.MANAGER_DASHBOARD,PLAN_FEATURES.CAMPAIGNS_ADVANCED,PLAN_FEATURES.GIE,PLAN_FEATURES.PUBLIC_API,PLAN_FEATURES.ADVANCED_REPORTS,PLAN_FEATURES.AUTOMATIONS,PLAN_FEATURES.PRIORITY_SUPPORT]},
+  {code:'professional',name:'Profissional',tagline:'Governança, escala e controle para operações maduras.',monthlyPriceCents:39900,userLimit:50,consumerLimit:100000,storageMb:20480,features:[...core,PLAN_FEATURES.CAMPAIGNS_BASIC,PLAN_FEATURES.OPERATIONAL_DASHBOARD,PLAN_FEATURES.OFFERS,PLAN_FEATURES.MANAGER_DASHBOARD,PLAN_FEATURES.CAMPAIGNS_ADVANCED,PLAN_FEATURES.GIE,PLAN_FEATURES.PUBLIC_API,PLAN_FEATURES.ADVANCED_REPORTS,PLAN_FEATURES.AUTOMATIONS,PLAN_FEATURES.PRIORITY_SUPPORT,PLAN_FEATURES.MULTI_UNIT,PLAN_FEATURES.AUDIT_EXPORT]}
+];
+
+export const planByCode=(code:string)=>PLAN_CATALOG.find(plan=>plan.code===code);
+export const parseFeatures=(raw:unknown):string[]=>{try{return Array.isArray(raw)?raw:JSON.parse(String(raw||'[]'))}catch{return[]}};
+export function tenantPlan(tenantId:string){const row=db.prepare(`SELECT s.plan_code planCode,s.status,s.current_period_end currentPeriodEnd,p.name,p.user_limit userLimit,p.consumer_limit consumerLimit,p.storage_mb storageMb,p.features FROM subscriptions s JOIN platform_plans p ON p.code=s.plan_code WHERE s.tenant_id=?`).get(tenantId)as any;return row?{...row,features:parseFeatures(row.features)}:null}
+export function requirePlanFeature(...accepted:string[]){return(req:Request,res:Response,next:NextFunction)=>{const plan=tenantPlan(req.auth!.tenantId);if(!plan)return next();if(!accepted.some(feature=>plan.features.includes(feature)))return res.status(403).json({error:'Este recurso não está incluído no seu plano.',code:'PLAN_UPGRADE_REQUIRED',requiredFeatures:accepted});next()}}
+export function requirePlanCapacity(metric:'users'|'consumers'){return(req:Request,res:Response,next:NextFunction)=>{const plan=tenantPlan(req.auth!.tenantId);if(!plan)return next();const table=metric==='users'?'users':'customers',where=metric==='users'?'tenant_id=? AND active=1':'tenant_id=? AND deleted_at IS NULL',count=(db.prepare(`SELECT COUNT(*) total FROM ${table} WHERE ${where}`).get(req.auth!.tenantId)as any).total,limit=metric==='users'?plan.userLimit:plan.consumerLimit;if(count>=limit)return res.status(409).json({error:`Limite de ${metric==='users'?'usuários':'consumidores'} atingido. Faça upgrade para continuar.`,code:'PLAN_LIMIT_REACHED',metric,used:count,limit});next()}}
+export function tenantStorageBytes(tenantId:string){const row=db.prepare(`SELECT LENGTH(COALESCE((SELECT logo_data FROM tenants WHERE id=?),''))+COALESCE((SELECT SUM(LENGTH(COALESCE(avatar_data,''))) FROM users WHERE tenant_id=?),0)+COALESCE((SELECT SUM(LENGTH(COALESCE(image_data,''))) FROM rewards WHERE tenant_id=?),0)+COALESCE((SELECT SUM(LENGTH(COALESCE(image_data,''))) FROM store_offers WHERE tenant_id=?),0) bytes`).get(tenantId,tenantId,tenantId,tenantId)as{bytes:number};return Number(row.bytes||0)}
+export function requirePlanStorage(req:Request,res:Response,next:NextFunction){const image=req.body?.imageData??req.body?.image;if(typeof image!=='string'||!image)return next();const plan=tenantPlan(req.auth!.tenantId);if(!plan)return next();const used=tenantStorageBytes(req.auth!.tenantId),incoming=Buffer.byteLength(image,'utf8'),limit=plan.storageMb*1024*1024;if(used+incoming>limit)return res.status(409).json({error:'Limite de armazenamento do plano atingido. Remova imagens ou faça upgrade.',code:'PLAN_STORAGE_LIMIT_REACHED',usedBytes:used,limitBytes:limit});next()}
+export function publicPlanCatalog(){return PLAN_CATALOG.map(plan=>({...plan,storageGb:Number((plan.storageMb/1024).toFixed(2)),trialDays:7}))}

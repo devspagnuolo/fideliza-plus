@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { audit } from '../audit.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { db } from '../database/db.js';
+import { requirePlanStorage } from '../plan-catalog.js';
 
 export const rewardRoutes = Router();
 rewardRoutes.use(requireAuth);
@@ -29,7 +30,7 @@ const rewardFields = z.object({
   if((value.discountType&&!value.discountValue)||(!value.discountType&&value.discountValue))ctx.addIssue({code:'custom',path:['discountValue'],message:'Informe o tipo e o valor do desconto'});
 });
 
-rewardRoutes.post('/rewards', requireRole('owner', 'manager'), (req, res) => {
+rewardRoutes.post('/rewards', requireRole('owner', 'manager'), requirePlanStorage, (req, res) => {
   const parsed = rewardFields.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Recompensa inválida' });
   const id = randomUUID();
@@ -44,7 +45,7 @@ const rewardUpdate = z.object({name:z.string().trim().min(2).max(100).optional()
   'Informe ao menos uma alteração',
 );
 
-rewardRoutes.patch('/rewards/:id', requireRole('owner', 'manager'), (req, res) => {
+rewardRoutes.patch('/rewards/:id', requireRole('owner', 'manager'), requirePlanStorage, (req, res) => {
   const parsed = rewardUpdate.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Alteração inválida' });
   const id = String(req.params.id);

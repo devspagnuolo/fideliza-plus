@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from '../auth.js';
 import { db } from '../database/db.js';
 import { refreshRecommendations } from '../gie.js';
 import { processCampaignBatch } from '../campaign-delivery.js';
+import { PLAN_FEATURES,requirePlanFeature } from '../plan-catalog.js';
 
 export const growthRoutes = Router();
 growthRoutes.use(requireAuth);
@@ -30,7 +31,7 @@ function activationFor(tenantId:string) {
 
 growthRoutes.get('/onboarding',(req,res)=>res.json(activationFor(req.auth!.tenantId)));
 
-growthRoutes.get('/dashboard',(req,res)=>{
+growthRoutes.get('/dashboard',requirePlanFeature(PLAN_FEATURES.OPERATIONAL_DASHBOARD,PLAN_FEATURES.MANAGER_DASHBOARD),(req,res)=>{
   const tenantId=req.auth!.tenantId;
   const stats=db.prepare(`SELECT
     (SELECT COUNT(*) FROM customers WHERE tenant_id=? AND deleted_at IS NULL AND enrolled_at IS NOT NULL AND cpf IS NOT NULL AND length(trim(name))>=2 AND length(COALESCE(phone,''))>=10) customers,
@@ -41,7 +42,7 @@ growthRoutes.get('/dashboard',(req,res)=>{
   res.json({...stats,averageTicketCents:stats.sales?Math.round(stats.revenueCents/stats.sales):0,identificationRate:stats.customers?Math.round(stats.activeCustomers/stats.customers*100):0,activation:activationFor(tenantId),recommendations});
 });
 
-growthRoutes.patch('/gie/recommendations/:id', (req,res)=>{
+growthRoutes.patch('/gie/recommendations/:id',requirePlanFeature(PLAN_FEATURES.GIE),(req,res)=>{
   const parsed=z.object({status:z.enum(['accepted','dismissed','completed'])}).safeParse(req.body);
   if(!parsed.success)return res.status(400).json({error:'Decisão inválida'});
   const id=String(req.params.id),tenantId=req.auth!.tenantId;
@@ -51,10 +52,10 @@ growthRoutes.patch('/gie/recommendations/:id', (req,res)=>{
   res.json({ok:true});
 });
 
-growthRoutes.get('/campaigns',(req,res)=>res.json(db.prepare('SELECT * FROM campaigns WHERE tenant_id=? ORDER BY created_at DESC').all(req.auth!.tenantId)));
-growthRoutes.post('/campaigns',(req,res)=>{const p=z.object({name:z.string().min(3),channel:z.enum(['whatsapp','email']).default('whatsapp'),segment:z.enum(['all','active','inactive','vip']).default('all'),subject:z.string().max(150).optional(),message:z.string().min(3).max(2000),templateName:z.string().max(100).optional()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Campanha inválida'});if(p.data.channel==='whatsapp'&&!p.data.templateName)return res.status(400).json({error:'Informe o template aprovado do WhatsApp'});const id=randomUUID();db.prepare('INSERT INTO campaigns (id,tenant_id,name,channel,audience_rule,subject,message,template_name) VALUES (?,?,?,?,?,?,?,?)').run(id,req.auth!.tenantId,p.data.name,p.data.channel,JSON.stringify({segment:p.data.segment}),p.data.subject??null,p.data.message,p.data.templateName??null);audit(req.auth!.tenantId,req.auth!.userId,'create','campaign',id,{segment:p.data.segment,channel:p.data.channel});res.status(201).json({id,...p.data,status:'draft'});});
+growthRoutes.get('/campaigns',requirePlanFeature(PLAN_FEATURES.CAMPAIGNS_BASIC),(req,res)=>res.json(db.prepare('SELECT * FROM campaigns WHERE tenant_id=? ORDER BY created_at DESC').all(req.auth!.tenantId)));
+growthRoutes.post('/campaigns',requirePlanFeature(PLAN_FEATURES.CAMPAIGNS_BASIC),(req,res)=>{const p=z.object({name:z.string().min(3),channel:z.enum(['whatsapp','email']).default('whatsapp'),segment:z.enum(['all','active','inactive','vip']).default('all'),subject:z.string().max(150).optional(),message:z.string().min(3).max(2000),templateName:z.string().max(100).optional()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Campanha inválida'});if(p.data.channel==='whatsapp'&&!p.data.templateName)return res.status(400).json({error:'Informe o template aprovado do WhatsApp'});const id=randomUUID();db.prepare('INSERT INTO campaigns (id,tenant_id,name,channel,audience_rule,subject,message,template_name) VALUES (?,?,?,?,?,?,?,?)').run(id,req.auth!.tenantId,p.data.name,p.data.channel,JSON.stringify({segment:p.data.segment}),p.data.subject??null,p.data.message,p.data.templateName??null);audit(req.auth!.tenantId,req.auth!.userId,'create','campaign',id,{segment:p.data.segment,channel:p.data.channel});res.status(201).json({id,...p.data,status:'draft'});});
 
-growthRoutes.post('/campaigns/:id/queue',requireRole('owner','manager'),(req,res)=>{
+growthRoutes.post('/campaigns/:id/queue',requirePlanFeature(PLAN_FEATURES.CAMPAIGNS_BASIC),requireRole('owner','manager'),(req,res)=>{
   const tenantId=req.auth!.tenantId,id=String(req.params.id);
   const campaign=db.prepare('SELECT id,channel,audience_rule FROM campaigns WHERE id=? AND tenant_id=?').get(id,tenantId) as {id:string;channel:string;audience_rule:string}|undefined;
   if(!campaign)return res.status(404).json({error:'Campanha não encontrada'});
@@ -67,5 +68,5 @@ growthRoutes.post('/campaigns/:id/queue',requireRole('owner','manager'),(req,res
   db.prepare("UPDATE campaigns SET status='queued' WHERE id=? AND tenant_id=?").run(id,tenantId);audit(tenantId,req.auth!.userId,'queue','campaign',id,{queued,eligible:eligible.length});res.json({queued,eligible:eligible.length});
 });
 
-growthRoutes.post('/campaigns/process',requireRole('owner','manager'),async(req,res)=>{const result=await processCampaignBatch(req.auth!.tenantId);audit(req.auth!.tenantId,req.auth!.userId,'process_deliveries','campaign',undefined,result);res.json(result);});
-growthRoutes.get('/campaigns/:id/deliveries',(req,res)=>{const id=String(req.params.id);if(!db.prepare('SELECT id FROM campaigns WHERE id=? AND tenant_id=?').get(id,req.auth!.tenantId))return res.status(404).json({error:'Campanha não encontrada'});res.json(db.prepare('SELECT id,customer_id,channel,provider,status,error,attempts,created_at,sent_at FROM campaign_deliveries WHERE campaign_id=? AND tenant_id=? ORDER BY created_at').all(id,req.auth!.tenantId));});
+growthRoutes.post('/campaigns/process',requirePlanFeature(PLAN_FEATURES.CAMPAIGNS_BASIC),requireRole('owner','manager'),async(req,res)=>{const result=await processCampaignBatch(req.auth!.tenantId);audit(req.auth!.tenantId,req.auth!.userId,'process_deliveries','campaign',undefined,result);res.json(result);});
+growthRoutes.get('/campaigns/:id/deliveries',requirePlanFeature(PLAN_FEATURES.CAMPAIGNS_BASIC),(req,res)=>{const id=String(req.params.id);if(!db.prepare('SELECT id FROM campaigns WHERE id=? AND tenant_id=?').get(id,req.auth!.tenantId))return res.status(404).json({error:'Campanha não encontrada'});res.json(db.prepare('SELECT id,customer_id,channel,provider,status,error,attempts,created_at,sent_at FROM campaign_deliveries WHERE campaign_id=? AND tenant_id=? ORDER BY created_at').all(id,req.auth!.tenantId));});

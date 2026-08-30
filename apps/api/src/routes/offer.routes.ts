@@ -6,9 +6,11 @@ import { requireAuth, requireRole } from '../auth.js';
 import { db } from '../database/db.js';
 import { calculateSalePoints, reconcileSalePoints } from '../loyalty.js';
 import { releaseExpiredOfferReservations } from '../offer-reservations.js';
+import { PLAN_FEATURES, requirePlanFeature, requirePlanStorage } from '../plan-catalog.js';
 
 export const offerRoutes = Router();
 offerRoutes.use(requireAuth);
+offerRoutes.use(['/offers', '/offer-interests'], requirePlanFeature(PLAN_FEATURES.OFFERS));
 
 const image = z.string().max(1_600_000).refine(value => !value || /^data:image\/(png|jpe?g|webp);base64,/i.test(value), 'Imagem inválida').optional();
 const offerBase = z.object({
@@ -34,13 +36,13 @@ offerRoutes.get('/offers', (req, res) => {releaseExpiredOfferReservations(req.au
   (SELECT COUNT(*) FROM offer_interests i WHERE i.offer_id=o.id AND i.status IN ('new','contacted','reserved')) openInterestCount
   FROM store_offers o WHERE o.tenant_id=? ORDER BY o.updated_at DESC`).all(req.auth!.tenantId))});
 
-offerRoutes.post('/offers', requireRole('owner','manager'), (req, res) => {
+offerRoutes.post('/offers', requireRole('owner','manager'), requirePlanStorage, (req, res) => {
   const parsed=offerBody.safeParse(req.body);if(!parsed.success)return res.status(400).json({error:'Revise os dados, valores e a imagem da oferta'});
   const p=parsed.data,id=randomUUID();db.prepare(`INSERT INTO store_offers(id,tenant_id,name,description,product_sku,price_cents,original_price_cents,image_data,stock,status,starts_at,ends_at,payment_type,payment_instructions,payment_url,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id,req.auth!.tenantId,p.name,p.description||null,p.productSku||null,p.priceCents,p.originalPriceCents??null,p.imageData||null,p.stock??null,p.status,p.startsAt||null,p.endsAt||null,p.paymentType,p.paymentInstructions||null,p.paymentUrl||null,req.auth!.userId);
   audit(req.auth!.tenantId,req.auth!.userId,'create','store_offer',id,{status:p.status,priceCents:p.priceCents});res.status(201).json({id});
 });
 
-offerRoutes.patch('/offers/:id', requireRole('owner','manager'), (req, res) => {
+offerRoutes.patch('/offers/:id', requireRole('owner','manager'), requirePlanStorage, (req, res) => {
   const parsed=offerUpdate.safeParse(req.body);if(!parsed.success)return res.status(400).json({error:'Alteração da oferta inválida'});
   const id=String(req.params.id),p=parsed.data,current=db.prepare('SELECT * FROM store_offers WHERE id=? AND tenant_id=?').get(id,req.auth!.tenantId) as any;if(!current)return res.status(404).json({error:'Oferta não encontrada'});
   const nextPrice=p.priceCents??current.price_cents,nextOriginal=p.originalPriceCents===undefined?current.original_price_cents:p.originalPriceCents,nextPaymentType=p.paymentType??current.payment_type,nextPaymentUrl=p.paymentUrl===undefined?current.payment_url:p.paymentUrl;

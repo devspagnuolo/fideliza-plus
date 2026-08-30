@@ -1,4 +1,4 @@
-import { Building2, ChevronRight, ShieldCheck, Users } from 'lucide-react';
+import { Building2, ChevronRight, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { BrandLogo } from './BrandLogo';
 import { LegalFooter } from './LegalPages';
@@ -17,8 +17,7 @@ export function AccessHub() {
     <h1>Como você usa o Fidelizei?</h1>
     <p>Um único aplicativo, com áreas, permissões e experiências separadas para cada perfil.</p>
     <div className="access-options">
-      <a href="/"><Building2 /><span><b>Sou lojista</b><small>Gestão da empresa, clientes, vendas e campanhas.</small></span><ChevronRight /></a>
-      <a href="/admin"><ShieldCheck /><span><b>Administro a plataforma</b><small>Empresas, assinaturas, segurança e operação SaaS.</small></span><ChevronRight /></a>
+      <a href="/login"><Building2 /><span><b>Sou lojista</b><small>Gestão da empresa, clientes, vendas e campanhas.</small></span><ChevronRight /></a>
       <a href="/cliente"><Users /><span><b>Sou cliente</b><small>Encontre sua loja e acesse pontos, extrato e recompensas.</small></span><ChevronRight /></a>
     </div>
     <LegalFooter compact />

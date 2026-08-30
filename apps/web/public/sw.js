@@ -1,5 +1,5 @@
-const CACHE = 'fidelizei-shell-v6';
-const SHELL = ['/', '/offline.html', '/manifest.webmanifest', '/fidelizei.svg', '/fidelizei-mark.svg'];
+const CACHE = 'fidelizei-shell-v7';
+const SHELL = ['/', '/login', '/planos', '/blog', '/offline.html', '/manifest.webmanifest', '/fidelizei.svg', '/fidelizei-mark.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
