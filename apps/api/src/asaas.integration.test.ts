@@ -13,6 +13,7 @@ process.env.PLATFORM_ADMIN_PASSWORD='Financeiro@123';
 process.env.ASAAS_ENVIRONMENT='sandbox';
 process.env.ASAAS_API_KEY='$aact_test_key';
 process.env.ASAAS_WEBHOOK_TOKEN='asaas-webhook-token-with-more-than-32-characters';
+process.env.ASAAS_BILLING_ENABLED='true';
 
 const {db}=await import('./database/db.js');
 await import('./database/migrate.js');

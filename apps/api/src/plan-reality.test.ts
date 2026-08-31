@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 const databasePath=path.resolve(process.cwd(),`data/plan-reality-${randomUUID()}.db`);
 process.env.DATABASE_PATH=databasePath;
 process.env.SESSION_SECRET='plan-reality-secret-with-32-characters';
+process.env.ASAAS_BILLING_ENABLED='true';
 const {db}=await import('./database/db.js');
 await import('./database/migrate.js');
 const {hashPassword}=await import('./security.js');

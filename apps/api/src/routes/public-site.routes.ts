@@ -20,7 +20,8 @@ async function brasilApi(path: string) {
 
 publicSiteRoutes.get('/public/plans', (_req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');
-  res.json({ trialDays: 7, plans: publicPlanCatalog(), billing: { gateway: 'asaas', configured: asaasStatus().configured } });
+  const billing=asaasStatus();
+  res.json({ trialDays: 7, plans: publicPlanCatalog(), billing: { gateway: 'asaas', configured: billing.configured, enabled: billing.billingEnabled } });
 });
 
 publicSiteRoutes.get('/public/cnpj/:cnpj', async (req, res) => {
@@ -64,7 +65,7 @@ publicSiteRoutes.post('/public/trials', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Revise cadastro, endereço, pagamento, aceite os termos e confirme a cobrança após o teste' });
   const input = parsed.data, plan = planByCode(input.planCode);
   if (!plan) return res.status(409).json({ error: 'Este plano não está mais disponível. Atualize a página e escolha outro.' });
-  if (input.paymentMethod === 'card' && !asaasStatus().configured) return res.status(503).json({ error: 'O pagamento por cartão está temporariamente indisponível. Tente novamente em instantes.' });
+  if (input.paymentMethod === 'card' && (!asaasStatus().configured || !asaasStatus().billingEnabled)) return res.status(503).json({ error: 'O pagamento por cartão está temporariamente indisponível. Tente novamente em instantes.' });
   const tenantId = randomUUID(), subscriptionId = randomUUID(), returnToken = randomBytes(32).toString('hex');
   try {
     const result = db.transaction(() => {

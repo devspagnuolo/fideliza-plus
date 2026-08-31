@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { db } from '../database/db.js';
 import { hashToken } from '../security.js';
-import { asaasStatus, createAsaasPayment, processAsaasWebhook, runAsaasBillingCycle, setupAsaasWebhook, syncAsaasPayment } from '../asaas.js';
+import { asaasStatus, createAsaasPayment, processAsaasWebhook, runAsaasBillingCycle, setupAsaasWebhook, syncAsaasPayment, verifyAsaasConnection } from '../asaas.js';
 
 export const asaasRoutes = Router();
 
@@ -29,6 +29,9 @@ asaasRoutes.post('/webhooks/asaas', (req, res) => {
 });
 
 asaasRoutes.get('/platform/asaas/status', auth, (_req, res) => res.json(asaasStatus()));
+asaasRoutes.post('/platform/asaas/verify', auth, async (_req, res) => {
+  try { res.json(await verifyAsaasConnection()); } catch (error) { res.status(502).json({ error: (error as Error).message }); }
+});
 asaasRoutes.post('/platform/asaas/webhook/setup', auth, async (_req, res) => {
   try { res.json(await setupAsaasWebhook()); } catch (error) { res.status(502).json({ error: (error as Error).message }); }
 });

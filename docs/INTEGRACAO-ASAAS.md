@@ -7,6 +7,7 @@ O Fideliza Plus usa o Asaas como gateway das assinaturas das empresas. O fluxo i
 1. Crie uma conta no **Sandbox do Asaas** e gere uma chave de API.
 2. No serviço `fideliza-plus-api` do Render, configure:
    - `ASAAS_ENVIRONMENT=sandbox`
+   - `ASAAS_BILLING_ENABLED=true`
    - `ASAAS_API_KEY=<chave do sandbox>`
    - `ASAAS_WEBHOOK_TOKEN=<segredo aleatório com ao menos 32 caracteres>`
    - `ASAAS_WEBHOOK_URL=https://api.fidelizaplus.com.br/webhooks/asaas`
@@ -15,7 +16,9 @@ O Fideliza Plus usa o Asaas como gateway das assinaturas das empresas. O fluxo i
 4. Cadastre uma empresa de homologação com CNPJ e e-mail válidos, plano pago e vencimento em até dez dias.
 5. Execute o ciclo financeiro e valide a cobrança no Sandbox, o link da fatura, o boleto e a baixa por webhook.
 
-Somente depois da homologação altere `ASAAS_ENVIRONMENT` para `production` e substitua `ASAAS_API_KEY` pela chave de produção. Nunca reutilize a chave do Sandbox.
+Somente depois da homologação altere `ASAAS_ENVIRONMENT` para `production` e substitua `ASAAS_API_KEY` pela chave de produção. Nunca reutilize a chave do Sandbox. Faça a primeira implantação produtiva com `ASAAS_BILLING_ENABLED=false`, valide a conexão e configure o webhook. Só então altere a variável para `true` e execute uma cobrança controlada de baixo valor.
+
+Os identificadores externos ficam vinculados ao ambiente em que foram criados. Ao migrar de Sandbox para Produção, clientes e cobranças de teste não são reutilizados na conta real.
 
 ## Comportamento operacional
 

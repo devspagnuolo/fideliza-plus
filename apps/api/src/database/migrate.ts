@@ -97,6 +97,7 @@ ensureColumn('subscriptions', 'billing_setup_error', 'TEXT');
 ensureColumn('subscriptions', 'billing_setup_token_hash', 'TEXT');
 ensureColumn('subscriptions', 'external_checkout_id', 'TEXT');
 ensureColumn('subscriptions', 'checkout_url', 'TEXT');
+ensureColumn('subscriptions', 'asaas_environment', 'TEXT');
 ensureColumn('users', 'mfa_required', 'INTEGER NOT NULL DEFAULT 0');
 const customerPortalRollout='2026-08-20-enable-vivi-customer-portal';
 if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(customerPortalRollout)){
@@ -196,6 +197,7 @@ ensureColumn('invoices','invoice_url','TEXT');
 ensureColumn('invoices','bank_slip_url','TEXT');
 ensureColumn('invoices','pix_copy_paste','TEXT');
 ensureColumn('invoices','last_synced_at','TEXT');
+ensureColumn('invoices','asaas_environment','TEXT');
 ensureColumn('subscriptions','payment_method',"TEXT NOT NULL DEFAULT 'boleto'");
 ensureColumn('subscriptions','billing_day','INTEGER NOT NULL DEFAULT 10');
 ensureColumn('subscriptions','gateway',"TEXT NOT NULL DEFAULT 'asaas'");
@@ -408,6 +410,14 @@ CREATE TABLE IF NOT EXISTS platform_log_queries(
 );
 CREATE INDEX IF NOT EXISTS idx_log_queries ON platform_log_queries(active,source);`);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_external_payment ON invoices(external_payment_id) WHERE external_payment_id IS NOT NULL');
+const asaasEnvironmentMigration='2026-08-31-track-asaas-environment';
+if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(asaasEnvironmentMigration)){
+  db.transaction(()=>{
+    db.prepare("UPDATE subscriptions SET asaas_environment='sandbox' WHERE asaas_environment IS NULL AND (external_customer_id IS NOT NULL OR external_subscription_id IS NOT NULL OR external_checkout_id IS NOT NULL)").run();
+    db.prepare("UPDATE invoices SET asaas_environment='sandbox' WHERE asaas_environment IS NULL AND external_payment_id IS NOT NULL").run();
+    db.prepare('INSERT INTO migrations(name)VALUES(?)').run(asaasEnvironmentMigration);
+  })();
+}
 
 // Ofertas comerciais pagas diretamente à loja, sem consumo de pontos.
 ensureColumn('store_offers','payment_type',"TEXT NOT NULL DEFAULT 'store'");
