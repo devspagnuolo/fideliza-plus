@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const databasePath=path.resolve(process.cwd(),`data/plan-reality-${randomUUID()}.db`);
 process.env.DATABASE_PATH=databasePath;
@@ -11,6 +11,7 @@ const {db}=await import('./database/db.js');
 await import('./database/migrate.js');
 const {hashPassword}=await import('./security.js');
 const {app}=await import('./app.js');
+const {runAsaasBillingCycle}=await import('./asaas.js');
 
 function seed(code:string){
   const tenantId=`tenant-${code}`,email=`owner-${code}@plan.test`;
@@ -45,13 +46,39 @@ describe('planos comerciais aplicados de verdade',()=>{
 
   it('cria teste público por exatamente sete dias sem cobrança imediata',async()=>{
     const before=Date.now();
-    const response=await request(app).post('/public/trials').set('x-fideliza-request','web').send({planCode:'essential',companyName:'Loja Trial',cnpj:'11222333000181',responsibleName:'Responsável Trial',email:'trial@plan.test',phone:'11999999999',password:'Trial@12345',acceptTerms:true}).expect(201);
-    const subscription=db.prepare('SELECT status,current_period_end,monthly_price_cents monthlyPriceCents FROM subscriptions WHERE tenant_id=?').get(response.body.tenantId)as any;
+    const response=await request(app).post('/public/trials').set('x-fideliza-request','web').send({planCode:'essential',companyName:'Loja Trial',legalName:'Loja Trial LTDA',cnpj:'11222333000181',responsibleName:'Responsável Trial',email:'trial@plan.test',phone:'11999999999',password:'Trial@12345',postalCode:'01310100',address:'Avenida Paulista',addressNumber:'1000',complement:'',district:'Bela Vista',city:'São Paulo',state:'SP',paymentMethod:'boleto',acceptTerms:true,billingConsent:true}).expect(201);
+    const subscription=db.prepare('SELECT status,current_period_end,monthly_price_cents monthlyPriceCents,payment_method paymentMethod,billing_consent_at billingConsentAt FROM subscriptions WHERE tenant_id=?').get(response.body.tenantId)as any;
     expect(subscription.status).toBe('trialing');
     expect(subscription.monthlyPriceCents).toBe(9900);
+    expect(subscription.paymentMethod).toBe('boleto');
+    expect(subscription.billingConsentAt).toBeTruthy();
+    expect(db.prepare('SELECT COUNT(*) total FROM invoices WHERE tenant_id=?').get(response.body.tenantId)).toEqual({total:0});
+    const cycle=await runAsaasBillingCycle();
+    expect(cycle.created).toBe(0);
     const days=(new Date(`${subscription.current_period_end}T00:00:00Z`).getTime()-before)/86_400_000;
     expect(days).toBeGreaterThan(6);
     expect(days).toBeLessThanOrEqual(7.1);
+  });
+
+  it('agenda cartão no checkout Asaas para o fim do teste sem receber dados do cartão',async()=>{
+    const previousKey=process.env.ASAAS_API_KEY,requests:Array<{url:string;body:any}>=[];
+    process.env.ASAAS_API_KEY='sandbox-test-key';
+    const fetchMock=vi.spyOn(globalThis,'fetch').mockImplementation(async(input,init)=>{
+      const url=String(input),body=init?.body?JSON.parse(String(init.body)):undefined;requests.push({url,body});
+      if(url.endsWith('/customers'))return new Response(JSON.stringify({id:'cus_trial_card'}),{status:200,headers:{'content-type':'application/json'}});
+      if(url.endsWith('/checkouts'))return new Response(JSON.stringify({id:'chk_trial_card',link:'https://sandbox.asaas.com/checkoutSession/show/chk_trial_card'}),{status:200,headers:{'content-type':'application/json'}});
+      return new Response('{}',{status:404,headers:{'content-type':'application/json'}});
+    });
+    try{
+      const response=await request(app).post('/public/trials').set('x-fideliza-request','web').send({planCode:'growth',companyName:'Loja Cartão',legalName:'Loja Cartão LTDA',cnpj:'22333444000192',responsibleName:'Responsável Cartão',email:'card@plan.test',phone:'11988887777',password:'Cartao@12345',postalCode:'01310100',address:'Avenida Paulista',addressNumber:'2000',complement:'Sala 2',district:'Bela Vista',city:'São Paulo',state:'SP',paymentMethod:'card',acceptTerms:true,billingConsent:true}).expect(201);
+      expect(response.body.checkoutUrl).toContain('chk_trial_card');
+      const checkout=requests.find(item=>item.url.endsWith('/checkouts'))?.body;
+      expect(checkout).toMatchObject({billingTypes:['CREDIT_CARD'],chargeTypes:['RECURRENT'],externalReference:response.body.subscriptionId,subscription:{cycle:'MONTHLY'}});
+      expect(new Date(`${checkout.subscription.nextDueDate}T00:00:00Z`).getTime()-Date.now()).toBeGreaterThan(6*86_400_000);
+      expect(JSON.stringify(checkout)).not.toMatch(/creditCard|cardNumber|cvv/i);
+      const subscription=db.prepare('SELECT billing_setup_status status,external_checkout_id checkoutId FROM subscriptions WHERE id=?').get(response.body.subscriptionId)as any;
+      expect(subscription).toEqual({status:'checkout_pending',checkoutId:'chk_trial_card'});
+    }finally{fetchMock.mockRestore();if(previousKey===undefined)delete process.env.ASAAS_API_KEY;else process.env.ASAAS_API_KEY=previousKey}
   });
 
   it('restringe o Piloto e libera dashboard e ofertas a partir do Essencial',async()=>{

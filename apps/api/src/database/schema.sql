@@ -120,7 +120,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_reset_tokens(user_id,expires_at);
 CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON api_keys(tenant_id,active);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_external ON customers(tenant_id,external_id) WHERE external_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sales_tenant_date ON sales(tenant_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_ledger_tenant_customer ON loyalty_ledger(tenant_id, customer_id);
 CREATE INDEX IF NOT EXISTS idx_rewards_tenant_active ON rewards(tenant_id,active);

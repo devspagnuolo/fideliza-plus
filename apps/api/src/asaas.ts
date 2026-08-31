@@ -58,6 +58,7 @@ function localStatus(externalStatus: string) {
 
 export async function ensureAsaasCustomer(tenantId: string) {
   const row = db.prepare(`SELECT t.id,t.name,t.legal_name legalName,t.cnpj,t.email,t.phone,t.responsible_name responsibleName,
+    t.address,t.address_number addressNumber,t.address_complement complement,t.district,t.postal_code postalCode,
     s.id subscriptionId,s.external_customer_id externalCustomerId
     FROM tenants t JOIN subscriptions s ON s.tenant_id=t.id WHERE t.id=?`).get(tenantId) as Json | undefined;
   if (!row) throw new Error('Empresa ou assinatura não encontrada');
@@ -65,7 +66,12 @@ export async function ensureAsaasCustomer(tenantId: string) {
   if (onlyDigits(row.cnpj).length !== 14 || !row.email) throw new Error('Complete CNPJ e e-mail da empresa antes de gerar cobranças');
   const phones = asaasPhones(row.phone);
   const payload = { name: row.legalName || row.name, cpfCnpj: onlyDigits(row.cnpj), email: row.email,
-    externalReference: row.id, notificationDisabled: false };
+    externalReference: row.id, notificationDisabled: false,
+    ...(row.postalCode ? { postalCode: onlyDigits(row.postalCode) } : {}),
+    ...(row.address ? { address: row.address } : {}),
+    ...(row.addressNumber ? { addressNumber: row.addressNumber } : {}),
+    ...(row.complement ? { complement: row.complement } : {}),
+    ...(row.district ? { province: row.district } : {}) };
   let customer: Json;
   try {
     customer = await request('/customers', { method: 'POST', body: JSON.stringify({ ...payload, ...phones }) });
@@ -76,6 +82,30 @@ export async function ensureAsaasCustomer(tenantId: string) {
   }
   db.prepare('UPDATE subscriptions SET external_customer_id=?,gateway=\'asaas\',updated_at=CURRENT_TIMESTAMP WHERE id=?').run(customer.id, row.subscriptionId);
   return customer.id as string;
+}
+
+export async function createAsaasTrialCheckout(subscriptionId: string, returnToken: string) {
+  const row = db.prepare(`SELECT s.*,t.name companyName,t.email,p.name planName
+    FROM subscriptions s JOIN tenants t ON t.id=s.tenant_id
+    LEFT JOIN platform_plans p ON p.code=s.plan_code WHERE s.id=?`).get(subscriptionId) as Json | undefined;
+  if (!row) throw new Error('Assinatura não encontrada');
+  if (row.payment_method !== 'card') throw new Error('Checkout disponível apenas para cartão');
+  const customer = row.external_customer_id || await ensureAsaasCustomer(row.tenant_id);
+  const origin = (process.env.WEB_ORIGIN || 'https://fidelizaplus.com.br').split(',')[0]!.trim().replace(/\/$/, '');
+  const callback = (status: string) => `${origin}/planos?checkout=${status}&token=${encodeURIComponent(returnToken)}`;
+  const checkout = await request('/checkouts', { method: 'POST', body: JSON.stringify({
+    billingTypes: ['CREDIT_CARD'], chargeTypes: ['RECURRENT'], minutesToExpire: 1440,
+    externalReference: row.id, customer,
+    callback: { successUrl: callback('success'), cancelUrl: callback('cancel'), expiredUrl: callback('expired') },
+    items: [{ name: `Plano ${row.planName || row.plan_code} - Fidelizei`, quantity: 1,
+      value: money(row.monthly_price_cents), externalReference: row.id,
+      description: 'Assinatura mensal com primeira cobrança após 7 dias grátis' }],
+    subscription: { cycle: 'MONTHLY', nextDueDate: dueDate(row.current_period_end) }
+  }) });
+  const link = checkout.link || checkout.url || `${environment() === 'production' ? 'https://asaas.com' : 'https://sandbox.asaas.com'}/checkoutSession/show/${encodeURIComponent(checkout.id)}`;
+  db.prepare(`UPDATE subscriptions SET external_checkout_id=?,checkout_url=?,billing_setup_status='checkout_pending',
+    billing_setup_error=NULL,gateway='asaas',updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(checkout.id, link, row.id);
+  return { id: checkout.id as string, link: link as string };
 }
 
 function savePayment(invoiceId: string, payment: Json) {
@@ -145,7 +175,10 @@ export async function setupAsaasWebhook() {
 export async function runAsaasBillingCycle() {
   const subscriptions = db.prepare(`SELECT s.*,t.email,t.name FROM subscriptions s JOIN tenants t ON t.id=s.tenant_id
     WHERE s.status IN ('active','trialing') AND s.current_period_end IS NOT NULL
-    AND date(s.current_period_end)<=date('now','+10 days') AND s.monthly_price_cents>0`).all() as Json[];
+    AND ((s.status='active' AND date(s.current_period_end)<=date('now','+10 days'))
+      OR (s.status='trialing' AND date(s.current_period_end)<=date('now')))
+    AND NOT (s.payment_method='card' AND s.external_checkout_id IS NOT NULL)
+    AND s.monthly_price_cents>0`).all() as Json[];
   let created = 0, gatewayCreated = 0, notifications = 0;
   const failures: Array<{ tenantId: string; error: string }> = [];
   for (const subscription of subscriptions) {
@@ -188,8 +221,20 @@ export function processAsaasWebhook(payload: Json) {
   if (!inserted.changes) return { duplicate: true };
   try {
     if (!payment?.id) throw new Error('Evento sem pagamento');
-    const invoice = db.prepare('SELECT id,tenant_id,subscription_id FROM invoices WHERE external_payment_id=? OR id=?').get(payment.id, payment.externalReference ?? '') as Json | undefined;
-    if (!invoice) throw new Error('Fatura correspondente não encontrada');
+    let invoice = db.prepare('SELECT id,tenant_id,subscription_id FROM invoices WHERE external_payment_id=? OR id=?').get(payment.id, payment.externalReference ?? '') as Json | undefined;
+    if (!invoice) {
+      const subscription = db.prepare(`SELECT id,tenant_id,monthly_price_cents,payment_method,current_period_end
+        FROM subscriptions WHERE id=? OR external_subscription_id=?`).get(payment.externalReference ?? '', payment.subscription ?? '') as Json | undefined;
+      if (!subscription) throw new Error('Fatura correspondente não encontrada');
+      const invoiceId = randomUUID();
+      db.prepare(`INSERT INTO invoices(id,tenant_id,subscription_id,amount_cents,status,due_at,description,payment_method,gateway,external_payment_id,external_id)
+        VALUES(?,?,?,?,'pending',?,'Assinatura Fidelizei',?,'asaas',?,?)`).run(invoiceId, subscription.tenant_id, subscription.id,
+          Math.round(Number(payment.value ?? money(subscription.monthly_price_cents)) * 100), payment.dueDate ?? subscription.current_period_end,
+          subscription.payment_method || 'card', payment.id, payment.id);
+      db.prepare(`UPDATE subscriptions SET external_subscription_id=COALESCE(?,external_subscription_id),billing_setup_status='ready',
+        billing_setup_error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(payment.subscription ?? null, subscription.id);
+      invoice = { id: invoiceId, tenant_id: subscription.tenant_id, subscription_id: subscription.id };
+    }
     const transition = savePayment(invoice.id, payment),status=transition.status;
     db.prepare(`INSERT INTO billing_events(id,tenant_id,invoice_id,event_type,description,metadata)
       VALUES(?,?,?,?,?,?)`).run(randomUUID(), invoice.tenant_id, invoice.id, `asaas.${eventType.toLowerCase()}`, `Evento ${eventType} recebido do Asaas`, JSON.stringify({ paymentId: payment.id, externalStatus: payment.status }));
