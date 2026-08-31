@@ -11,5 +11,11 @@ async function expectResponse(label, url, validate) {
 
 await expectResponse('API ativa', `${apiUrl}/health`, (_response, body) => JSON.parse(body).status === 'ok');
 await expectResponse('Banco disponível', `${apiUrl}/ready`, (_response, body) => JSON.parse(body).status === 'ready');
-await expectResponse('Interface web', webUrl, (response, body) => (response.headers.get('content-type') ?? '').includes('text/html') && body.includes('Fideliza'));
+await expectResponse(
+  'Interface web',
+  webUrl,
+  (response, body) =>
+    (response.headers.get('content-type') ?? '').includes('text/html') &&
+    /<div[^>]+id=["']root["'][^>]*>/i.test(body),
+);
 console.log('Homologação técnica básica aprovada.');
