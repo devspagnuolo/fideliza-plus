@@ -193,12 +193,15 @@ export async function verifyAsaasConnection() {
 
 export async function runAsaasBillingCycle() {
   assertBillingEnabled();
-  const subscriptions = db.prepare(`SELECT s.*,t.email,t.name FROM subscriptions s JOIN tenants t ON t.id=s.tenant_id
+  const subscriptions = db.prepare(`SELECT s.*,t.email,t.name,
+    COALESCE((SELECT SUM(aa.monthly_price_cents*aa.quantity) FROM plan_addon_assignments aa WHERE aa.tenant_id=s.tenant_id AND aa.status='active'),0) addonTotalCents,
+    s.monthly_price_cents+COALESCE((SELECT SUM(aa.monthly_price_cents*aa.quantity) FROM plan_addon_assignments aa WHERE aa.tenant_id=s.tenant_id AND aa.status='active'),0) billingTotalCents
+    FROM subscriptions s JOIN tenants t ON t.id=s.tenant_id
     WHERE s.status IN ('active','trialing') AND s.current_period_end IS NOT NULL
     AND ((s.status='active' AND date(s.current_period_end)<=date('now','+10 days'))
       OR (s.status='trialing' AND date(s.current_period_end)<=date('now')))
     AND NOT (s.payment_method='card' AND s.external_checkout_id IS NOT NULL)
-    AND s.monthly_price_cents>0`).all() as Json[];
+    AND (s.monthly_price_cents+COALESCE((SELECT SUM(aa.monthly_price_cents*aa.quantity) FROM plan_addon_assignments aa WHERE aa.tenant_id=s.tenant_id AND aa.status='active'),0))>0`).all() as Json[];
   let created = 0, gatewayCreated = 0, notifications = 0;
   const failures: Array<{ tenantId: string; error: string }> = [];
   for (const subscription of subscriptions) {
@@ -207,8 +210,9 @@ export async function runAsaasBillingCycle() {
         WHERE subscription_id=? AND due_at=? AND status IN ('pending','paid','overdue')`).get(subscription.id, subscription.current_period_end) as Json | undefined;
       if (!invoice) {
         invoice = { id: randomUUID(), externalPaymentId: null };
+        const description=Number(subscription.addonTotalCents)>0?'Assinatura Fidelizei + add-ons':'Assinatura Fidelizei';
         db.prepare(`INSERT INTO invoices(id,tenant_id,subscription_id,amount_cents,status,due_at,description,payment_method,gateway)
-          VALUES(?,?,?,?,'pending',?,'Assinatura Fidelizei',?,'asaas')`).run(invoice.id, subscription.tenant_id, subscription.id, subscription.monthly_price_cents, subscription.current_period_end, subscription.payment_method);
+          VALUES(?,?,?,?,'pending',?,?,?,'asaas')`).run(invoice.id, subscription.tenant_id, subscription.id, subscription.billingTotalCents, subscription.current_period_end, description, subscription.payment_method);
         db.prepare(`INSERT INTO billing_events(id,tenant_id,invoice_id,event_type,description)
           VALUES(?,?,?,'invoice.created','Conta a receber gerada automaticamente')`).run(randomUUID(), subscription.tenant_id, invoice.id);
         created++;

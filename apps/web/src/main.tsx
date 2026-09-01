@@ -31,6 +31,7 @@ import './mobile-shell.css';
 import './brand-theme.css';
 import './fideliza-design-system.css';
 import './brand-usability.css';
+import './merchant-login.css';
 
 type Page = 'dashboard' | 'customers' | 'sales' | 'campaigns' | 'settings';
 type Customer = { id:string; name:string; email?:string; phone?:string; points_balance:number };
@@ -42,8 +43,9 @@ const money = (value:number) => (value/100).toLocaleString('pt-BR',{style:'curre
 function Login({onLogin}:{onLogin:()=>void}) {
   const [error,setError]=useState('');
   const [twoFactor,setTwoFactor]=useState(false);
-  async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();try{await api('/auth/login',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))});onLogin();}catch(reason){const message=(reason as Error).message;if(message==='Código do autenticador necessário')setTwoFactor(true);setError(message);}}
-  return <main className="login"><section className="login-card"><Brand/><h1>Bem-vinda de volta</h1><p>Acompanhe seus clientes e transforme dados em novas vendas.</p><form onSubmit={submit}><label>E-mail<input name="email" type="email" autoComplete="username" required/></label><label>Senha<input name="password" type="password" autoComplete="current-password" required/></label>{twoFactor&&<label>Código do autenticador<input name="totpCode" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" autoFocus required/></label>}{error&&<div className="error">{error}</div>}<button>Entrar</button></form><a className="recovery-link" href="/reset-password">Esqueci minha senha</a><small>Ambiente piloto · Vivi Moda Plus Size</small><LegalFooter compact/></section><aside><Gift size={72}/><h2>Clientes fiéis.<br/>Negócios mais fortes.</h2></aside></main>;
+  const [busy,setBusy]=useState(false);
+  async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();if(busy)return;setBusy(true);setError('');try{await api('/auth/login',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))});onLogin();}catch(reason){const message=(reason as Error).message;if(message==='Código do autenticador necessário')setTwoFactor(true);setError(message);}finally{setBusy(false)}}
+  return <main className="login"><section className="login-card"><Brand/><div className="login-intro"><span>PORTAL DO LOJISTA</span><h1>Bem-vindo de volta</h1><p>Acompanhe clientes, vendas e resultados em um ambiente seguro.</p></div><form onSubmit={submit}><label>E-mail<input name="email" type="email" inputMode="email" autoCapitalize="none" autoComplete="username" required/></label><label>Senha<input name="password" type="password" autoComplete="current-password" required/></label>{twoFactor&&<label>Código do autenticador<input name="totpCode" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" autoFocus required/></label>}{error&&<div className="error" role="alert">{error}</div>}<button disabled={busy}>{busy?'Validando acesso...':'Entrar no portal'}</button></form><a className="recovery-link" href="/reset-password">Esqueci minha senha</a><small className="login-safe">Acesso seguro ao ambiente da sua empresa.</small><LegalFooter compact/></section><aside><Gift size={72}/><h2>Clientes fiéis.<br/>Negócios mais fortes.</h2></aside></main>;
 }
 function Brand({inverse=false}:{inverse?:boolean}){return <BrandLogo inverse={inverse} context="Mais relacionamento, mais resultados."/>;}
 function PageHeader({eyebrow,title,description,action}:{eyebrow:string;title:string;description:string;action?:React.ReactNode}){return <header><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{description}</p></div>{action}</header>;}

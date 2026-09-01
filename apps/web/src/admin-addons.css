@@ -1,0 +1,150 @@
+.plan-actions {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.plan-actions button,
+.plan-form button,
+.addon-row-actions button {
+  min-height: 42px;
+  border: 1px solid #078b83;
+  border-radius: 10px;
+  background: #078b83 !important;
+  color: #fff !important;
+  font-weight: 800;
+}
+
+.plan-actions button.secondary,
+.plan-form button.secondary,
+.addon-row-actions button.secondary {
+  background: #fff !important;
+  color: #087f78 !important;
+}
+
+.addon-row-actions button.danger {
+  border-color: #b4233f;
+  background: #fff !important;
+  color: #a81734 !important;
+}
+
+.plan-feedback {
+  padding: 13px 16px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.plan-feedback.error {
+  border: 1px solid #f3b9c4;
+  background: #fff1f4;
+  color: #a81734;
+}
+
+.addon-plans {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #dce6ed;
+  border-radius: 12px;
+}
+
+.addon-plans legend {
+  padding: 0 7px;
+  color: #425a70;
+  font-weight: 800;
+}
+
+.addon-plans > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 10px;
+}
+
+.addon-plans label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.addon-plans input {
+  width: 18px;
+  height: 18px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.addon-history {
+  display: grid;
+  gap: 10px;
+}
+
+.addon-history > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 8px 0 0;
+}
+
+.addon-history h3 {
+  margin: 0;
+  color: #071f42;
+}
+
+.addon-history p {
+  margin: 4px 0 0;
+  color: #718096;
+}
+
+.addon-history > header > span {
+  color: #087f78;
+  font-weight: 800;
+}
+
+.plan-table.addon-contracts > div {
+  min-width: 1040px;
+  grid-template-columns: 1.3fr 1.1fr .7fr .8fr 1.2fr 1.1fr;
+}
+
+.addon-status {
+  display: inline-flex;
+  width: max-content;
+  padding: 5px 9px;
+  border-radius: 20px;
+  background: #e8eef2;
+  color: #4c6275 !important;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.addon-status.active { background: #dff7ef; color: #086b50 !important; }
+.addon-status.paused { background: #fff2d8; color: #8a5a00 !important; }
+.addon-status.canceled { background: #ffe9ed; color: #9f1833 !important; }
+
+.addon-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .plan-actions {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .plan-actions button,
+  .form-actions button {
+    width: 100% !important;
+    justify-content: center;
+  }
+
+  .form-actions { display: grid; }
+  .addon-history > header { align-items: flex-start; flex-direction: column; }
+  .plan-table.addons > div { min-width: 880px; }
+  .plan-table.addon-contracts > div { min-width: 1040px; }
+}

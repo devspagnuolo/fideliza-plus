@@ -25,6 +25,8 @@ describe('integração financeira Asaas',()=>{
       VALUES('asaas-tenant','Loja Asaas','loja-asaas','Loja Asaas Ltda','11222333000181','cobranca@loja.test','11999999999','Responsável')`).run();
     db.prepare(`INSERT INTO subscriptions(id,tenant_id,plan_code,status,monthly_price_cents,current_period_end,payment_method,billing_day,gateway)
       VALUES('asaas-sub','asaas-tenant','essential','active',9900,date('now','+5 days'),'boleto',10,'asaas')`).run();
+    db.prepare(`INSERT INTO plan_addons(id,code,name,monthly_price_cents,additional_users,compatible_plans) VALUES('asaas-addon','usuarios-10','Usuários adicionais',4900,10,'["essential"]')`).run();
+    db.prepare(`INSERT INTO plan_addon_assignments(id,addon_id,tenant_id,quantity,monthly_price_cents,status) VALUES('asaas-addon-contract','asaas-addon','asaas-tenant',2,4900,'active')`).run();
   });
   afterAll(()=>{vi.restoreAllMocks();db.close();for(const suffix of['','-shm','-wal'])fs.rmSync(`${databasePath}${suffix}`,{force:true})});
 
@@ -49,7 +51,8 @@ describe('integração financeira Asaas',()=>{
     expect(customerRequests[0]).not.toHaveProperty('phone');
     expect(customerRequests[1]).not.toHaveProperty('mobilePhone');
     expect(customerRequests[1]).not.toHaveProperty('phone');
-    expect(db.prepare("SELECT gateway,external_payment_id,status FROM invoices WHERE subscription_id='asaas-sub'").get()).toEqual({gateway:'asaas',external_payment_id:'pay_asaas_1',status:'pending'});
+    expect(JSON.parse(String(fetchMock.mock.calls.find(([url])=>String(url).endsWith('/payments'))?.[1]?.body))).toMatchObject({value:197});
+    expect(db.prepare("SELECT gateway,external_payment_id,status,amount_cents amountCents,description FROM invoices WHERE subscription_id='asaas-sub'").get()).toEqual({gateway:'asaas',external_payment_id:'pay_asaas_1',status:'pending',amountCents:19700,description:'Assinatura Fidelizei + add-ons'});
   });
 
   it('concilia pagamento por webhook autenticado e ignora repetição',async()=>{

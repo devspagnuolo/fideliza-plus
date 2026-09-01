@@ -336,6 +336,11 @@ CREATE TABLE IF NOT EXISTS plan_commercial_rules(
  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_plan_commercial_rules ON plan_commercial_rules(active,rule_type);`);
+ensureColumn('plan_addon_assignments','notes','TEXT');
+ensureColumn('plan_addon_assignments','created_at','TEXT');
+ensureColumn('plan_addon_assignments','updated_at','TEXT');
+ensureColumn('plan_addon_assignments','updated_by','TEXT');
+db.prepare(`UPDATE plan_addon_assignments SET created_at=COALESCE(created_at,started_at),updated_at=COALESCE(updated_at,started_at)`).run();
 db.exec(`CREATE TABLE IF NOT EXISTS platform_analytics_reports(
  id TEXT PRIMARY KEY,name TEXT NOT NULL,description TEXT,metrics TEXT NOT NULL DEFAULT '[]',dimensions TEXT NOT NULL DEFAULT '[]',
  period TEXT NOT NULL DEFAULT '90',format TEXT NOT NULL DEFAULT 'csv',recipients TEXT,
