@@ -13,9 +13,18 @@ export function validateProductionEnvironment(env: Environment) {
   if (env.WHATSAPP_ACCESS_TOKEN && !env.WHATSAPP_PASSWORD_RESET_TEMPLATE) throw new Error('WHATSAPP_PASSWORD_RESET_TEMPLATE é obrigatório com WhatsApp');
   paired(env, 'BLING_CLIENT_ID', 'BLING_CLIENT_SECRET');
   if (env.RESEND_API_KEY && !env.EMAIL_FROM) throw new Error('EMAIL_FROM é obrigatório com RESEND_API_KEY');
+  const asaasEnvironment = (env.ASAAS_ENVIRONMENT ?? '').trim().toLowerCase();
+  const asaasBilling = (env.ASAAS_BILLING_ENABLED ?? '').trim().toLowerCase();
+  const billingEnabledValues = ['true', '1', 'yes', 'on'];
+  const billingDisabledValues = ['false', '0', 'no', 'off'];
+  if (asaasEnvironment && !['sandbox', 'production'].includes(asaasEnvironment)) throw new Error('ASAAS_ENVIRONMENT deve ser sandbox ou production');
+  if (asaasBilling && ![...billingEnabledValues, ...billingDisabledValues].includes(asaasBilling)) throw new Error('ASAAS_BILLING_ENABLED deve ser true ou false');
   if (env.ASAAS_API_KEY && !env.ASAAS_WEBHOOK_TOKEN) throw new Error('ASAAS_WEBHOOK_TOKEN é obrigatório com ASAAS_API_KEY');
-  if (env.ASAAS_ENVIRONMENT && !['sandbox', 'production'].includes(env.ASAAS_ENVIRONMENT)) throw new Error('ASAAS_ENVIRONMENT deve ser sandbox ou production');
-  if (env.ASAAS_BILLING_ENABLED && !['true', 'false'].includes(env.ASAAS_BILLING_ENABLED)) throw new Error('ASAAS_BILLING_ENABLED deve ser true ou false');
+  if (billingEnabledValues.includes(asaasBilling)) {
+    if (!env.ASAAS_API_KEY) throw new Error('ASAAS_API_KEY é obrigatória quando a cobrança Asaas está ativa');
+    if (!env.ASAAS_WEBHOOK_TOKEN) throw new Error('ASAAS_WEBHOOK_TOKEN é obrigatório quando a cobrança Asaas está ativa');
+    if (asaasEnvironment !== 'production') throw new Error('ASAAS_ENVIRONMENT deve ser production quando a cobrança real está ativa');
+  }
   const interval = Number(env.WORKER_INTERVAL_MS ?? 15_000);
   if (!Number.isFinite(interval) || interval < 5_000) throw new Error('WORKER_INTERVAL_MS deve ser um número de pelo menos 5000');
   const backupNumbers: Array<[string, string]> = [['BACKUP_INTERVAL_HOURS', '24'], ['BACKUP_RETENTION_DAYS', '30'], ['BACKUP_MAX_FILES', '30']];

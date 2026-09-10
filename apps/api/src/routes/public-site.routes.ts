@@ -5,6 +5,7 @@ import { asaasStatus, createAsaasTrialCheckout, ensureAsaasCustomer } from '../a
 import { db } from '../database/db.js';
 import { planByCode, publicPlanCatalog } from '../plan-catalog.js';
 import { hashPassword } from '../security.js';
+import { SOFTWARE_LICENSE_CONTRACT_EFFECTIVE_DATE, SOFTWARE_LICENSE_CONTRACT_HASH, SOFTWARE_LICENSE_CONTRACT_SECTIONS, SOFTWARE_LICENSE_CONTRACT_SNAPSHOT, SOFTWARE_LICENSE_CONTRACT_TITLE, SOFTWARE_LICENSE_CONTRACT_VERSION } from '../legal/software-license-contract.js';
 
 export const publicSiteRoutes = Router();
 const digits = (value: unknown) => String(value ?? '').replace(/\D/g, '');
@@ -22,6 +23,11 @@ publicSiteRoutes.get('/public/plans', (_req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');
   const billing=asaasStatus();
   res.json({ trialDays: 7, plans: publicPlanCatalog(), billing: { gateway: 'asaas', configured: billing.configured, enabled: billing.billingEnabled } });
+});
+
+publicSiteRoutes.get('/public/software-license-contract',(_req,res)=>{
+  res.set('Cache-Control','public, max-age=300');
+  res.json({title:SOFTWARE_LICENSE_CONTRACT_TITLE,version:SOFTWARE_LICENSE_CONTRACT_VERSION,effectiveDate:SOFTWARE_LICENSE_CONTRACT_EFFECTIVE_DATE,hash:SOFTWARE_LICENSE_CONTRACT_HASH,sections:SOFTWARE_LICENSE_CONTRACT_SECTIONS});
 });
 
 publicSiteRoutes.get('/public/cnpj/:cnpj', async (req, res) => {
@@ -57,12 +63,13 @@ const trialSchema = z.object({
   cnpj: z.string().min(14).max(20), responsibleName: z.string().trim().min(2).max(120), email: z.string().email(), phone: z.string().min(10).max(25),
   password: z.string().min(10).regex(/[A-Z]/).regex(/[a-z]/).regex(/[0-9]/), postalCode: z.string().min(8).max(10), address: z.string().trim().min(2).max(180),
   addressNumber: z.string().trim().min(1).max(30), complement: z.string().trim().max(100).optional().default(''), district: z.string().trim().min(2).max(100),
-  city: z.string().trim().min(2).max(100), state: z.string().trim().length(2), paymentMethod: z.enum(['boleto', 'card']), acceptTerms: z.literal(true), billingConsent: z.literal(true)
+  city: z.string().trim().min(2).max(100), state: z.string().trim().length(2), paymentMethod: z.enum(['boleto', 'card']), acceptTerms: z.literal(true),
+  acceptContract: z.literal(true), minimumTermConsent: z.literal(true), billingConsent: z.literal(true)
 });
 
 publicSiteRoutes.post('/public/trials', async (req, res) => {
   const parsed = trialSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Revise cadastro, endereço, pagamento, aceite os termos e confirme a cobrança após o teste' });
+  if (!parsed.success) return res.status(400).json({ error: 'Revise o cadastro e confirme o contrato, a fidelidade mínima e a cobrança após o teste' });
   const input = parsed.data, plan = planByCode(input.planCode);
   if (!plan) return res.status(409).json({ error: 'Este plano não está mais disponível. Atualize a página e escolha outro.' });
   if (input.paymentMethod === 'card' && (!asaasStatus().configured || !asaasStatus().billingEnabled)) return res.status(503).json({ error: 'O pagamento por cartão está temporariamente indisponível. Tente novamente em instantes.' });
@@ -81,6 +88,9 @@ publicSiteRoutes.post('/public/trials', async (req, res) => {
         subscriptionId, tenantId, plan.code, plan.monthlyPriceCents, input.paymentMethod, tokenHash(returnToken));
       db.prepare("INSERT INTO users(id,tenant_id,name,email,password_hash,role,source,phone)VALUES(?,?,?,?,?,'owner','public_trial',?)").run(randomUUID(), tenantId, input.responsibleName, email, hashPassword(input.password), cleanPhone);
       db.prepare('INSERT INTO public_trial_signups(id,tenant_id,plan_code,company_name,cnpj,email,responsible_name,phone)VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), tenantId, plan.code, input.companyName, cleanCnpj, email, input.responsibleName, cleanPhone);
+      db.prepare(`INSERT INTO subscription_contract_acceptances(id,tenant_id,subscription_id,contract_version,contract_hash,contract_snapshot,signer_name,signer_email,signer_document,plan_code,monthly_price_cents,payment_method,minimum_term_consent,billing_consent,ip_address,user_agent)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,1,?,?)`).run(randomUUID(),tenantId,subscriptionId,SOFTWARE_LICENSE_CONTRACT_VERSION,SOFTWARE_LICENSE_CONTRACT_HASH,SOFTWARE_LICENSE_CONTRACT_SNAPSHOT,
+        input.responsibleName,email,cleanCnpj,plan.code,plan.monthlyPriceCents,input.paymentMethod,req.ip||null,String(req.headers['user-agent']||'').slice(0,500)||null);
       const end = new Date(Date.now() + 7 * 86_400_000), date = end.toLocaleDateString('pt-BR'), amount = (plan.monthlyPriceCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
       const paymentCopy = input.paymentMethod === 'boleto' ? `Se não houver cancelamento, em ${date} será gerado o boleto no valor integral de ${amount}, enviado para este e-mail.`
         : `Conclua o cadastro seguro do cartão no Asaas. Nada será debitado agora; a primeira cobrança integral de ${amount} será feita em ${date}.`;
@@ -102,7 +112,7 @@ publicSiteRoutes.post('/public/trials', async (req, res) => {
       const detail = (error as Error).message;
       db.prepare("UPDATE subscriptions SET billing_setup_status='error',billing_setup_error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(detail, subscriptionId);
       if (input.paymentMethod === 'card') {
-        db.transaction(() => { db.prepare('DELETE FROM outbound_messages WHERE tenant_id=?').run(tenantId); db.prepare('DELETE FROM public_trial_signups WHERE tenant_id=?').run(tenantId);
+        db.transaction(() => { db.prepare('DELETE FROM outbound_messages WHERE tenant_id=?').run(tenantId); db.prepare('DELETE FROM public_trial_signups WHERE tenant_id=?').run(tenantId);db.prepare('DELETE FROM subscription_contract_acceptances WHERE tenant_id=?').run(tenantId);
           db.prepare('DELETE FROM users WHERE tenant_id=?').run(tenantId); db.prepare('DELETE FROM subscriptions WHERE tenant_id=?').run(tenantId); db.prepare('DELETE FROM tenants WHERE id=?').run(tenantId); })();
         return res.status(502).json({ error: 'Não foi possível abrir o cadastro seguro do cartão no Asaas. Nenhuma assinatura foi ativada; tente novamente.' });
       }

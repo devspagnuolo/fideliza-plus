@@ -3,9 +3,9 @@ import { db } from './database/db.js';
 
 type Json = Record<string, any>;
 
-const environment = () => process.env.ASAAS_ENVIRONMENT === 'production' ? 'production' : 'sandbox';
+const environment = () => String(process.env.ASAAS_ENVIRONMENT||'').trim().toLowerCase() === 'production' ? 'production' : 'sandbox';
 const baseUrl = () => environment() === 'production' ? 'https://api.asaas.com/v3' : 'https://api-sandbox.asaas.com/v3';
-const billingEnabled = () => process.env.ASAAS_BILLING_ENABLED === 'true';
+const billingEnabled = () => ['true','1','yes','on'].includes(String(process.env.ASAAS_BILLING_ENABLED||'').trim().toLowerCase());
 
 function assertBillingEnabled() {
   if (!billingEnabled()) throw new Error('ASAAS_BILLING_DISABLED: habilite a cobrança somente após validar a conta e o webhook do ambiente atual');

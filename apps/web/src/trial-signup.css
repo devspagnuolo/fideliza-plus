@@ -23,6 +23,7 @@
 .payment-options small{color:#64798a;font-weight:500;line-height:1.35}
 .gateway-warning{display:block;margin-top:10px;color:#9a5e04}
 .billing-consent{padding:13px;border-radius:11px;background:#fff7e8;color:#6e4d16!important}
+.trial-acceptances{display:grid!important;gap:9px;margin-top:20px}.trial-acceptances .trial-terms{margin:0;padding:13px;border:1px solid #dce6ed;border-radius:11px;background:#f8fbfc;align-items:flex-start}.trial-acceptances .trial-terms input{margin-top:3px;flex:none}.trial-acceptances .trial-terms span{line-height:1.45}.trial-acceptances .trial-terms a{font-weight:850;color:#087f78}.trial-acceptances .contract-consent{border-color:#99d9d4;background:#effaf8}.trial-acceptances .minimum-term-consent,.trial-acceptances .billing-consent{border-color:#ead6ad;background:#fff8e9;color:#6e4d16!important}
 .trial-modal button:disabled{cursor:not-allowed;opacity:.65}
 .spin{animation:trial-spin .8s linear infinite}
 @keyframes trial-spin{to{transform:rotate(360deg)}}

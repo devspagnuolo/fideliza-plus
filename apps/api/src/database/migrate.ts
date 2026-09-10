@@ -150,6 +150,16 @@ db.exec(`CREATE TABLE IF NOT EXISTS public_trial_signups (
   company_name TEXT NOT NULL,cnpj TEXT NOT NULL,email TEXT NOT NULL,responsible_name TEXT NOT NULL,phone TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'activated',source TEXT NOT NULL DEFAULT 'public_plans',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );CREATE INDEX IF NOT EXISTS idx_trial_signups_created ON public_trial_signups(created_at,status);
+CREATE TABLE IF NOT EXISTS subscription_contract_acceptances (
+  id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  subscription_id TEXT NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+  contract_version TEXT NOT NULL,contract_hash TEXT NOT NULL,contract_snapshot TEXT NOT NULL,
+  signer_name TEXT NOT NULL,signer_email TEXT NOT NULL,signer_document TEXT NOT NULL,
+  plan_code TEXT NOT NULL,monthly_price_cents INTEGER NOT NULL,payment_method TEXT NOT NULL,
+  minimum_term_consent INTEGER NOT NULL DEFAULT 1,billing_consent INTEGER NOT NULL DEFAULT 1,
+  ip_address TEXT,user_agent TEXT,accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(subscription_id,contract_version)
+);CREATE INDEX IF NOT EXISTS idx_contract_acceptances_tenant ON subscription_contract_acceptances(tenant_id,accepted_at);
 CREATE TRIGGER IF NOT EXISTS subscriptions_trial_7_days_insert AFTER INSERT ON subscriptions WHEN NEW.status='trialing' BEGIN UPDATE subscriptions SET current_period_start=CURRENT_TIMESTAMP,current_period_end=date('now','+7 days') WHERE id=NEW.id; END;
 CREATE TRIGGER IF NOT EXISTS subscriptions_trial_7_days_update AFTER UPDATE OF status ON subscriptions WHEN NEW.status='trialing' AND OLD.status<>'trialing' BEGIN UPDATE subscriptions SET current_period_start=CURRENT_TIMESTAMP,current_period_end=date('now','+7 days') WHERE id=NEW.id; END;`);
 ensureColumn('loyalty_ledger', 'entry_type', "TEXT NOT NULL DEFAULT 'adjustment'");

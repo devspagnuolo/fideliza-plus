@@ -31,9 +31,9 @@ services:
       - key: BLING_CLIENT_SECRET
         sync: false
       - key: ASAAS_ENVIRONMENT
-        value: sandbox
+        value: production
       - key: ASAAS_BILLING_ENABLED
-        value: false
+        value: true
       - key: ASAAS_API_KEY
         sync: false
       - key: ASAAS_WEBHOOK_TOKEN

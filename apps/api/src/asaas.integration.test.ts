@@ -18,6 +18,7 @@ process.env.ASAAS_BILLING_ENABLED='true';
 const {db}=await import('./database/db.js');
 await import('./database/migrate.js');
 const {app}=await import('./app.js');
+const {asaasStatus}=await import('./asaas.js');
 
 describe('integração financeira Asaas',()=>{
   beforeAll(()=>{
@@ -29,6 +30,13 @@ describe('integração financeira Asaas',()=>{
     db.prepare(`INSERT INTO plan_addon_assignments(id,addon_id,tenant_id,quantity,monthly_price_cents,status) VALUES('asaas-addon-contract','asaas-addon','asaas-tenant',2,4900,'active')`).run();
   });
   afterAll(()=>{vi.restoreAllMocks();db.close();for(const suffix of['','-shm','-wal'])fs.rmSync(`${databasePath}${suffix}`,{force:true})});
+
+  it('reconhece a ativação e o ambiente de produção sem depender de maiúsculas',()=>{
+    const previousEnabled=process.env.ASAAS_BILLING_ENABLED,previousEnvironment=process.env.ASAAS_ENVIRONMENT;
+    process.env.ASAAS_BILLING_ENABLED='True';process.env.ASAAS_ENVIRONMENT='Production';
+    expect(asaasStatus()).toMatchObject({billingEnabled:true,environment:'production'});
+    process.env.ASAAS_BILLING_ENABLED=previousEnabled;process.env.ASAAS_ENVIRONMENT=previousEnvironment;
+  });
 
   it('gera cliente e cobrança uma única vez mesmo reexecutando o ciclo',async()=>{
     let customerAttempts=0;

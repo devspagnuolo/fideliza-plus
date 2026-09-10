@@ -10,6 +10,6 @@ let blingAuthorizationUrl:(state:string)=>string;
 beforeAll(async()=>({encryptSecret,decryptSecret,blingAuthorizationUrl}=await import('./bling.js')));
 
 describe('adaptador Bling',()=>{
-  it('protege tokens com criptografia autenticada',()=>{const encrypted=encryptSecret('token-confidencial');expect(encrypted).not.toContain('token-confidencial');expect(decryptSecret(encrypted)).toBe('token-confidencial');expect(()=>decryptSecret(`${encrypted.slice(0,-1)}x`)).toThrow();});
+  it('protege tokens com criptografia autenticada',()=>{const encrypted=encryptSecret('token-confidencial');expect(encrypted).not.toContain('token-confidencial');expect(decryptSecret(encrypted)).toBe('token-confidencial');const parts=encrypted.split('.'),ciphertext=parts[2]!,tampered=[parts[0],parts[1],`${ciphertext[0]==='A'?'B':'A'}${ciphertext.slice(1)}`].join('.');expect(()=>decryptSecret(tampered)).toThrow();});
   it('gera autorização OAuth com estado e cliente',()=>{const url=new URL(blingAuthorizationUrl('estado-seguro'));expect(url.origin).toBe('https://www.bling.com.br');expect(url.searchParams.get('response_type')).toBe('code');expect(url.searchParams.get('client_id')).toBe('client-test');expect(url.searchParams.get('state')).toBe('estado-seguro');});
 });
