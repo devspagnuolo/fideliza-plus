@@ -19,7 +19,7 @@ const menu = [
   { id: 'integrations', label: 'Integrações', icon: Plug, children: ['APIs', 'Webhooks', 'ERP', 'CRM', 'Pagamentos', 'E-mail', 'SSO'] },
   { id: 'operations', label: 'Operações', icon: Wrench, children: ['Jobs', 'Filas', 'Processamentos', 'Importações', 'Exportações', 'Agendamentos'] },
   { id: 'monitoring', label: 'Monitoramento', icon: Activity, children: ['Status dos serviços', 'APIs', 'Banco de dados', 'Performance', 'Logs', 'Incidentes', 'Dashboard técnico'] },
-  { id: 'security', label: 'Segurança', icon: LockKeyhole, children: ['Auditoria', 'Log de acessos', 'Log de alterações', 'LGPD', 'MFA', 'Sessões ativas', 'Política de senhas', 'Controle de permissões'] },
+  { id: 'security', label: 'Segurança', icon: LockKeyhole, children: ['Central SOC', 'Auditoria', 'Log de acessos', 'Log de alterações', 'LGPD', 'MFA', 'Sessões ativas', 'Política de senhas', 'Controle de permissões'] },
   { id: 'support', label: 'Suporte', icon: Headphones, children: ['Chamados', 'SLA', 'Feedbacks', 'Base de conhecimento', 'Notificações'] },
   { id: 'settings', label: 'Configurações', icon: Settings, children: ['Configurações gerais', 'Branding', 'SMTP', 'Notificações', 'Domínios', 'Variáveis do sistema', 'Feature flags', 'Backup e retenção'] }
 ] as const;
@@ -56,6 +56,7 @@ export function PlatformAdmin() {
   const [updatedAt, setUpdatedAt] = useState(new Date());
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [requiresTotp, setRequiresTotp] = useState(false);
 
   const load = async () => {
     setRefreshing(true);
@@ -89,7 +90,7 @@ export function PlatformAdmin() {
   async function login(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
     try { await api('/platform/auth/login', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) }); await check(); }
-    catch (reason) { setError((reason as Error).message); }
+    catch (reason) { const message=(reason as Error).message; if(message.includes('Código do autenticador'))setRequiresTotp(true); setError(message); }
   }
 
   async function changePassword(event: React.FormEvent<HTMLFormElement>) {
@@ -103,7 +104,7 @@ export function PlatformAdmin() {
   }
 
   if (admin === undefined) return <main className="pa-loading"><BrandLogo full /><span>Validando acesso administrativo...</span></main>;
-  if (!admin) return <main className="admin-login"><section><BrandLogo full /><small>ADMINISTRAÇÃO DA PLATAFORMA</small><h1>Central Fidelizei</h1><p>Gestão segura de empresas, receita e operação SaaS.</p><form onSubmit={login}><label>E-mail<input name="email" type="email" autoComplete="username" required /></label><label>Senha<input name="password" type="password" autoComplete="current-password" minLength={10} required /></label>{error && <div className="error">{error}</div>}<button>Entrar no painel</button></form><a href="/acesso">Voltar para a seleção de acesso</a><LegalFooter compact /></section></main>;
+  if (!admin) return <main className="admin-login"><section><BrandLogo full /><small>ADMINISTRAÇÃO DA PLATAFORMA</small><h1>Central Fidelizei</h1><p>Gestão segura de empresas, receita e operação SaaS.</p><form onSubmit={login}><label>E-mail<input name="email" type="email" autoComplete="username" required /></label><label>Senha<input name="password" type="password" autoComplete="current-password" minLength={10} maxLength={128} required /></label>{requiresTotp&&<label>Código do autenticador<input name="totpCode" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} placeholder="000000" required/></label>}{error && <div className="error">{error}</div>}<button>Entrar no painel</button></form><a href="/acesso">Voltar para a seleção de acesso</a><LegalFooter compact /></section></main>;
   if (!dash || !all) return <main className="pa-loading"><BrandLogo full /><span>Preparando a central de comando...</span></main>;
 
   const current = menu.find(item => item.id === page)!;

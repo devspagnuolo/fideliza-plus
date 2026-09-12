@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { db } from './database/db.js';
 import { hashToken } from './security.js';
 import { parseFeatures } from './plan-catalog.js';
+import { touchSession } from './session-security.js';
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.cookies?.fideliza_session as string | undefined;
@@ -15,6 +16,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
       AND COALESCE(t.login_blocked,0)=0
       AND COALESCE(sub.status,'trialing') IN ('active','trialing')`).get(hashToken(token)) as Request['auth'];
   if (!row) return res.status(401).json({ error: 'Sessão inválida' });
+  touchSession('sessions',token);
   req.auth = {...row,features:parseFeatures((row as any).features),limits:{users:Number((row as any).userLimit||0),consumers:Number((row as any).consumerLimit||0),storageMb:Number((row as any).storageMb||0)}}; next();
 }
 

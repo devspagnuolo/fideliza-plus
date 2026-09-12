@@ -22,6 +22,7 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_sales_tenant_external_status ON sales(te
 ensureColumn('customers', 'external_id', 'TEXT');
 ensureColumn('integration_connections', 'external_company_id', 'TEXT');
 ensureColumn('users', 'two_factor_secret_encrypted', 'TEXT');
+ensureColumn('users', 'two_factor_pending_secret_encrypted', 'TEXT');
 ensureColumn('users', 'two_factor_enabled', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('users', 'cpf', 'TEXT');
 ensureColumn('users', 'phone', 'TEXT');
@@ -83,6 +84,27 @@ CREATE TABLE IF NOT EXISTS platform_admins (id TEXT PRIMARY KEY,name TEXT NOT NU
 CREATE TABLE IF NOT EXISTS platform_sessions (id TEXT PRIMARY KEY,admin_id TEXT NOT NULL REFERENCES platform_admins(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS subscriptions (id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL UNIQUE REFERENCES tenants(id),plan_code TEXT NOT NULL DEFAULT 'pilot',status TEXT NOT NULL DEFAULT 'trialing',monthly_price_cents INTEGER NOT NULL DEFAULT 0,current_period_start TEXT,current_period_end TEXT,cancel_at_period_end INTEGER NOT NULL DEFAULT 0,external_customer_id TEXT,external_subscription_id TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE INDEX IF NOT EXISTS idx_customer_accounts_tenant ON customer_accounts(tenant_id,active);CREATE INDEX IF NOT EXISTS idx_customer_password_resets ON customer_password_reset_tokens(account_id,expires_at);CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status,plan_code);`);
+ensureColumn('platform_admins','two_factor_secret_encrypted','TEXT');
+ensureColumn('platform_admins','two_factor_pending_secret_encrypted','TEXT');
+ensureColumn('platform_admins','two_factor_enabled','INTEGER NOT NULL DEFAULT 0');
+for (const table of ['sessions','customer_sessions','platform_sessions']) {
+  ensureColumn(table,'ip_address','TEXT');
+  ensureColumn(table,'user_agent','TEXT');
+  ensureColumn(table,'last_seen_at','TEXT');
+}
+db.exec(`CREATE TABLE IF NOT EXISTS security_events(
+ id TEXT PRIMARY KEY,event_type TEXT NOT NULL,severity TEXT NOT NULL CHECK(severity IN ('info','low','medium','high','critical')),
+ user_type TEXT,identity TEXT,tenant_id TEXT,ip TEXT,user_agent TEXT,reason TEXT,metadata TEXT NOT NULL DEFAULT '{}',
+ status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','investigating','contained','resolved','false_positive')),
+ occurrence_count INTEGER NOT NULL DEFAULT 1,first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ resolved_at TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_security_events_status ON security_events(status,severity,last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_security_events_identity ON security_events(user_type,identity,last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_security_events_ip ON security_events(ip,last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_customer_sessions_expiry ON customer_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_platform_sessions_expiry ON platform_sessions(expires_at);`);
 db.prepare("INSERT OR IGNORE INTO subscriptions (id,tenant_id,plan_code,status) SELECT 'sub-'||id,id,'pilot','trialing' FROM tenants").run();
 ensureColumn('tenants', 'responsible_name', 'TEXT');
 ensureColumn('tenants', 'login_blocked', 'INTEGER NOT NULL DEFAULT 0');

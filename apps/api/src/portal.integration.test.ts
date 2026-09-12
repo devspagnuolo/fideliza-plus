@@ -116,7 +116,9 @@ describe('portais separados do Fideliza+', () => {
     expect(queuedReset.status).toBe('queued');
     expect(queuedReset.message).toContain('/cliente/loja-a/recuperar?token=');
 
-    for(let attempt=0;attempt<10;attempt++)await request(app).post('/customer/auth/login').send({
+    // Já houve uma falha neste IP na tentativa contra outra loja; quatro novas
+    // falhas completam o limite global de cinco antes do bloqueio.
+    for(let attempt=0;attempt<4;attempt++)await request(app).post('/customer/auth/login').send({
       tenantSlug: 'loja-a', cpf: '529.982.247-25', password: 'SenhaIncorreta123',
     }).expect(401);
     await request(app).post('/customer/auth/login').send({
