@@ -162,6 +162,7 @@ CREATE INDEX IF NOT EXISTS idx_invoices_status_due ON invoices(status,due_at);
 CREATE INDEX IF NOT EXISTS idx_platform_audit_date ON platform_audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_support_status ON support_tickets(status,priority);
 CREATE INDEX IF NOT EXISTS idx_incidents_status ON platform_incidents(status,severity);`);
+db.prepare("INSERT OR IGNORE INTO global_settings(key,value) VALUES('security.daily_redemption_limit','10')").run();
 const defaultPlans=PLAN_CATALOG.map(plan=>[plan.code,plan.name,plan.monthlyPriceCents,plan.userLimit,plan.consumerLimit,plan.storageMb,JSON.stringify(plan.features)]);
 const insertPlan=db.prepare('INSERT OR IGNORE INTO platform_plans (code,name,monthly_price_cents,user_limit,consumer_limit,storage_mb,features) VALUES (?,?,?,?,?,?,?)');
 db.transaction(()=>defaultPlans.forEach(plan=>insertPlan.run(...plan)))();
@@ -264,6 +265,7 @@ CREATE INDEX IF NOT EXISTS idx_access_logs_date ON platform_access_logs(created_
 CREATE INDEX IF NOT EXISTS idx_billing_events_tenant ON billing_events(tenant_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_outbound_status ON outbound_messages(status,scheduled_at);`);
 ensureColumn('outbound_messages', 'attempts', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('platform_access_logs', 'route', 'TEXT');
 ensureColumn('customer_password_reset_tokens', 'delivery_channel', "TEXT NOT NULL DEFAULT 'email'");
 ensureColumn('customer_password_reset_tokens', 'attempts', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('password_reset_tokens', 'delivery_channel', "TEXT NOT NULL DEFAULT 'email'");
@@ -505,4 +507,16 @@ const permissions=[
 ];
 const permissionInsert=db.prepare('INSERT OR IGNORE INTO platform_permissions(role,permission,description) VALUES(?,?,?)');
 db.transaction(()=>permissions.forEach(x=>permissionInsert.run(...x)))();
+const ledgerBaseline='loyalty-ledger-source-of-truth-v1';
+if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(ledgerBaseline)){
+  db.transaction(()=>{
+    const rows=db.prepare(`SELECT c.id customerId,c.tenant_id tenantId,c.points_balance-COALESCE(SUM(l.points),0) delta
+      FROM customers c LEFT JOIN loyalty_ledger l ON l.tenant_id=c.tenant_id AND l.customer_id=c.id
+      GROUP BY c.id,c.tenant_id,c.points_balance HAVING delta<>0`).all()as{customerId:string;tenantId:string;delta:number}[];
+    const insert=db.prepare(`INSERT INTO loyalty_ledger(id,tenant_id,customer_id,points,reason,entry_type)
+      VALUES(lower(hex(randomblob(16))),?,?,?,'Saldo inicial consolidado na adocao do ledger','adjustment')`);
+    for(const row of rows)insert.run(row.tenantId,row.customerId,row.delta);
+    db.prepare('INSERT INTO migrations(name)VALUES(?)').run(ledgerBaseline);
+  })();
+}
 console.log('Banco atualizado com sucesso.');

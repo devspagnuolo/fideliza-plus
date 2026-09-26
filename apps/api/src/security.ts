@@ -17,3 +17,8 @@ export function verifyPassword(password: string, stored: string) {
 export function canonicalizePassword(password: string) { return password.normalize('NFKC').trim(); }
 export function newToken() { return randomBytes(32).toString('base64url'); }
 export function hashToken(token: string) { return createHash('sha256').update(`${token}.${config.sessionSecret}`).digest('hex'); }
+export function secureStringEqual(left: string, right: string) {
+  const a = createHash('sha256').update(left).digest();
+  const b = createHash('sha256').update(right).digest();
+  return timingSafeEqual(a, b);
+}

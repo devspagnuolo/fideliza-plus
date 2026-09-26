@@ -11,7 +11,7 @@ if (!config.isProduction || process.env.SEED_DEMO_DATA === 'true') {
 }
 
 const server = app.listen(config.port, () => console.log(`Fidelizei API em http://localhost:${config.port}`));
-const worker = startWorker();
+const worker = process.env.WORKER_EXECUTION_MODE === 'dedicated' ? undefined : startWorker();
 const backupSchedule = startBackupSchedule();
 const automationSchedule = startAutomationSchedule();
 function shutdown(signal: string) {

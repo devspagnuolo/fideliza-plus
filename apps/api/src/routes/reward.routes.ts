@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { audit } from '../audit.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { db } from '../database/db.js';
+import { redemptionLimit } from '../loyalty.js';
 import { requirePlanStorage } from '../plan-catalog.js';
 
 export const rewardRoutes = Router();
@@ -102,6 +103,7 @@ rewardRoutes.post('/rewards/:id/redeem', (req, res) => {
       if (!reward || !reward.active) throw new Error('REWARD');
       if (!customer) throw new Error('CUSTOMER');
       if (customer.points_balance < reward.points_cost) throw new Error('BALANCE');
+      if (!redemptionLimit(req.auth!.tenantId, customer.id).allowed) throw new Error('LIMIT');
       if (reward.stock !== null && reward.stock <= 0) throw new Error('STOCK');
       const id = randomUUID();
       db.prepare('UPDATE customers SET points_balance=points_balance-? WHERE id=? AND tenant_id=?').run(reward.points_cost, customer.id, req.auth!.tenantId);
@@ -114,7 +116,7 @@ rewardRoutes.post('/rewards/:id/redeem', (req, res) => {
     res.status(201).json(result);
   } catch (error) {
     const code = (error as Error).message;
-    const map: Record<string, [number, string]> = { REWARD: [404, 'Recompensa não encontrada'], CUSTOMER: [404, 'Cliente não encontrado'], BALANCE: [409, 'Saldo de pontos insuficiente'], STOCK: [409, 'Recompensa sem estoque'] };
+    const map: Record<string, [number, string]> = { REWARD: [404, 'Recompensa não encontrada'], CUSTOMER: [404, 'Cliente não encontrado'], BALANCE: [409, 'Saldo de pontos insuficiente'], STOCK: [409, 'Recompensa sem estoque'], LIMIT: [429, 'Limite diário de resgates atingido. Tente novamente amanhã ou solicite análise da loja.'] };
     const response = map[code];
     if (response) return res.status(response[0]).json({ error: response[1] });
     throw error;

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { db } from './database/db.js';
+import { resilientFetch } from './circuit-breaker.js';
 
 type Json = Record<string, any>;
 
@@ -24,7 +25,7 @@ export function asaasStatus() {
 async function request(path: string, init: RequestInit = {}) {
   const apiKey = process.env.ASAAS_API_KEY;
   if (!apiKey) throw new Error('ASAAS_NOT_CONFIGURED');
-  const response = await fetch(`${baseUrl()}${path}`, {
+  const response = await resilientFetch('asaas', `${baseUrl()}${path}`, {
     ...init,
     headers: { accept: 'application/json', 'content-type': 'application/json', access_token: apiKey, ...(init.headers ?? {}) },
     signal: AbortSignal.timeout(15_000)

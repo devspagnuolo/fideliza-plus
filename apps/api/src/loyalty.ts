@@ -70,3 +70,67 @@ export function expirePoints(tenantId: string, now = new Date().toISOString()) {
   })();
   return { totalExpired, affectedCustomers };
 }
+
+export type PointBalanceDivergence = {
+  tenantId: string;
+  customerId: string;
+  storedBalance: number;
+  ledgerBalance: number;
+  difference: number;
+};
+
+/**
+ * O ledger e a fonte contabil da pontuacao. points_balance permanece como cache
+ * para consultas rapidas, mas nunca deve divergir silenciosamente do historico.
+ */
+export function pointBalanceDivergences(tenantId?: string) {
+  const tenantFilter = tenantId ? 'WHERE c.tenant_id=?' : '';
+  const rows = db.prepare(`SELECT c.tenant_id tenantId,c.id customerId,c.points_balance storedBalance,
+    COALESCE(SUM(l.points),0) ledgerBalance
+    FROM customers c LEFT JOIN loyalty_ledger l
+      ON l.tenant_id=c.tenant_id AND l.customer_id=c.id
+    ${tenantFilter}
+    GROUP BY c.tenant_id,c.id,c.points_balance
+    HAVING c.points_balance<>COALESCE(SUM(l.points),0)
+    ORDER BY c.tenant_id,c.id`).all(...(tenantId ? [tenantId] : [])) as Array<Omit<PointBalanceDivergence, 'difference'>>;
+  return rows.map(row => ({ ...row, difference: row.ledgerBalance - row.storedBalance }));
+}
+
+export function reconcilePointBalances(tenantId?: string) {
+  const divergences = pointBalanceDivergences(tenantId);
+  if (!divergences.length) return { checkedAt: new Date().toISOString(), corrected: 0, divergences: [] as PointBalanceDivergence[] };
+  const update = db.prepare('UPDATE customers SET points_balance=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?');
+  db.transaction(() => {
+    for (const row of divergences) update.run(row.ledgerBalance, row.customerId, row.tenantId);
+  })();
+  return { checkedAt: new Date().toISOString(), corrected: divergences.length, divergences };
+}
+
+export function runScheduledPointReconciliation() {
+  const today = new Date().toISOString().slice(0, 10);
+  const previous = db.prepare("SELECT value FROM global_settings WHERE key='loyalty.last_reconciliation_date'").get() as { value: string } | undefined;
+  if (previous?.value === today) return { skipped: true, corrected: 0 };
+  const result = reconcilePointBalances();
+  db.prepare(`INSERT INTO global_settings(key,value) VALUES('loyalty.last_reconciliation_date',?)
+    ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP`).run(today);
+  db.prepare(`INSERT INTO global_settings(key,value) VALUES('loyalty.last_reconciliation_result',?)
+    ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP`).run(JSON.stringify({ checkedAt: result.checkedAt, corrected: result.corrected }));
+  if (result.corrected) {
+    db.prepare(`INSERT INTO platform_incidents(id,title,description,severity,status,service,impact)
+      VALUES(?,?,?,?, 'resolved','loyalty','Saldo em cache reconciliado automaticamente')`).run(
+      randomUUID(),
+      'Divergencia de saldo de pontos corrigida',
+      `${result.corrected} saldo(s) foram recalculados a partir do ledger imutavel.`,
+      result.corrected >= 10 ? 'high' : 'medium'
+    );
+  }
+  return { skipped: false, ...result };
+}
+
+export function redemptionLimit(tenantId: string, customerId: string) {
+  const configured = db.prepare("SELECT value FROM global_settings WHERE key='security.daily_redemption_limit'").get() as { value: string } | undefined;
+  const limit = Math.min(50, Math.max(1, Number(configured?.value || 10)));
+  const used = (db.prepare(`SELECT COUNT(*) count FROM reward_redemptions
+    WHERE tenant_id=? AND customer_id=? AND created_at>=datetime('now','start of day')`).get(tenantId, customerId) as { count: number }).count;
+  return { allowed: used < limit, used, limit };
+}
