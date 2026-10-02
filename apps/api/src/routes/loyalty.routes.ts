@@ -29,6 +29,19 @@ loyaltyRoutes.patch('/loyalty/promotions/:id/status', requireRole('owner', 'mana
   res.json({ ok: true });
 });
 
+loyaltyRoutes.get('/loyalty/tiers',(req,res)=>res.json({items:db.prepare('SELECT id,name,rank,min_lifetime_points minLifetimePoints,color,benefits FROM loyalty_tiers WHERE tenant_id=? ORDER BY rank').all(req.auth!.tenantId)}));
+loyaltyRoutes.put('/loyalty/tiers',requireRole('owner','manager'),(req,res)=>{
+  const parsed=z.object({tiers:z.array(z.object({name:z.string().trim().min(2).max(60),rank:z.number().int().min(1).max(20),minLifetimePoints:z.number().int().min(0),color:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().or(z.literal('')),benefits:z.string().trim().max(500).optional()})).max(10)}).safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({error:parsed.error.issues[0]?.message||'Revise os níveis informados'});
+  const tiers=[...parsed.data.tiers].sort((a,b)=>a.rank-b.rank),ranks=new Set(tiers.map(x=>x.rank));
+  if(ranks.size!==tiers.length)return res.status(400).json({error:'Cada nível deve ter uma posição única'});
+  if(tiers.some((tier,index)=>index>0&&tier.minLifetimePoints<=tiers[index-1]!.minLifetimePoints))return res.status(400).json({error:'A pontuação mínima deve crescer conforme a posição do nível'});
+  const insert=db.prepare('INSERT INTO loyalty_tiers(id,tenant_id,name,rank,min_lifetime_points,color,benefits)VALUES(?,?,?,?,?,?,?)');
+  db.transaction(()=>{db.prepare('DELETE FROM loyalty_tiers WHERE tenant_id=?').run(req.auth!.tenantId);for(const tier of tiers)insert.run(randomUUID(),req.auth!.tenantId,tier.name,tier.rank,tier.minLifetimePoints,tier.color||null,tier.benefits||null)})();
+  audit(req.auth!.tenantId,req.auth!.userId,'replace_tiers','loyalty_tier',undefined,{count:tiers.length});
+  res.json({items:db.prepare('SELECT id,name,rank,min_lifetime_points minLifetimePoints,color,benefits FROM loyalty_tiers WHERE tenant_id=? ORDER BY rank').all(req.auth!.tenantId)});
+});
+
 loyaltyRoutes.post('/customers/:id/loyalty/adjust', requireRole('owner', 'manager'), (req, res) => {
   const customerId = String(req.params.id);
   const tenantId = req.auth!.tenantId;

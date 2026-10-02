@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Building2, Camera, CheckCircle2, Gift, Globe2, MapPin, Save, Trash2 } from 'lucide-react';
 import { api } from './api';
 import './profile.css';
+import { LoyaltyTiers } from './LoyaltyTiers';
 
 const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const MAX_LOGO_BYTES = 1_000_000;
@@ -135,5 +136,6 @@ export function CompanyProfilePanel() {
       </fieldset>
       <button className="company-save"><Save /> Salvar perfil empresarial</button>
     </form>
+    <LoyaltyTiers />
   </section>;
 }

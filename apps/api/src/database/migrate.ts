@@ -239,6 +239,13 @@ ensureColumn('integration_webhook_events','processed_at','TEXT');
 ensureColumn('integration_webhook_events','last_error','TEXT');
 ensureColumn('integration_webhook_events','attempts','INTEGER NOT NULL DEFAULT 0');
 db.exec('CREATE INDEX IF NOT EXISTS idx_webhook_events_pending ON integration_webhook_events(tenant_id,provider,status,occurred_at)');
+db.exec(`CREATE TABLE IF NOT EXISTS loyalty_tiers(
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+ name TEXT NOT NULL,rank INTEGER NOT NULL CHECK(rank BETWEEN 1 AND 20),
+ min_lifetime_points INTEGER NOT NULL CHECK(min_lifetime_points>=0),color TEXT,benefits TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(tenant_id,rank)
+);CREATE INDEX IF NOT EXISTS idx_loyalty_tiers_tenant_points ON loyalty_tiers(tenant_id,min_lifetime_points);`);
 db.exec(`CREATE TABLE IF NOT EXISTS platform_permissions(
   role TEXT NOT NULL,permission TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,description TEXT NOT NULL,
   updated_by TEXT REFERENCES platform_admins(id),updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(role,permission)

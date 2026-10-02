@@ -19,6 +19,8 @@ describe('portais separados do Fideliza+', () => {
   beforeAll(() => {
     db.prepare('INSERT INTO tenants (id,name,slug,customer_portal_enabled) VALUES (?,?,?,1)').run('tenant-portal-a', 'Loja Portal A', 'loja-a');
     db.prepare('INSERT INTO tenants (id,name,slug,customer_portal_enabled) VALUES (?,?,?,1)').run('tenant-portal-b', 'Loja Portal B', 'loja-b');
+    db.prepare("INSERT INTO loyalty_tiers(id,tenant_id,name,rank,min_lifetime_points,color,benefits)VALUES('portal-tier-1','tenant-portal-a','Essencial',1,0,'#00978F','Acesso ao programa')").run();
+    db.prepare("INSERT INTO loyalty_tiers(id,tenant_id,name,rank,min_lifetime_points,color,benefits)VALUES('portal-tier-2','tenant-portal-a','Prata',2,500,'#6D7A8A','Ofertas antecipadas')").run();
   });
 
   afterAll(() => {
@@ -77,6 +79,7 @@ describe('portais separados do Fideliza+', () => {
       VALUES ('sale-portal','tenant-portal-a',?,15990,CURRENT_TIMESTAMP,'site','PED-1001')`).run(customerId);
     db.prepare(`INSERT INTO loyalty_ledger (id,tenant_id,customer_id,sale_id,points,reason,entry_type)
       VALUES ('ledger-portal','tenant-portal-a',?,'sale-portal',160,'Compra PED-1001','earn')`).run(customerId);
+    expect((await consumer.get('/customer/dashboard').expect(200)).body.vipTier).toMatchObject({lifetimePoints:160,current:{name:'Essencial'},next:{name:'Prata'},pointsToNext:340,progressPercent:32});
     db.prepare(`INSERT INTO rewards (id,tenant_id,name,description,points_cost,stock)
       VALUES ('reward-portal','tenant-portal-a','Cupom de teste','Benefício do portal',200,3)`).run();
 

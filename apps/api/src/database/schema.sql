@@ -95,6 +95,13 @@ CREATE TABLE IF NOT EXISTS loyalty_promotions (
   active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CHECK(ends_at > starts_at)
 );
+CREATE TABLE IF NOT EXISTS loyalty_tiers (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, rank INTEGER NOT NULL CHECK(rank BETWEEN 1 AND 20),
+  min_lifetime_points INTEGER NOT NULL CHECK(min_lifetime_points>=0), color TEXT, benefits TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(tenant_id,rank)
+);
 CREATE TABLE IF NOT EXISTS gie_recommendations (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), recommendation_key TEXT NOT NULL,
   title TEXT NOT NULL, description TEXT NOT NULL, explanation TEXT NOT NULL, priority INTEGER NOT NULL,

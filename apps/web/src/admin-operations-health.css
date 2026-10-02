@@ -1,0 +1,19 @@
+.mon-access-risk {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 0;
+  border-bottom: 1px solid #e5ecef;
+}
+
+.mon-access-risk span { min-width: 0; }
+.mon-access-risk b,
+.mon-access-risk small { display: block; }
+.mon-access-risk small { margin-top: 4px; color: #718096; }
+.mon-access-risk strong { white-space: nowrap; color: #b02d3d; }
+.mon-kpis.operational .mon-kpi { background: linear-gradient(145deg, #fff, #f8fbfc); }
+
+@media (max-width: 720px) {
+  .mon-access-risk { align-items: flex-start; flex-direction: column; }
+}

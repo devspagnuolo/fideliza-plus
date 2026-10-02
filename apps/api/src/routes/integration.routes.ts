@@ -34,7 +34,10 @@ integrationRoutes.post('/webhooks/bling',(req,res)=>{
   enqueueBlingSync(connection.tenant_id);
   res.status(202).json({accepted:true});
 });
-integrationRoutes.use(requireAuth,requireRole('owner'));
+// Restrinja somente o namespace das integrações. Um middleware global neste
+// Router também interceptava rotas registradas depois dele (recompensas,
+// fidelidade e analytics), bloqueando indevidamente gestores e operadores.
+integrationRoutes.use('/integrations',requireAuth,requireRole('owner'));
 
 integrationRoutes.get('/integrations/bling',(req,res)=>{const connection=db.prepare("SELECT status,expires_at,last_sync_at,created_at FROM integration_connections WHERE tenant_id=? AND provider='bling'").get(req.auth!.tenantId);res.json({configured:Boolean(process.env.BLING_CLIENT_ID&&process.env.BLING_CLIENT_SECRET),connected:Boolean(connection),connection:connection??null});});
 integrationRoutes.post('/integrations/bling/authorize',(req,res)=>{if(!process.env.BLING_CLIENT_ID||!process.env.BLING_CLIENT_SECRET)return res.status(503).json({error:'Credenciais do Bling ainda não configuradas'});const state=randomBytes(32).toString('base64url'),hash=createHash('sha256').update(state).digest('hex'),expires=new Date(Date.now()+10*60_000).toISOString();db.prepare("DELETE FROM oauth_states WHERE expires_at<datetime('now')").run();db.prepare('INSERT INTO oauth_states (state_hash,tenant_id,user_id,provider,expires_at) VALUES (?,?,?,?,?)').run(hash,req.auth!.tenantId,req.auth!.userId,'bling',expires);res.json({url:blingAuthorizationUrl(state)});});

@@ -79,6 +79,18 @@ export type PointBalanceDivergence = {
   difference: number;
 };
 
+export type VipTier={id:string;name:string;rank:number;minLifetimePoints:number;color:string|null;benefits:string|null};
+export function customerVipTier(tenantId:string,customerId:string){
+  const tiers=db.prepare(`SELECT id,name,rank,min_lifetime_points minLifetimePoints,color,benefits FROM loyalty_tiers WHERE tenant_id=? ORDER BY rank`).all(tenantId)as VipTier[];
+  if(!tiers.length)return null;
+  const earned=db.prepare(`SELECT COALESCE(SUM(CASE WHEN entry_type IN ('earn','reinstatement','reversal','adjustment') THEN points ELSE 0 END),0) total FROM loyalty_ledger WHERE tenant_id=? AND customer_id=?`).get(tenantId,customerId)as{total:number};
+  const lifetimePoints=Math.max(0,Number(earned.total||0));
+  const current=[...tiers].reverse().find(tier=>tier.minLifetimePoints<=lifetimePoints)??null;
+  const next=tiers.find(tier=>tier.minLifetimePoints>lifetimePoints)??null;
+  const base=current?.minLifetimePoints??0,span=next?Math.max(1,next.minLifetimePoints-base):1;
+  return{lifetimePoints,current,next,pointsToNext:next?Math.max(0,next.minLifetimePoints-lifetimePoints):0,progressPercent:next?Math.min(100,Math.max(0,Math.round((lifetimePoints-base)/span*100))):100};
+}
+
 /**
  * O ledger e a fonte contabil da pontuacao. points_balance permanece como cache
  * para consultas rapidas, mas nunca deve divergir silenciosamente do historico.
