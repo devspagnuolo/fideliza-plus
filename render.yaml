@@ -32,14 +32,6 @@ services:
         sync: false
       - key: BLING_CLIENT_SECRET
         sync: false
-      - key: LINKEDIN_CLIENT_ID
-        sync: false
-      - key: LINKEDIN_CLIENT_SECRET
-        sync: false
-      - key: LINKEDIN_REDIRECT_URI
-        value: https://api.fidelizaplus.com.br/integrations/linkedin/callback
-      - key: LINKEDIN_SCOPES
-        value: w_member_social
       - key: ASAAS_ENVIRONMENT
         value: production
       - key: ASAAS_BILLING_ENABLED

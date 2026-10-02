@@ -12,11 +12,6 @@ export function validateProductionEnvironment(env: Environment) {
   paired(env, 'WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID');
   if (env.WHATSAPP_ACCESS_TOKEN && !env.WHATSAPP_PASSWORD_RESET_TEMPLATE) throw new Error('WHATSAPP_PASSWORD_RESET_TEMPLATE é obrigatório com WhatsApp');
   paired(env, 'BLING_CLIENT_ID', 'BLING_CLIENT_SECRET');
-  paired(env, 'LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET');
-  if (env.LINKEDIN_CLIENT_ID) {
-    const redirect = new URL(env.LINKEDIN_REDIRECT_URI ?? 'https://api.fidelizaplus.com.br/integrations/linkedin/callback');
-    if (redirect.protocol !== 'https:') throw new Error('LINKEDIN_REDIRECT_URI deve usar HTTPS em produção');
-  }
   if (env.RESEND_API_KEY && !env.EMAIL_FROM) throw new Error('EMAIL_FROM é obrigatório com RESEND_API_KEY');
   const asaasEnvironment = (env.ASAAS_ENVIRONMENT ?? '').trim().toLowerCase();
   const asaasBilling = (env.ASAAS_BILLING_ENABLED ?? '').trim().toLowerCase();

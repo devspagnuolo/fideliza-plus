@@ -21,9 +21,6 @@ db.prepare("UPDATE sales SET reversal_source='manual' WHERE reversed_at IS NOT N
 db.exec('CREATE INDEX IF NOT EXISTS idx_sales_tenant_external_status ON sales(tenant_id,source,external_status,reversed_at)');
 ensureColumn('customers', 'external_id', 'TEXT');
 ensureColumn('integration_connections', 'external_company_id', 'TEXT');
-ensureColumn('integration_connections', 'scopes', "TEXT NOT NULL DEFAULT '[]'");
-ensureColumn('integration_connections', 'metadata', "TEXT NOT NULL DEFAULT '{}'");
-ensureColumn('integration_connections', 'connected_by', 'TEXT');
 ensureColumn('users', 'two_factor_secret_encrypted', 'TEXT');
 ensureColumn('users', 'two_factor_pending_secret_encrypted', 'TEXT');
 ensureColumn('users', 'two_factor_enabled', 'INTEGER NOT NULL DEFAULT 0');
