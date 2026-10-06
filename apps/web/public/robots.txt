@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /login
+Disallow: /cliente/
+Disallow: /reset-password
+
+Sitemap: https://fidelizaplus.com.br/sitemap.xml

@@ -1,0 +1,10 @@
+/* Contraste mínimo para ações e cartões nos três portais. */
+.customer-portal .cp-form>button,.customer-portal .cp-primary,.customer-portal .cp-use-coupon,.customer-portal .cp-reward-grid article>button,.customer-portal .cp-modal .cp-actions button:not(.secondary){background:#5b3fd1!important;color:#fff!important;border-color:#5b3fd1!important;text-shadow:none}
+.customer-portal button:disabled,.customer-portal .cp-form>button:disabled,.customer-portal .cp-primary:disabled{opacity:1!important;background:#d9e0e7!important;color:#34465a!important;border-color:#c5cfd8!important;box-shadow:none!important;cursor:not-allowed}
+.customer-portal .secondary{background:#eef1f5!important;color:#26384c!important;border-color:#d6dee6!important}
+.pa-shell .pa-content article[class*="kpi"],.pa-shell .pa-content section[class*="kpi"],.pa-shell .pa-content article[class*="card"],.pa-shell .pa-content section[class*="card"]{color:#071f42}
+.pa-shell .pa-content article[class*="kpi"] h1,.pa-shell .pa-content article[class*="kpi"] h2,.pa-shell .pa-content article[class*="kpi"] h3,.pa-shell .pa-content article[class*="kpi"] b,.pa-shell .pa-content article[class*="card"] h1,.pa-shell .pa-content article[class*="card"] h2,.pa-shell .pa-content article[class*="card"] h3,.pa-shell .pa-content article[class*="card"] b{color:inherit}
+.pa-shell .pa-content article[class*="kpi"] small,.pa-shell .pa-content article[class*="kpi"] span,.pa-shell .pa-content article[class*="card"] small{color:#52667a}
+.pa-shell .pa-content [class*="hero"],.pa-shell .pa-content [class*="hero"] h1,.pa-shell .pa-content [class*="hero"] h2,.pa-shell .pa-content [class*="hero"] h3,.pa-shell .pa-content [class*="hero"] b{color:#fff}
+.pa-shell .pa-content [class*="hero"] p,.pa-shell .pa-content [class*="hero"] small,.pa-shell .pa-content [class*="hero"] span{color:#dceaf5}
+.pa-shell button:disabled{opacity:1;color:#40546a;background:#dbe3e9;border-color:#c9d3db;cursor:not-allowed}

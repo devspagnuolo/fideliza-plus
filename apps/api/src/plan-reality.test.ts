@@ -31,9 +31,13 @@ describe('planos comerciais aplicados de verdade',()=>{
     const response=await request(app).get('/public/plans').expect(200);
     expect(response.body.trialDays).toBe(7);
     expect(response.body.plans).toHaveLength(4);
-    for(const plan of response.body.plans)expect(plan.features).toEqual(expect.arrayContaining(['erp_integrations','basic_reports','core_crm','loyalty']));
+    for(const plan of response.body.plans)expect(plan.features).toEqual(expect.arrayContaining(['erp_integrations','basic_reports','core_crm','loyalty','rewards','customer_portal']));
     expect(response.body.plans.find((plan:any)=>plan.code==='pilot').features).not.toContain('manager_dashboard');
+    expect(response.body.plans.find((plan:any)=>plan.code==='essential').features).toEqual(expect.arrayContaining(['campaigns_basic','operational_dashboard','offers']));
+    expect(response.body.plans.find((plan:any)=>plan.code==='essential').features).not.toContain('campaigns_advanced');
     expect(response.body.plans.find((plan:any)=>plan.code==='growth').features).toEqual(expect.arrayContaining(['manager_dashboard','advanced_reports','public_api']));
+    expect(response.body.plans.find((plan:any)=>plan.code==='growth').features).not.toContain('multi_unit');
+    expect(response.body.plans.find((plan:any)=>plan.code==='professional').features).toEqual(expect.arrayContaining(['multi_unit','audit_export']));
     const contract=await request(app).get('/public/software-license-contract').expect(200);
     expect(contract.body).toMatchObject({version:'1.0',effectiveDate:'2026-09-10'});
     expect(contract.body.hash).toMatch(/^[a-f0-9]{64}$/);
@@ -118,6 +122,15 @@ describe('planos comerciais aplicados de verdade',()=>{
     const first={name:'Operadora',email:'operadora@pilot.test',cpf:'52998224725',password:'Operadora@123',role:'operator'};
     await pilot.post('/team/users').set('x-fideliza-request','web').send(first).expect(201);
     await pilot.post('/team/users').set('x-fideliza-request','web').send({...first,name:'Outra pessoa',email:'outra@pilot.test',cpf:'11144477735'}).expect(409).expect(({body})=>expect(body.code).toBe('PLAN_LIMIT_REACHED'));
+  });
+
+  it('reserva a gestão multiunidade ao plano Profissional',async()=>{
+    const growth=request.agent(app),professional=request.agent(app);
+    await growth.post('/auth/login').send({email:tenants.growth!.email,password:'Plano@12345'}).expect(200);
+    await professional.post('/auth/login').send({email:tenants.professional!.email,password:'Plano@12345'}).expect(200);
+    await growth.get('/units').expect(403).expect(({body})=>expect(body.code).toBe('PLAN_UPGRADE_REQUIRED'));
+    await professional.get('/units').expect(200);
+    await professional.post('/units').set('x-fideliza-request','web').send({name:'Filial Centro'}).expect(201);
   });
 
   it('aplica a franquia de armazenamento aos anexos do ambiente',async()=>{
