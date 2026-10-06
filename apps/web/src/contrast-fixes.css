@@ -8,3 +8,6 @@
 .pa-shell .pa-content [class*="hero"],.pa-shell .pa-content [class*="hero"] h1,.pa-shell .pa-content [class*="hero"] h2,.pa-shell .pa-content [class*="hero"] h3,.pa-shell .pa-content [class*="hero"] b{color:#fff}
 .pa-shell .pa-content [class*="hero"] p,.pa-shell .pa-content [class*="hero"] small,.pa-shell .pa-content [class*="hero"] span{color:#dceaf5}
 .pa-shell button:disabled{opacity:1;color:#40546a;background:#dbe3e9;border-color:#c9d3db;cursor:not-allowed}
+.settings-section,.connector-grid article,.metric,.panel{background:#fff;color:#071f42}
+.password-form button,.management-form button{min-height:46px;border:0;border-radius:10px;background:#087f78;color:#fff;font-weight:800;box-shadow:0 8px 18px #087f7826}
+.password-form button:hover,.management-form button:hover{background:#066a66}.password-form button:disabled,.management-form button:disabled{background:#d9e0e7;color:#34465a;box-shadow:none}

@@ -1,10 +1,11 @@
-.site-menu-toggle,.site-mobile-link,.site-menu-backdrop{display:none}
+.site-menu-toggle,.site-header nav .site-mobile-link,.site-menu-backdrop{display:none}
+.site-header .site-button,.site-header nav .site-mobile-link.primary{color:#fff}
 .payment-security{display:flex;align-items:center;gap:10px;margin-top:13px;padding:12px 14px;border:1px solid #b8ddd8;border-radius:12px;background:#effaf8;color:#075e59}
 .payment-security svg{width:22px;flex:0 0 auto}.payment-security span{display:grid;gap:2px}.payment-security small{color:#496d6b}
 @media(max-width:1050px){
  .site-header{grid-template-columns:auto 1fr auto}.site-menu-toggle{display:grid;place-items:center;grid-column:3;width:44px;height:44px;border:1px solid #cfe0e4;border-radius:12px;background:#fff;color:#073566;z-index:102}.site-menu-toggle svg{width:23px}
  .site-header>div{grid-column:2;grid-row:1;justify-self:end;margin-right:58px}
  .site-header nav{display:flex;position:fixed;z-index:101;inset:0 0 0 auto;width:min(360px,88vw);margin:0;padding:104px 24px 32px;flex-direction:column;align-items:stretch;gap:7px;background:#fff;box-shadow:-24px 0 60px #001a3840;transform:translateX(105%);transition:transform .22s ease}
- .site-header.menu-open nav{transform:translateX(0)}.site-header nav a{padding:14px;border-bottom:1px solid #e4ecef;color:#0a2948;font-size:17px;font-weight:800;text-decoration:none}.site-mobile-link{display:block!important}.site-mobile-link.primary{margin-top:10px;border:0!important;border-radius:11px;background:#087f78;color:#fff!important;text-align:center}.site-menu-backdrop{display:block;position:fixed;z-index:100;inset:0;border:0;background:#041b36a8}
+ .site-header.menu-open nav{transform:translateX(0)}.site-header nav a{padding:14px;border-bottom:1px solid #e4ecef;color:#0a2948;font-size:17px;font-weight:800;text-decoration:none}.site-header nav .site-mobile-link{display:block}.site-mobile-link.primary{margin-top:10px;border:0!important;border-radius:11px;background:#087f78;color:#fff!important;text-align:center}.site-menu-backdrop{display:block;position:fixed;z-index:100;inset:0;border:0;background:#041b36a8}
 }
 @media(max-width:700px){.site-header>div{display:none}.site-header{grid-template-columns:1fr auto}.site-menu-toggle{grid-column:2}.payment-security{align-items:flex-start}}

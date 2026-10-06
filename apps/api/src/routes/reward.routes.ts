@@ -5,10 +5,11 @@ import { audit } from '../audit.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { db } from '../database/db.js';
 import { redemptionLimit } from '../loyalty.js';
-import { requirePlanStorage } from '../plan-catalog.js';
+import { PLAN_FEATURES,requirePlanFeature,requirePlanStorage } from '../plan-catalog.js';
 
 export const rewardRoutes = Router();
 rewardRoutes.use(requireAuth);
+rewardRoutes.use(['/rewards','/reward-redemptions'],requirePlanFeature(PLAN_FEATURES.REWARDS));
 
 rewardRoutes.get('/rewards', (req, res) => res.json(db.prepare(`
   SELECT id,name,description,points_cost,stock,active,created_at,reward_type,image_data,product_sku,discount_type,discount_value,minimum_order_cents,

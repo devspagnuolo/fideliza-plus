@@ -106,6 +106,7 @@ describe('planos comerciais aplicados de verdade',()=>{
     await pilot.get('/dashboard').expect(403);
     await pilot.get('/campaigns').expect(403);
     await pilot.get('/offers').expect(403);
+    await pilot.get('/rewards').expect(200);
     await essential.get('/dashboard').expect(200);
     await essential.get('/offers').expect(200);
     await essential.get('/api-keys').expect(403);
