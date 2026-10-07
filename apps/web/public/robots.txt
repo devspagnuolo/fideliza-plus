@@ -4,5 +4,6 @@ Disallow: /admin
 Disallow: /login
 Disallow: /cliente/
 Disallow: /reset-password
+Disallow: /acesso
 
 Sitemap: https://fidelizaplus.com.br/sitemap.xml
