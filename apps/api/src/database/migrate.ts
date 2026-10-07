@@ -193,6 +193,7 @@ ensureColumn('reward_redemptions', 'code_generated_at', 'TEXT');
 ensureColumn('reward_redemptions', 'used_at', 'TEXT');
 ensureColumn('reward_redemptions', 'used_by', 'TEXT REFERENCES users(id)');
 ensureColumn('reward_redemptions', 'order_number', 'TEXT');
+ensureColumn('reward_redemptions', 'expires_at', 'TEXT');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_redemptions_code ON reward_redemptions(redemption_code) WHERE redemption_code IS NOT NULL');
 ensureColumn('campaigns', 'subject', 'TEXT');
 ensureColumn('campaigns', 'message', 'TEXT');
@@ -299,6 +300,14 @@ ensureColumn('rewards','product_sku','TEXT');
 ensureColumn('rewards','discount_type','TEXT');
 ensureColumn('rewards','discount_value','INTEGER');
 ensureColumn('rewards','minimum_order_cents','INTEGER NOT NULL DEFAULT 0');
+ensureColumn('rewards','valid_from','TEXT');
+ensureColumn('rewards','valid_until','TEXT');
+ensureColumn('rewards','minimum_tier_rank','INTEGER');
+const rewardValidityMigration='reward-validity-tier-v1';
+if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(rewardValidityMigration))db.transaction(()=>{
+  db.prepare("UPDATE rewards SET stock=NULL WHERE reward_type='coupon'").run();
+  db.prepare('INSERT INTO migrations(name)VALUES(?)').run(rewardValidityMigration);
+})();
 db.exec(`CREATE TABLE IF NOT EXISTS support_ticket_events(
  id TEXT PRIMARY KEY,ticket_id TEXT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
  tenant_id TEXT REFERENCES tenants(id),actor_type TEXT NOT NULL,actor_id TEXT,action TEXT NOT NULL,
