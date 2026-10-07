@@ -125,13 +125,16 @@ describe('planos comerciais aplicados de verdade',()=>{
     await pilot.post('/team/users').set('x-fideliza-request','web').send({...first,name:'Outra pessoa',email:'outra@pilot.test',cpf:'11144477735'}).expect(409).expect(({body})=>expect(body.code).toBe('PLAN_LIMIT_REACHED'));
   });
 
-  it('reserva a gestão multiunidade ao plano Profissional',async()=>{
+  it('reserva a gestão multiunidade e a auditoria exportável ao plano Profissional',async()=>{
     const growth=request.agent(app),professional=request.agent(app);
     await growth.post('/auth/login').send({email:tenants.growth!.email,password:'Plano@12345'}).expect(200);
     await professional.post('/auth/login').send({email:tenants.professional!.email,password:'Plano@12345'}).expect(200);
     await growth.get('/units').expect(403).expect(({body})=>expect(body.code).toBe('PLAN_UPGRADE_REQUIRED'));
+    await growth.get('/audit').expect(403).expect(({body})=>expect(body.code).toBe('PLAN_UPGRADE_REQUIRED'));
     await professional.get('/units').expect(200);
     await professional.post('/units').set('x-fideliza-request','web').send({name:'Filial Centro'}).expect(201);
+    await professional.get('/audit').expect(200);
+    await professional.get('/audit/export').expect(200).expect('content-type',/text\/csv/).expect(({text})=>expect(text).toContain('acao,tipo_entidade'));
   });
 
   it('aplica a franquia de armazenamento aos anexos do ambiente',async()=>{
