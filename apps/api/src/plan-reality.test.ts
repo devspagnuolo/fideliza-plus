@@ -99,7 +99,7 @@ describe('planos comerciais aplicados de verdade',()=>{
     }finally{fetchMock.mockRestore();if(previousKey===undefined)delete process.env.ASAAS_API_KEY;else process.env.ASAAS_API_KEY=previousKey}
   });
 
-  it('restringe o Piloto e libera dashboard e ofertas a partir do Essencial',async()=>{
+  it('restringe o Piloto e libera dashboard, ofertas e integração ERP a partir do Essencial',async()=>{
     const pilot=request.agent(app),essential=request.agent(app);
     await pilot.post('/auth/login').send({email:tenants.pilot!.email,password:'Plano@12345'}).expect(200);
     await essential.post('/auth/login').send({email:tenants.essential!.email,password:'Plano@12345'}).expect(200);
@@ -109,7 +109,7 @@ describe('planos comerciais aplicados de verdade',()=>{
     await pilot.get('/rewards').expect(200);
     await essential.get('/dashboard').expect(200);
     await essential.get('/offers').expect(200);
-    await essential.get('/api-keys').expect(403);
+    await essential.get('/api-keys').expect(200);
     await essential.get('/campaigns/analytics').expect(403);
   });
 

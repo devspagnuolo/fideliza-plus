@@ -1,0 +1,88 @@
+import { randomUUID } from 'node:crypto';
+import { Router } from 'express';
+import { z } from 'zod';
+import { audit } from '../audit.js';
+import { requireApiKey } from '../api-key-auth.js';
+import { normalizeCpf,validCpf } from '../cpf.js';
+import { db } from '../database/db.js';
+import { calculateSalePoints,creditSalePoints,reconcileSalePoints } from '../loyalty.js';
+import { PLAN_FEATURES,tenantPlan } from '../plan-catalog.js';
+
+export const posApiRoutes=Router();
+const cpf=z.string().transform(normalizeCpf).refine(validCpf,'CPF inválido');
+const digits=(value:string)=>value.replace(/\D/g,'');
+const businessDate=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const requireErpIntegration=(req:any,res:any,next:any)=>{const plan=tenantPlan(req.apiKey!.tenantId);return !plan||plan.features.includes(PLAN_FEATURES.ERP_INTEGRATIONS)?next():res.status(403).json({error:'A integração de PDV não está incluída no plano atual.',code:'PLAN_UPGRADE_REQUIRED',requiredFeature:PLAN_FEATURES.ERP_INTEGRATIONS})};
+const viewCustomer=(customer:any)=>({id:customer.id,name:customer.name,cpf:customer.cpf??null,email:customer.email??null,phone:customer.phone??null,pointsBalance:Number(customer.points_balance??0),enrolledAt:customer.enrolled_at??null,eligibleForPoints:Boolean(customer.enrolled_at&&!customer.deleted_at),createdAt:customer.created_at});
+
+posApiRoutes.get('/customers/lookup',requireApiKey('customers:read'),requireErpIntegration,(req,res)=>{
+  const document=normalizeCpf(String(req.query.cpf??''));
+  if(!validCpf(document))return res.status(400).json({error:'Informe um CPF válido'});
+  const customer=db.prepare('SELECT id,name,cpf,email,phone,points_balance,enrolled_at,deleted_at,created_at FROM customers WHERE tenant_id=? AND cpf=? AND deleted_at IS NULL').get(req.apiKey!.tenantId,document);
+  if(!customer)return res.status(404).json({error:'Cliente não encontrado nesta empresa'});
+  res.json({data:viewCustomer(customer)});
+});
+
+const customerUpsert=z.object({name:z.string().trim().min(2).max(120),cpf,email:z.string().email().optional().or(z.literal('')),phone:z.string().max(30).optional().or(z.literal('')),programConsent:z.boolean().optional()}).superRefine((value,ctx)=>{if(value.programConsent&&digits(value.phone||'').length<10)ctx.addIssue({code:'custom',path:['phone'],message:'Celular é obrigatório para adesão ao programa'})});
+posApiRoutes.post('/customers/upsert',requireApiKey('customers:write'),requireErpIntegration,(req,res)=>{
+  const parsed=customerUpsert.safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({error:parsed.error.issues[0]?.message||'Dados do cliente inválidos'});
+  const tenantId=req.apiKey!.tenantId,p=parsed.data;
+  try{
+    const result=db.transaction(()=>{
+      const existing=db.prepare('SELECT id,enrolled_at FROM customers WHERE tenant_id=? AND cpf=?').get(tenantId,p.cpf)as{id:string;enrolled_at:string|null}|undefined;
+      if(!existing){const plan=tenantPlan(tenantId),count=Number((db.prepare('SELECT COUNT(*) total FROM customers WHERE tenant_id=? AND deleted_at IS NULL').get(tenantId)as any).total);if(plan&&count>=plan.consumerLimit)throw new Error('LIMIT');}
+      const id=existing?.id??randomUUID(),enrolled=Boolean(p.programConsent&&!existing?.enrolled_at);
+      if(existing)db.prepare(`UPDATE customers SET name=?,email=COALESCE(?,email),phone=COALESCE(?,phone),status='active',deleted_at=NULL,enrolled_at=CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE enrolled_at END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?`).run(p.name,p.email||null,p.phone||null,enrolled?1:0,id,tenantId);
+      else db.prepare("INSERT INTO customers(id,tenant_id,name,cpf,email,phone,enrolled_at,status) VALUES(?,?,?,?,?,?,CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END,'active')").run(id,tenantId,p.name,p.cpf,p.email||null,p.phone||null,p.programConsent?1:0);
+      if(enrolled)db.prepare("INSERT INTO customer_consents(id,tenant_id,customer_id,purpose,granted,source) VALUES(?,?,?,?,1,'pdv')").run(randomUUID(),tenantId,id,'loyalty_program');
+      const customer=db.prepare('SELECT id,name,cpf,email,phone,points_balance,enrolled_at,deleted_at,created_at FROM customers WHERE id=? AND tenant_id=?').get(id,tenantId);
+      return {customer:viewCustomer(customer),created:!existing,enrolled};
+    })();
+    audit(tenantId,req.apiKey!.createdBy,'pdv.customer_upsert','customer',result.customer.id,{apiKeyId:req.apiKey!.id,created:result.created,enrolled:result.enrolled});
+    res.status(result.created?201:200).json(result);
+  }catch(error){if((error as Error).message==='LIMIT')return res.status(409).json({error:'Limite de consumidores do plano atingido.',code:'PLAN_LIMIT_REACHED'});throw error;}
+});
+
+const saleBody=z.object({externalSaleId:z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9._:-]+$/,'Identificador externo inválido'),orderNumber:z.string().trim().min(1).max(80).optional(),customerCpf:cpf.optional(),totalCents:z.number().int().positive().max(100_000_000),occurredAt:z.string().datetime().optional()});
+posApiRoutes.post('/sales',requireApiKey('sales:write'),requireErpIntegration,(req,res)=>{
+  const parsed=saleBody.safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({error:parsed.error.issues[0]?.message||'Venda inválida'});
+  const tenantId=req.apiKey!.tenantId,p=parsed.data,externalId=`pdv:${p.externalSaleId}`,occurredAt=p.occurredAt||new Date().toISOString();
+  try{
+    const result=db.transaction(()=>{
+      const existing=db.prepare('SELECT id,total_cents,customer_id,reversed_at FROM sales WHERE tenant_id=? AND external_id=?').get(tenantId,externalId)as any;
+      if(existing){if(existing.total_cents!==p.totalCents)throw new Error('CONFLICT');const points=existing.customer_id?Number((db.prepare('SELECT COALESCE(SUM(points),0) points FROM loyalty_ledger WHERE tenant_id=? AND customer_id=? AND sale_id=?').get(tenantId,existing.customer_id,existing.id)as any).points):0;return{id:existing.id,externalId,points,idempotent:true,reversed:Boolean(existing.reversed_at)};}
+      const customer=p.customerCpf?db.prepare('SELECT id,enrolled_at,deleted_at FROM customers WHERE tenant_id=? AND cpf=?').get(tenantId,p.customerCpf)as{id:string;enrolled_at:string|null;deleted_at:string|null}|undefined:undefined;
+      if(p.customerCpf&&!customer)throw new Error('CUSTOMER');
+      const id=randomUUID(),eligible=Boolean(customer?.enrolled_at&&!customer.deleted_at),points=eligible?calculateSalePoints(tenantId,p.totalCents,occurredAt).points:0;
+      db.prepare("INSERT INTO sales(id,tenant_id,customer_id,external_id,order_number,total_cents,occurred_at,source,external_status) VALUES(?,?,?,?,?,?,?,'pdv','Confirmada no PDV')").run(id,tenantId,customer?.id??null,externalId,p.orderNumber||p.externalSaleId,p.totalCents,occurredAt);
+      if(customer&&points>0)creditSalePoints(tenantId,customer.id,id,points,'Pontos por compra no PDV');
+      return{id,externalId,points,idempotent:false,reversed:false,eligibleForPoints:eligible};
+    })();
+    audit(tenantId,req.apiKey!.createdBy,'pdv.sale_create','sale',result.id,{apiKeyId:req.apiKey!.id,externalId,points:result.points,idempotent:result.idempotent});
+    res.status(result.idempotent?200:201).json({data:result});
+  }catch(error){const code=(error as Error).message;if(code==='CUSTOMER')return res.status(404).json({error:'Cliente não encontrado nesta empresa. Cadastre ou localize pelo CPF antes de registrar a venda.'});if(code==='CONFLICT')return res.status(409).json({error:'Já existe uma venda com esse identificador externo e valor diferente. Estorne a venda original antes de reenviar.'});throw error;}
+});
+
+posApiRoutes.post('/sales/:externalSaleId/reverse',requireApiKey('sales:write'),requireErpIntegration,(req,res)=>{
+  const externalSaleId=String(req.params.externalSaleId||'').trim();
+  if(!/^[A-Za-z0-9._:-]{1,100}$/.test(externalSaleId))return res.status(400).json({error:'Identificador externo inválido'});
+  const tenantId=req.apiKey!.tenantId,externalId=`pdv:${externalSaleId}`;
+  try{
+    const result=db.transaction(()=>{const sale=db.prepare('SELECT id,customer_id,reversed_at FROM sales WHERE tenant_id=? AND external_id=?').get(tenantId,externalId)as{id:string;customer_id:string|null;reversed_at:string|null}|undefined;if(!sale)throw new Error('NOT_FOUND');if(sale.reversed_at)return{id:sale.id,idempotent:true,pointsReversed:0};const adjustment=sale.customer_id?reconcileSalePoints(tenantId,sale.customer_id,sale.id,0,'Estorno informado pelo PDV'):{delta:0};db.prepare("UPDATE sales SET reversed_at=CURRENT_TIMESTAMP,reversal_source='pdv',external_status='Estornada no PDV' WHERE id=? AND tenant_id=?").run(sale.id,tenantId);return{id:sale.id,idempotent:false,pointsReversed:Math.max(0,-adjustment.delta)};})();
+    audit(tenantId,req.apiKey!.createdBy,'pdv.sale_reverse','sale',result.id,{apiKeyId:req.apiKey!.id,externalId,idempotent:result.idempotent});
+    res.json({data:result});
+  }catch(error){if((error as Error).message==='NOT_FOUND')return res.status(404).json({error:'Venda não encontrada para esta empresa'});throw error;}
+});
+
+posApiRoutes.post('/redemptions/consume',requireApiKey('rewards:validate'),requireErpIntegration,(req,res)=>{
+  const parsed=z.object({code:z.string().trim().min(8).max(24),orderNumber:z.string().trim().min(1).max(80)}).safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({error:'Informe o código do cupom e o número do pedido'});
+  const tenantId=req.apiKey!.tenantId,code=parsed.data.code.replace(/\s/g,'').toUpperCase();
+  try{
+    const result=db.transaction(()=>{const redemption=db.prepare(`SELECT rr.id,rr.status,rr.expires_at,r.name reward_name,r.discount_type,r.discount_value,r.minimum_order_cents,c.name customer_name,c.cpf customer_cpf FROM reward_redemptions rr JOIN rewards r ON r.id=rr.reward_id JOIN customers c ON c.id=rr.customer_id WHERE rr.tenant_id=? AND upper(rr.redemption_code)=?`).get(tenantId,code)as any;if(!redemption)throw new Error('NOT_FOUND');if(redemption.status==='used')throw new Error('USED');if(redemption.expires_at&&businessDate()>redemption.expires_at)throw new Error('EXPIRED');if(redemption.status!=='ready_for_use')throw new Error('STATUS');const update=db.prepare("UPDATE reward_redemptions SET status='used',used_at=CURRENT_TIMESTAMP,used_by=NULL,order_number=? WHERE id=? AND tenant_id=? AND status='ready_for_use'").run(parsed.data.orderNumber,redemption.id,tenantId);if(!update.changes)throw new Error('RACE');return{id:redemption.id,status:'used',orderNumber:parsed.data.orderNumber,reward:{name:redemption.reward_name,discountType:redemption.discount_type,discountValue:redemption.discount_value,minimumOrderCents:redemption.minimum_order_cents},customer:{name:redemption.customer_name,cpf:redemption.customer_cpf}};})();
+    audit(tenantId,req.apiKey!.createdBy,'pdv.redemption_consume','reward_redemption',result.id,{apiKeyId:req.apiKey!.id,orderNumber:result.orderNumber});
+    res.json({data:result});
+  }catch(error){const value=(error as Error).message;if(value==='NOT_FOUND')return res.status(404).json({error:'Código não encontrado para esta loja'});if(value==='USED')return res.status(409).json({error:'Este código já foi utilizado'});if(value==='EXPIRED')return res.status(409).json({error:'Este cupom está vencido'});return res.status(409).json({error:'Este cupom ainda não está liberado para uso'});}
+});
