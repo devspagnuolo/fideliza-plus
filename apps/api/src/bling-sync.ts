@@ -3,6 +3,7 @@ import { db } from './database/db.js';
 import { decryptSecret,encryptSecret,exchangeBlingToken } from './bling.js';
 import { calculateSalePoints,reconcileSalePoints } from './loyalty.js';
 import { normalizeCpf,validCpf } from './cpf.js';
+import { completeErpSyncRun,failErpSyncRun,startErpSyncRun,type ErpSyncTrigger } from './erp/sync-runs.js';
 
 type Connection={access_token_encrypted:string;refresh_token_encrypted:string;expires_at:string;last_sync_at:string|null};
 type Contact={id:number|string;nome?:string;email?:string;telefone?:string;celular?:string;numeroDocumento?:string};
@@ -146,7 +147,9 @@ async function processWebhookEvents(tenantId:string,situations:Map<string,Situat
   }
 }
 
-async function performSync(tenantId:string):Promise<SyncResult>{
+async function performSync(tenantId:string,trigger:ErpSyncTrigger):Promise<SyncResult>{
+  const runId=startErpSyncRun(tenantId,'bling',trigger);
+  try{
   const connection=db.prepare("SELECT last_sync_at FROM integration_connections WHERE tenant_id=? AND provider='bling'").get(tenantId) as {last_sync_at:string|null}|undefined;
   if(!connection)throw new Error('Bling não conectado');
   const since=connection.last_sync_at??new Date(Date.now()-365*86_400_000).toISOString(),startedAt=new Date().toISOString(),stats:SyncStats={contacts:0,ignoredContacts:0,sales:0,updatedSales:0,reversedSales:0,reinstatedSales:0,adjustedPoints:0,webhookEvents:0,failedWebhookEvents:0};
@@ -164,13 +167,19 @@ async function performSync(tenantId:string):Promise<SyncResult>{
     if(items.length<100)break;
   }
   db.prepare("UPDATE integration_connections SET last_sync_at=?,sync_cursor=NULL,last_error=NULL,updated_at=CURRENT_TIMESTAMP WHERE tenant_id=? AND provider='bling'").run(startedAt,tenantId);
-  return {...stats,since,completedAt:startedAt,situationMappingAvailable:situations.size>0};
+  const result={...stats,since,completedAt:startedAt,situationMappingAvailable:situations.size>0};
+  completeErpSyncRun(runId,result);
+  return result;
+  }catch(error){
+    failErpSyncRun(runId,error);
+    throw error;
+  }
 }
 
-export function syncBling(tenantId:string){
+export function syncBling(tenantId:string,trigger:ErpSyncTrigger='scheduled'){
   const running=runningSyncs.get(tenantId);
   if(running)return running;
-  const operation=performSync(tenantId).finally(()=>runningSyncs.delete(tenantId));
+  const operation=performSync(tenantId,trigger).finally(()=>runningSyncs.delete(tenantId));
   runningSyncs.set(tenantId,operation);
   return operation;
 }

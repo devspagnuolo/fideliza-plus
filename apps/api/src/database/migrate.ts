@@ -535,4 +535,22 @@ if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(ledgerBaseline)){
     db.prepare('INSERT INTO migrations(name)VALUES(?)').run(ledgerBaseline);
   })();
 }
+// Núcleo provider-neutral para que novos ERPs compartilhem rastreabilidade,
+// idempotência e vínculos de entidades sem duplicar as regras de fidelidade.
+db.exec(`CREATE TABLE IF NOT EXISTS integration_sync_runs(
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,provider TEXT NOT NULL,
+ trigger TEXT NOT NULL CHECK(trigger IN ('manual','scheduled','webhook','reconciliation')),
+ status TEXT NOT NULL DEFAULT 'processing' CHECK(status IN ('processing','completed','failed')),
+ correlation_id TEXT,summary TEXT NOT NULL DEFAULT '{}',error_code TEXT,error_message TEXT,
+ started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_integration_sync_runs ON integration_sync_runs(tenant_id,provider,started_at DESC);
+CREATE TABLE IF NOT EXISTS integration_entity_links(
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,provider TEXT NOT NULL,
+ entity_type TEXT NOT NULL CHECK(entity_type IN ('customer','sale','product','inventory')),
+ external_id TEXT NOT NULL,local_id TEXT NOT NULL,external_updated_at TEXT,checksum TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(tenant_id,provider,entity_type,external_id)
+);
+CREATE INDEX IF NOT EXISTS idx_integration_entity_local ON integration_entity_links(tenant_id,provider,entity_type,local_id);`);
 console.log('Banco atualizado com sucesso.');
