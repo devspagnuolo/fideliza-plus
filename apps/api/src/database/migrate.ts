@@ -87,6 +87,8 @@ CREATE INDEX IF NOT EXISTS idx_customer_accounts_tenant ON customer_accounts(ten
 ensureColumn('platform_admins','two_factor_secret_encrypted','TEXT');
 ensureColumn('platform_admins','two_factor_pending_secret_encrypted','TEXT');
 ensureColumn('platform_admins','two_factor_enabled','INTEGER NOT NULL DEFAULT 0');
+ensureColumn('customer_accounts','must_change_password','INTEGER NOT NULL DEFAULT 0');
+ensureColumn('customer_accounts','temporary_password_expires_at','TEXT');
 for (const table of ['sessions','customer_sessions','platform_sessions']) {
   ensureColumn(table,'ip_address','TEXT');
   ensureColumn(table,'user_agent','TEXT');

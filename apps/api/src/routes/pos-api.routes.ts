@@ -7,11 +7,14 @@ import { normalizeCpf,validCpf } from '../cpf.js';
 import { db } from '../database/db.js';
 import { calculateSalePoints,creditSalePoints,reconcileSalePoints } from '../loyalty.js';
 import { PLAN_FEATURES,tenantPlan } from '../plan-catalog.js';
+import { hashPassword } from '../security.js';
 
 export const posApiRoutes=Router();
 const cpf=z.string().transform(normalizeCpf).refine(validCpf,'CPF inválido');
 const digits=(value:string)=>value.replace(/\D/g,'');
 const businessDate=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const temporaryPassword=()=>`Fz!${randomUUID().replace(/-/g,'').slice(0,12)}Aa`;
+const webOrigin=()=>((process.env.WEB_ORIGIN||'https://fidelizaplus.com.br').split(',')[0]||'https://fidelizaplus.com.br').trim();
 const requireErpIntegration=(req:any,res:any,next:any)=>{const plan=tenantPlan(req.apiKey!.tenantId);return !plan||plan.features.includes(PLAN_FEATURES.ERP_INTEGRATIONS)?next():res.status(403).json({error:'A integração de PDV não está incluída no plano atual.',code:'PLAN_UPGRADE_REQUIRED',requiredFeature:PLAN_FEATURES.ERP_INTEGRATIONS})};
 const viewCustomer=(customer:any)=>({id:customer.id,name:customer.name,cpf:customer.cpf??null,email:customer.email??null,phone:customer.phone??null,pointsBalance:Number(customer.points_balance??0),enrolledAt:customer.enrolled_at??null,eligibleForPoints:Boolean(customer.enrolled_at&&!customer.deleted_at),createdAt:customer.created_at});
 
@@ -23,25 +26,38 @@ posApiRoutes.get('/customers/lookup',requireApiKey('customers:read'),requireErpI
   res.json({data:viewCustomer(customer)});
 });
 
-const customerUpsert=z.object({name:z.string().trim().min(2).max(120),cpf,email:z.string().email().optional().or(z.literal('')),phone:z.string().max(30).optional().or(z.literal('')),programConsent:z.boolean().optional()}).superRefine((value,ctx)=>{if(value.programConsent&&digits(value.phone||'').length<10)ctx.addIssue({code:'custom',path:['phone'],message:'Celular é obrigatório para adesão ao programa'})});
+const customerUpsert=z.object({name:z.string().trim().min(2).max(120),cpf,email:z.string().email().optional().or(z.literal('')),phone:z.string().max(30).optional().or(z.literal('')),programConsent:z.boolean().optional()}).superRefine((value,ctx)=>{if(value.programConsent&&digits(value.phone||'').length<10)ctx.addIssue({code:'custom',path:['phone'],message:'Celular é obrigatório para adesão ao programa'});if(value.programConsent&&!value.email)ctx.addIssue({code:'custom',path:['email'],message:'E-mail é obrigatório para enviar o acesso ao aplicativo'})});
 posApiRoutes.post('/customers/upsert',requireApiKey('customers:write'),requireErpIntegration,(req,res)=>{
   const parsed=customerUpsert.safeParse(req.body);
   if(!parsed.success)return res.status(400).json({error:parsed.error.issues[0]?.message||'Dados do cliente inválidos'});
   const tenantId=req.apiKey!.tenantId,p=parsed.data;
   try{
     const result=db.transaction(()=>{
-      const existing=db.prepare('SELECT id,enrolled_at FROM customers WHERE tenant_id=? AND cpf=?').get(tenantId,p.cpf)as{id:string;enrolled_at:string|null}|undefined;
+      const existing=db.prepare('SELECT id,enrolled_at,email FROM customers WHERE tenant_id=? AND cpf=?').get(tenantId,p.cpf)as{id:string;enrolled_at:string|null;email:string|null}|undefined;
       if(!existing){const plan=tenantPlan(tenantId),count=Number((db.prepare('SELECT COUNT(*) total FROM customers WHERE tenant_id=? AND deleted_at IS NULL').get(tenantId)as any).total);if(plan&&count>=plan.consumerLimit)throw new Error('LIMIT');}
       const id=existing?.id??randomUUID(),enrolled=Boolean(p.programConsent&&!existing?.enrolled_at);
       if(existing)db.prepare(`UPDATE customers SET name=?,email=COALESCE(?,email),phone=COALESCE(?,phone),status='active',deleted_at=NULL,enrolled_at=CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE enrolled_at END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?`).run(p.name,p.email||null,p.phone||null,enrolled?1:0,id,tenantId);
       else db.prepare("INSERT INTO customers(id,tenant_id,name,cpf,email,phone,enrolled_at,status) VALUES(?,?,?,?,?,?,CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END,'active')").run(id,tenantId,p.name,p.cpf,p.email||null,p.phone||null,p.programConsent?1:0);
       if(enrolled)db.prepare("INSERT INTO customer_consents(id,tenant_id,customer_id,purpose,granted,source) VALUES(?,?,?,?,1,'pdv')").run(randomUUID(),tenantId,id,'loyalty_program');
-      const customer=db.prepare('SELECT id,name,cpf,email,phone,points_balance,enrolled_at,deleted_at,created_at FROM customers WHERE id=? AND tenant_id=?').get(id,tenantId);
-      return {customer:viewCustomer(customer),created:!existing,enrolled};
+      const customer=db.prepare('SELECT id,name,cpf,email,phone,points_balance,enrolled_at,deleted_at,created_at FROM customers WHERE id=? AND tenant_id=?').get(id,tenantId)as any;
+      let accessCreated=false;
+      if(p.programConsent){
+        const account=db.prepare('SELECT id FROM customer_accounts WHERE tenant_id=? AND customer_id=?').get(tenantId,id)as{id:string}|undefined;
+        if(!account){
+          const recipient=String(customer.email||'').trim().toLowerCase();
+          if(!recipient)throw new Error('EMAIL_REQUIRED');
+          const tenant=db.prepare('SELECT name,slug FROM tenants WHERE id=?').get(tenantId)as{name:string;slug:string};
+          const password=temporaryPassword(),accountId=randomUUID();
+          db.prepare("INSERT INTO customer_accounts(id,tenant_id,customer_id,password_hash,must_change_password,temporary_password_expires_at) VALUES(?,?,?,?,1,datetime('now','+48 hours'))").run(accountId,tenantId,id,hashPassword(password));
+          db.prepare("INSERT INTO outbound_messages(id,tenant_id,recipient,channel,template,subject,message,scheduled_at) VALUES(?,?,?,'email','customer.pdv_welcome',?,?,CURRENT_TIMESTAMP)").run(randomUUID(),tenantId,recipient,`Bem-vinda ao programa ${tenant.name}`,`Olá, ${customer.name}. Você foi cadastrada no programa de fidelidade da ${tenant.name}.\n\nAcesse ${webOrigin()}/cliente/${encodeURIComponent(tenant.slug)} usando seu CPF e esta senha temporária: ${password}\n\nPor segurança, altere a senha no primeiro acesso. Esta senha temporária expira em 48 horas.\n\nSe você não reconhece este cadastro, entre em contato com a loja.`);
+          accessCreated=true;
+        }
+      }
+      return {customer:viewCustomer(customer),created:!existing,enrolled,accessCreated};
     })();
-    audit(tenantId,req.apiKey!.createdBy,'pdv.customer_upsert','customer',result.customer.id,{apiKeyId:req.apiKey!.id,created:result.created,enrolled:result.enrolled});
+    audit(tenantId,req.apiKey!.createdBy,'pdv.customer_upsert','customer',result.customer.id,{apiKeyId:req.apiKey!.id,created:result.created,enrolled:result.enrolled,accessCreated:result.accessCreated});
     res.status(result.created?201:200).json(result);
-  }catch(error){if((error as Error).message==='LIMIT')return res.status(409).json({error:'Limite de consumidores do plano atingido.',code:'PLAN_LIMIT_REACHED'});throw error;}
+  }catch(error){if((error as Error).message==='LIMIT')return res.status(409).json({error:'Limite de consumidores do plano atingido.',code:'PLAN_LIMIT_REACHED'});if((error as Error).message==='EMAIL_REQUIRED')return res.status(409).json({error:'E-mail é obrigatório para criar o acesso da cliente pelo PDV.'});throw error;}
 });
 
 const saleBody=z.object({externalSaleId:z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9._:-]+$/,'Identificador externo inválido'),orderNumber:z.string().trim().min(1).max(80).optional(),customerCpf:cpf.optional(),totalCents:z.number().int().positive().max(100_000_000),occurredAt:z.string().datetime().optional()});

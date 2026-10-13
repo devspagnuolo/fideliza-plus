@@ -81,7 +81,11 @@ POST /customers/upsert
 }
 ```
 
-`programConsent: true` só deve ser enviado quando a cliente aceitar participar. Para adesão são exigidos nome, CPF e celular; o Fidelizei registra o consentimento com origem `pdv`. Sem adesão, a cliente pode ser cadastrada, mas não recebe pontos automaticamente.
+`programConsent: true` só deve ser enviado quando a cliente aceitar participar. Para adesão são exigidos nome, CPF, celular e e-mail; o Fidelizei registra o consentimento com origem `pdv`.
+
+No primeiro cadastro consentido vindo do PDV, o Fidelizei cria o acesso da cliente ao aplicativo e coloca um e-mail de boas-vindas na fila de envio. A mensagem contém uma senha temporária, válida por 48 horas, e o endereço do programa da loja. A senha nunca é devolvida pela API, incluída em logs ou armazenada em texto puro. Se a cliente já possuir acesso, sua senha não é alterada.
+
+Sem adesão, a cliente pode ser cadastrada, mas não recebe pontos automaticamente nem recebe o convite de acesso.
 
 ### Registrar venda
 
@@ -182,3 +186,9 @@ O endpoint já marca o cupom como utilizado na mesma transação. Um código usa
 - Gere uma chave exclusiva para o PDV e revogue-a imediatamente se houver suspeita de vazamento.
 - Homologue: uma cliente já cadastrada, uma adesão nova, uma venda, um reenvio da mesma venda, um estorno e um cupom usado duas vezes.
 - Confirme no portal da loja o extrato, o saldo e a venda antes de colocar o caixa em operação.
+
+## Ajuste de saldo pela loja
+
+No portal do lojista, abra **Clientes**, selecione a cliente e use **Ajustar pontos**. Informe uma quantidade inteira positiva para crédito ou negativa para débito e descreva a justificativa.
+
+O Fidelizei bloqueia qualquer débito que deixaria o saldo negativo. Cada ajuste gera lançamento no extrato, notificação para a cliente e evento de auditoria com usuário responsável, motivo, saldo anterior e saldo posterior.

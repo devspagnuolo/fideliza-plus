@@ -45,16 +45,18 @@ loyaltyRoutes.put('/loyalty/tiers',requireRole('owner','manager'),(req,res)=>{
 loyaltyRoutes.post('/customers/:id/loyalty/adjust', requireRole('owner', 'manager'), (req, res) => {
   const customerId = String(req.params.id);
   const tenantId = req.auth!.tenantId;
-  const parsed = z.object({ points: z.number().int().refine((value) => value !== 0), reason: z.string().min(3).max(120) }).safeParse(req.body);
+  const parsed = z.object({ points: z.number().int().refine((value) => value !== 0), reason: z.string().trim().min(5).max(240) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Ajuste inválido' });
   try {
     db.transaction(() => {
-      const customer = db.prepare('SELECT points_balance FROM customers WHERE id=? AND tenant_id=?').get(customerId, tenantId) as { points_balance: number } | undefined;
+      const customer = db.prepare('SELECT points_balance,name FROM customers WHERE id=? AND tenant_id=?').get(customerId, tenantId) as { points_balance: number;name:string } | undefined;
       if (!customer) throw new Error('NOT_FOUND');
       if (customer.points_balance + parsed.data.points < 0) throw new Error('INSUFFICIENT');
-      db.prepare('UPDATE customers SET points_balance=points_balance+? WHERE id=? AND tenant_id=?').run(parsed.data.points, customerId, tenantId);
+      const newBalance=customer.points_balance+parsed.data.points;
+      db.prepare('UPDATE customers SET points_balance=? WHERE id=? AND tenant_id=?').run(newBalance, customerId, tenantId);
       db.prepare("INSERT INTO loyalty_ledger (id,tenant_id,customer_id,points,reason,entry_type) VALUES (?,?,?,?,?,'adjustment')").run(randomUUID(), tenantId, customerId, parsed.data.points, parsed.data.reason);
-      audit(tenantId, req.auth!.userId, 'adjust_points', 'customer', customerId, parsed.data);
+      db.prepare("INSERT INTO customer_notifications(id,tenant_id,customer_id,title,message,type) VALUES(?,?,?,?,?,'points')").run(randomUUID(),tenantId,customerId,'Ajuste no saldo de pontos',`${parsed.data.points>0?'+':''}${parsed.data.points} ponto(s): ${parsed.data.reason}. Saldo atual: ${newBalance} ponto(s).`);
+      audit(tenantId, req.auth!.userId, 'adjust_points', 'customer', customerId, {...parsed.data,previousBalance:customer.points_balance,newBalance});
     })();
     res.json({ ok: true });
   } catch (error) {
