@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { db } from './database/db.js';
 import { decryptSecret,encryptSecret,exchangeBlingToken } from './bling.js';
-import { calculateSalePoints,reconcileSalePoints } from './loyalty.js';
+import { calculateSalePoints,isSaleEligibleFromEnrollmentDay,reconcileSalePoints } from './loyalty.js';
 import { normalizeCpf,validCpf } from './cpf.js';
 import { completeErpSyncRun,failErpSyncRun,startErpSyncRun,type ErpSyncTrigger } from './erp/sync-runs.js';
 
@@ -24,11 +24,6 @@ async function refresh(tenantId:string,connection:Connection){const tokens=await
 async function tokenFor(tenantId:string,force=false){const connection=db.prepare("SELECT access_token_encrypted,refresh_token_encrypted,expires_at,last_sync_at FROM integration_connections WHERE tenant_id=? AND provider='bling' AND status='connected'").get(tenantId) as Connection|undefined;if(!connection)throw new Error('Bling não conectado');const token=force||new Date(connection.expires_at).getTime()<Date.now()+60_000?await refresh(tenantId,connection):decryptSecret(connection.access_token_encrypted);return {token,connection};}
 async function getPage<T>(tenantId:string,path:string,params=new URLSearchParams()){let auth=await tokenFor(tenantId);const execute=async(token:string)=>{await respectRateLimit();return fetch(`https://api.bling.com.br/Api/v3/${path}?${params}`,{headers:{authorization:`Bearer ${token}`,'enable-jwt':'1',accept:'application/json'}});};let response=await execute(auth.token);if(response.status===401){auth=await tokenFor(tenantId,true);response=await execute(auth.token);}const body=await response.json().catch(()=>({})) as {data?:T[];message?:string;error?:{message?:string;description?:string}};if(!response.ok){const detail=body.error?.message||body.error?.description||body.message;throw new Error(detail?`Bling ${path}: ${detail} (HTTP ${response.status})`:`Bling ${path}: acesso recusado (HTTP ${response.status})`);}return body.data??[];}
 const occurredAt=(value?:string)=>{if(!value)return new Date().toISOString();const date=new Date(value.length===10?`${value}T12:00:00-03:00`:value);return Number.isNaN(date.getTime())?new Date().toISOString():date.toISOString();};
-const saoPauloDate=(value:string)=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
-function isEligibleAfterEnrollment(rawOrderDate:string|undefined,orderDate:string,enrolledAt:string){
-  if(rawOrderDate?.length===10)return rawOrderDate>=saoPauloDate(enrolledAt);
-  return new Date(orderDate)>=new Date(enrolledAt);
-}
 const normalized=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const isReversedStatus=(value:string)=>/(cancel|exclu|estorn|devolv|anulad)/.test(normalized(value));
 
@@ -102,7 +97,7 @@ function reconcileOrder(tenantId:string,item:Order,situations:Map<string,Situati
   }
 
   let desiredPoints=0;
-  if(!reversed&&customerId&&customer?.enrolled_at&&isEligibleAfterEnrollment(rawOrderDate,date,customer.enrolled_at))desiredPoints=calculateSalePoints(tenantId,totalCents,date).points;
+  if(!reversed&&customerId&&customer?.enrolled_at&&isSaleEligibleFromEnrollmentDay(date,customer.enrolled_at))desiredPoints=calculateSalePoints(tenantId,totalCents,date).points;
   if(customerId){
     const reason=reversed?'Estorno automático por cancelamento ou exclusão no Bling':existing?.reversed_at?'Reativação automática do pedido no Bling':'Conciliação automática de pontos do pedido Bling',adjustment=reconcileSalePoints(tenantId,customerId,saleId,desiredPoints,reason);
     stats.adjustedPoints+=Math.abs(adjustment.delta);

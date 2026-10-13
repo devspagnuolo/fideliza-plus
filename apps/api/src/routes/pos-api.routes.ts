@@ -5,7 +5,7 @@ import { audit } from '../audit.js';
 import { requireApiKey } from '../api-key-auth.js';
 import { normalizeCpf,validCpf } from '../cpf.js';
 import { db } from '../database/db.js';
-import { calculateSalePoints,creditSalePoints,reconcileSalePoints } from '../loyalty.js';
+import { calculateSalePoints,isSaleEligibleFromEnrollmentDay,reconcileSalePoints } from '../loyalty.js';
 import { PLAN_FEATURES,tenantPlan } from '../plan-catalog.js';
 import { hashPassword } from '../security.js';
 
@@ -67,18 +67,31 @@ posApiRoutes.post('/sales',requireApiKey('sales:write'),requireErpIntegration,(r
   const tenantId=req.apiKey!.tenantId,p=parsed.data,externalId=`pdv:${p.externalSaleId}`,occurredAt=p.occurredAt||new Date().toISOString();
   try{
     const result=db.transaction(()=>{
-      const existing=db.prepare('SELECT id,total_cents,customer_id,reversed_at FROM sales WHERE tenant_id=? AND external_id=?').get(tenantId,externalId)as any;
-      if(existing){if(existing.total_cents!==p.totalCents)throw new Error('CONFLICT');const points=existing.customer_id?Number((db.prepare('SELECT COALESCE(SUM(points),0) points FROM loyalty_ledger WHERE tenant_id=? AND customer_id=? AND sale_id=?').get(tenantId,existing.customer_id,existing.id)as any).points):0;return{id:existing.id,externalId,points,idempotent:true,reversed:Boolean(existing.reversed_at)};}
       const customer=p.customerCpf?db.prepare('SELECT id,enrolled_at,deleted_at FROM customers WHERE tenant_id=? AND cpf=?').get(tenantId,p.customerCpf)as{id:string;enrolled_at:string|null;deleted_at:string|null}|undefined:undefined;
       if(p.customerCpf&&!customer)throw new Error('CUSTOMER');
-      const id=randomUUID(),eligible=Boolean(customer?.enrolled_at&&!customer.deleted_at),points=eligible?calculateSalePoints(tenantId,p.totalCents,occurredAt).points:0;
+      const existing=db.prepare('SELECT id,total_cents,customer_id,occurred_at,reversed_at FROM sales WHERE tenant_id=? AND external_id=?').get(tenantId,externalId)as{id:string;total_cents:number;customer_id:string|null;occurred_at:string;reversed_at:string|null}|undefined;
+      if(existing){
+        if(existing.total_cents!==p.totalCents)throw new Error('CONFLICT');
+        if(existing.customer_id&&customer&&existing.customer_id!==customer.id)throw new Error('CUSTOMER_CONFLICT');
+        const linkedCustomer=customer??(existing.customer_id?db.prepare('SELECT id,enrolled_at,deleted_at FROM customers WHERE id=? AND tenant_id=?').get(existing.customer_id,tenantId)as{id:string;enrolled_at:string|null;deleted_at:string|null}|undefined:undefined);
+        const customerId=existing.customer_id??linkedCustomer?.id??null,customerLinked=Boolean(!existing.customer_id&&linkedCustomer),eligible=Boolean(customerId&&linkedCustomer?.enrolled_at&&!linkedCustomer.deleted_at&&isSaleEligibleFromEnrollmentDay(existing.occurred_at,linkedCustomer.enrolled_at)),desiredPoints=!existing.reversed_at&&eligible?calculateSalePoints(tenantId,existing.total_cents,existing.occurred_at).points:0;
+        let points=0,pointsAdjusted=0;
+        if(customerId){
+          const adjustment=reconcileSalePoints(tenantId,customerId,existing.id,desiredPoints,'Conciliação automática de pontos do pedido PDV');
+          points=adjustment.desiredPoints;
+          pointsAdjusted=adjustment.delta;
+        }
+        if(customerLinked)db.prepare("UPDATE sales SET customer_id=?,order_number=COALESCE(?,order_number),external_status='Confirmada e identificada no PDV' WHERE id=? AND tenant_id=?").run(customerId,p.orderNumber||null,existing.id,tenantId);
+        return{id:existing.id,externalId,points,pointsAdjusted,customerLinked,idempotent:true,reversed:Boolean(existing.reversed_at),eligibleForPoints:eligible};
+      }
+      const id=randomUUID(),eligible=Boolean(customer?.enrolled_at&&!customer.deleted_at&&isSaleEligibleFromEnrollmentDay(occurredAt,customer.enrolled_at)),points=eligible?calculateSalePoints(tenantId,p.totalCents,occurredAt).points:0;
       db.prepare("INSERT INTO sales(id,tenant_id,customer_id,external_id,order_number,total_cents,occurred_at,source,external_status) VALUES(?,?,?,?,?,?,?,'pdv','Confirmada no PDV')").run(id,tenantId,customer?.id??null,externalId,p.orderNumber||p.externalSaleId,p.totalCents,occurredAt);
-      if(customer&&points>0)creditSalePoints(tenantId,customer.id,id,points,'Pontos por compra no PDV');
-      return{id,externalId,points,idempotent:false,reversed:false,eligibleForPoints:eligible};
+      if(customer&&points>0)reconcileSalePoints(tenantId,customer.id,id,points,'Pontos por compra no PDV');
+      return{id,externalId,points,pointsAdjusted:points,customerLinked:Boolean(customer),idempotent:false,reversed:false,eligibleForPoints:eligible};
     })();
     audit(tenantId,req.apiKey!.createdBy,'pdv.sale_create','sale',result.id,{apiKeyId:req.apiKey!.id,externalId,points:result.points,idempotent:result.idempotent});
     res.status(result.idempotent?200:201).json({data:result});
-  }catch(error){const code=(error as Error).message;if(code==='CUSTOMER')return res.status(404).json({error:'Cliente não encontrado nesta empresa. Cadastre ou localize pelo CPF antes de registrar a venda.'});if(code==='CONFLICT')return res.status(409).json({error:'Já existe uma venda com esse identificador externo e valor diferente. Estorne a venda original antes de reenviar.'});throw error;}
+  }catch(error){const code=(error as Error).message;if(code==='CUSTOMER')return res.status(404).json({error:'Cliente não encontrado nesta empresa. Cadastre a cliente e reenvie o mesmo pedido para vincular e creditar os pontos elegíveis.'});if(code==='CUSTOMER_CONFLICT')return res.status(409).json({error:'Esta venda já está vinculada a outra cliente. Corrija ou estorne a venda original antes de reenviar.'});if(code==='CONFLICT')return res.status(409).json({error:'Já existe uma venda com esse identificador externo e valor diferente. Estorne a venda original antes de reenviar.'});throw error;}
 });
 
 posApiRoutes.post('/sales/:externalSaleId/reverse',requireApiKey('sales:write'),requireErpIntegration,(req,res)=>{

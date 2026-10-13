@@ -35,9 +35,9 @@ O perfil PDV é liberado pela capacidade **Integração ERP**, presente nos plan
 
 1. Leia o código de barras do cartão ou digite o CPF.
 2. Consulte a cliente por CPF.
-3. Se não existir, faça o cadastro e registre a adesão somente após consentimento explícito ao programa.
+3. Se não existir, faça o cadastro e registre a adesão somente após consentimento explícito ao programa. Se o pedido já tiver sido aberto, preserve o identificador externo.
 4. Se houver cupom, consuma o código antes de finalizar o desconto. O consumo é único e atômico.
-5. Após concluir a venda, registre-a usando o identificador imutável do pedido do PDV.
+5. Após concluir a venda, registre-a usando o identificador imutável do pedido do PDV. Caso o pedido tenha sido enviado antes do cadastro, reenvie o mesmo pedido com o CPF depois da adesão.
 6. Em caso de cancelamento, estorne usando exatamente o mesmo identificador externo.
 
 ## Endpoints
@@ -121,7 +121,9 @@ Resposta de exemplo:
 }
 ```
 
-Quando não houver CPF, a venda pode ser registrada sem `customerCpf`; ela não gera pontos. Quando o CPF existir mas a adesão estiver pendente, a venda também fica sem pontuação até a adesão ser feita.
+Quando não houver CPF, a venda pode ser registrada sem `customerCpf`; ela fica pendente de identificação e não gera pontos naquele momento. Depois de cadastrar a cliente, repita `POST /sales` com o **mesmo** `externalSaleId`, o mesmo valor e o `customerCpf`. O Fidelizei vincula a cliente ao pedido e reconcilia os pontos uma única vez.
+
+A adesão é válida para todo o dia comercial no fuso de São Paulo. Portanto, um pedido aberto antes do cadastro recebe pontos quando pedido e adesão ocorrerem no mesmo dia, mesmo que o horário do pedido seja anterior. Pedidos de dias anteriores não recebem crédito retroativo. A idempotência e o ledger impedem pontuação duplicada em reenvios.
 
 ### Estornar venda
 

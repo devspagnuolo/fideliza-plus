@@ -1,6 +1,28 @@
 import { randomUUID } from 'node:crypto';
 import { db } from './database/db.js';
 
+const saoPauloDayFormatter=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'});
+
+function storedDate(value:string){
+  if(/^\d{4}-\d{2}-\d{2}$/.test(value))return `${value}T12:00:00-03:00`;
+  if(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value))return `${value.replace(' ','T')}Z`;
+  return value;
+}
+
+export function saoPauloBusinessDate(value:string){
+  const date=new Date(storedDate(value));
+  return Number.isNaN(date.getTime())?null:saoPauloDayFormatter.format(date);
+}
+
+/**
+ * A adesão vale para todo o dia comercial em São Paulo. Assim, um pedido aberto
+ * no caixa antes do cadastro, mas identificado no mesmo dia, continua elegível.
+ */
+export function isSaleEligibleFromEnrollmentDay(saleAt:string,enrolledAt:string){
+  const saleDay=saoPauloBusinessDate(saleAt),enrollmentDay=saoPauloBusinessDate(enrolledAt);
+  return Boolean(saleDay&&enrollmentDay&&saleDay>=enrollmentDay);
+}
+
 export function calculateSalePoints(tenantId: string, totalCents: number, occurredAt: string) {
   const tenant = db.prepare('SELECT points_per_real FROM tenants WHERE id=?').get(tenantId) as { points_per_real: number };
   const promotion = db.prepare(`SELECT multiplier,name FROM loyalty_promotions

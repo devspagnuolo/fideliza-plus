@@ -42,7 +42,7 @@ vi.stubGlobal('fetch',vi.fn(async(urlValue:string)=>{
     else if(scenario==='same-day')data=[{id:40,nome:'Cliente do mesmo dia',email:'mesmodia@example.com',celular:'11977776666',numeroDocumento:'93541134780'}];
     else data=url.searchParams.getAll('idsContatos[]').includes('11')?[{id:11,nome:'Cliente já cadastrada',email:'cliente@example.com',celular:'11988887777',numeroDocumento:'11144477735'}]:[{id:10,nome:'Cliente Bling',email:'bling@example.com',celular:'11999990000',numeroDocumento:'52998224725'}];
   }else if(pathname.endsWith('/pedidos/vendas')){
-    data=scenario==='lifecycle'?[{id:30,numero:300,data:'2026-08-10',total:lifecycleTotal,contato:{id:30},situacao:{id:lifecycleStatus==='active'?1:2,valor:lifecycleStatus==='active'?0:2}}]:scenario==='same-day'?[{id:40,numero:400,data:'2026-08-10',total:125,contato:{id:40},situacao:{id:1,valor:0}}]:[{id:20,data:'2026-08-10',total:150,contato:{id:10},situacao:{id:1,valor:0}},{id:21,numero:987,data:'2026-08-10',total:200,contato:{id:11},situacao:{id:1,valor:0}}];
+    data=scenario==='lifecycle'?[{id:30,numero:300,data:'2026-08-10',total:lifecycleTotal,contato:{id:30},situacao:{id:lifecycleStatus==='active'?1:2,valor:lifecycleStatus==='active'?0:2}}]:scenario==='same-day'?[{id:40,numero:400,data:'2026-08-10T10:00:00-03:00',total:125,contato:{id:40},situacao:{id:1,valor:0}}]:[{id:20,data:'2026-08-10',total:150,contato:{id:10},situacao:{id:1,valor:0}},{id:21,numero:987,data:'2026-08-10',total:200,contato:{id:11},situacao:{id:1,valor:0}}];
   }
   return new Response(JSON.stringify({data}),{status:200,headers:{'content-type':'application/json'}});
 }));
@@ -60,7 +60,7 @@ describe('sincronização Bling',()=>{
     expect((db.prepare("SELECT COUNT(*) count FROM loyalty_ledger WHERE customer_id='enrolled-customer' AND entry_type='earn'").get() as {count:number}).count).toBe(1);
   });
 
-  it('pontua compra do mesmo dia quando o Bling não fornece o horário do pedido',async()=>{
+  it('pontua compra feita antes da adesão quando pedido e cadastro são do mesmo dia',async()=>{
     scenario='same-day';situationAccess=true;
     expect(await syncBling('same-day-tenant')).toMatchObject({sales:1,adjustedPoints:125});
     expect((db.prepare("SELECT external_id,points_balance FROM customers WHERE id='same-day-customer'").get() as {external_id:string;points_balance:number})).toEqual({external_id:'bling:40',points_balance:125});
