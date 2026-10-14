@@ -16,7 +16,10 @@ describe('API pública',()=>{
   beforeAll(()=>{
     db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('public-a','Empresa A','public-a');
     db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('public-b','Empresa B','public-b');
+    db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('public-bling','Empresa com Bling','public-bling');
     db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('public-owner','public-a','Dona A','public@example.com',hashPassword('Senha@123'),'owner');
+    db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('public-bling-owner','public-bling','Dona Bling','bling-owner@example.com',hashPassword('Senha@123'),'owner');
+    db.prepare('INSERT INTO integration_connections (id,tenant_id,provider,access_token_encrypted,refresh_token_encrypted,expires_at,status) VALUES (?,?,?,?,?,?,?)').run('public-bling-connection','public-bling','bling','encrypted-access','encrypted-refresh','2099-12-31T23:59:59.000Z','connected');
     db.prepare('INSERT INTO customers (id,tenant_id,name,email) VALUES (?,?,?,?)').run('public-customer-a','public-a','Cliente A','a@example.com');
     db.prepare('INSERT INTO customers (id,tenant_id,name,email) VALUES (?,?,?,?)').run('public-customer-b','public-b','Cliente B','b@example.com');
   });
@@ -33,6 +36,18 @@ describe('API pública',()=>{
     await request(app).get('/public/v1/sales').set('authorization',`Bearer ${created.body.key}`).expect(403);
     await owner.delete(`/api-keys/${created.body.id}`).set('x-fideliza-request','web').expect(204);
     await request(app).get('/public/v1/customers').set('authorization',`Bearer ${created.body.key}`).expect(401);
+  });
+
+  it('usa exclusivamente o pedido do Bling quando a integração está conectada',async()=>{
+    const owner=request.agent(app);
+    await owner.post('/auth/login').send({email:'bling-owner@example.com',password:'Senha@123'}).expect(200);
+    const created=await owner.post('/api-keys').set('x-fideliza-request','web').send({name:'PDV com Bling',scopes:['sales:write']}).expect(201);
+    const auth={authorization:`Bearer ${created.body.key}`};
+    const directSale=await request(app).post('/public/v1/sales').set(auth).send({externalSaleId:'pedido-pdv-1',orderNumber:'PDV-1',totalCents:12500}).expect(409);
+    expect(directSale.body).toMatchObject({code:'BLING_ORDER_SOURCE_REQUIRED',provider:'bling',acceptedExternalIdPrefix:'bling:'});
+    const directReverse=await request(app).post('/public/v1/sales/pedido-pdv-1/reverse').set(auth).send({}).expect(409);
+    expect(directReverse.body.code).toBe('BLING_ORDER_SOURCE_REQUIRED');
+    expect((db.prepare("SELECT COUNT(*) count FROM sales WHERE tenant_id='public-bling'").get()as{count:number}).count).toBe(0);
   });
 
   it('cria acesso de cliente pelo PDV, registra venda idempotente, estorno e cupom de uso único',async()=>{
