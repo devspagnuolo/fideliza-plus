@@ -39,7 +39,7 @@ vi.stubGlobal('fetch',vi.fn(async(urlValue:string)=>{
   else if(pathname.endsWith('/situacoes/modulos/500'))data=[{id:1,nome:'Em aberto',idHerdado:0},{id:2,nome:'Cancelado',idHerdado:2}];
   else if(pathname.endsWith('/contatos')){
     if(scenario==='lifecycle')data=[{id:30,nome:'Cliente Ciclo',email:'ciclo@example.com',celular:'11999998888',numeroDocumento:'52998224725'}];
-    else if(scenario==='same-day')data=[{id:40,nome:'Cliente do mesmo dia',email:'mesmodia@example.com',celular:'11977776666',numeroDocumento:'93541134780'}];
+    else if(scenario==='same-day')data=[{id:40,nome:'Cliente do mesmo dia',email:'mesmodia@example.com',numeroDocumento:'93541134780'}];
     else data=url.searchParams.getAll('idsContatos[]').includes('11')?[{id:11,nome:'Cliente já cadastrada',email:'cliente@example.com',celular:'11988887777',numeroDocumento:'11144477735'}]:[{id:10,nome:'Cliente Bling',email:'bling@example.com',celular:'11999990000',numeroDocumento:'52998224725'}];
   }else if(pathname.endsWith('/pedidos/vendas')){
     data=scenario==='lifecycle'?[{id:30,numero:300,data:'2026-08-10',total:lifecycleTotal,contato:{id:30},situacao:{id:lifecycleStatus==='active'?1:2,valor:lifecycleStatus==='active'?0:2}}]:scenario==='same-day'?[{id:40,numero:400,data:'2026-08-10T10:00:00-03:00',total:125,contato:{id:40},situacao:{id:1,valor:0}}]:[{id:20,data:'2026-08-10',total:150,contato:{id:10},situacao:{id:1,valor:0}},{id:21,numero:987,data:'2026-08-10',total:200,contato:{id:11},situacao:{id:1,valor:0}}];
