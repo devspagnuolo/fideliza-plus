@@ -16,6 +16,16 @@ const businessDate=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Pa
 const temporaryPassword=()=>`Fz!${randomUUID().replace(/-/g,'').slice(0,12)}Aa`;
 const webOrigin=()=>((process.env.WEB_ORIGIN||'https://fidelizaplus.com.br').split(',')[0]||'https://fidelizaplus.com.br').trim();
 const requireErpIntegration=(req:any,res:any,next:any)=>{const plan=tenantPlan(req.apiKey!.tenantId);return !plan||plan.features.includes(PLAN_FEATURES.ERP_INTEGRATIONS)?next():res.status(403).json({error:'A integração de PDV não está incluída no plano atual.',code:'PLAN_UPGRADE_REQUIRED',requiredFeature:PLAN_FEATURES.ERP_INTEGRATIONS})};
+const requireAuthoritativeOrderSource=(req:any,res:any,next:any)=>{
+  const connection=db.prepare("SELECT provider FROM integration_connections WHERE tenant_id=? AND provider='bling' AND status='connected' LIMIT 1").get(req.apiKey!.tenantId)as{provider:string}|undefined;
+  if(!connection)return next();
+  return res.status(409).json({
+    error:'O Bling é a fonte oficial dos pedidos desta empresa. Registre ou cancele a venda no Bling; o Fidelizei fará a conciliação automática.',
+    code:'BLING_ORDER_SOURCE_REQUIRED',
+    provider:'bling',
+    acceptedExternalIdPrefix:'bling:'
+  });
+};
 const viewCustomer=(customer:any)=>({id:customer.id,name:customer.name,cpf:customer.cpf??null,email:customer.email??null,phone:customer.phone??null,pointsBalance:Number(customer.points_balance??0),enrolledAt:customer.enrolled_at??null,eligibleForPoints:Boolean(customer.enrolled_at&&!customer.deleted_at),createdAt:customer.created_at});
 
 posApiRoutes.get('/customers/lookup',requireApiKey('customers:read'),requireErpIntegration,(req,res)=>{
@@ -61,7 +71,7 @@ posApiRoutes.post('/customers/upsert',requireApiKey('customers:write'),requireEr
 });
 
 const saleBody=z.object({externalSaleId:z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9._:-]+$/,'Identificador externo inválido'),orderNumber:z.string().trim().min(1).max(80).optional(),customerCpf:cpf.optional(),totalCents:z.number().int().positive().max(100_000_000),occurredAt:z.string().datetime().optional()});
-posApiRoutes.post('/sales',requireApiKey('sales:write'),requireErpIntegration,(req,res)=>{
+posApiRoutes.post('/sales',requireApiKey('sales:write'),requireErpIntegration,requireAuthoritativeOrderSource,(req,res)=>{
   const parsed=saleBody.safeParse(req.body);
   if(!parsed.success)return res.status(400).json({error:parsed.error.issues[0]?.message||'Venda inválida'});
   const tenantId=req.apiKey!.tenantId,p=parsed.data,externalId=`pdv:${p.externalSaleId}`,occurredAt=p.occurredAt||new Date().toISOString();
@@ -94,7 +104,7 @@ posApiRoutes.post('/sales',requireApiKey('sales:write'),requireErpIntegration,(r
   }catch(error){const code=(error as Error).message;if(code==='CUSTOMER')return res.status(404).json({error:'Cliente não encontrado nesta empresa. Cadastre a cliente e reenvie o mesmo pedido para vincular e creditar os pontos elegíveis.'});if(code==='CUSTOMER_CONFLICT')return res.status(409).json({error:'Esta venda já está vinculada a outra cliente. Corrija ou estorne a venda original antes de reenviar.'});if(code==='CONFLICT')return res.status(409).json({error:'Já existe uma venda com esse identificador externo e valor diferente. Estorne a venda original antes de reenviar.'});throw error;}
 });
 
-posApiRoutes.post('/sales/:externalSaleId/reverse',requireApiKey('sales:write'),requireErpIntegration,(req,res)=>{
+posApiRoutes.post('/sales/:externalSaleId/reverse',requireApiKey('sales:write'),requireErpIntegration,requireAuthoritativeOrderSource,(req,res)=>{
   const externalSaleId=String(req.params.externalSaleId||'').trim();
   if(!/^[A-Za-z0-9._:-]{1,100}$/.test(externalSaleId))return res.status(400).json({error:'Identificador externo inválido'});
   const tenantId=req.apiKey!.tenantId,externalId=`pdv:${externalSaleId}`;
