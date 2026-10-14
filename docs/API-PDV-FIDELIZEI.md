@@ -56,7 +56,7 @@ O escopo `sales:write` não deve ser usado pela integração PDV + Bling. Mesmo 
 6. Envie e confirme o pedido no Bling.
 7. Use sempre o ID e o número retornados pelo Bling para comprovantes, cupons e conferência.
 8. Aguarde o webhook ou a sincronização do Fidelizei. O pedido será vinculado à cliente pelo contato/CPF.
-9. Cancelamentos, exclusões e alterações de valor devem ser feitos no Bling; o Fidelizei reconciliará os pontos automaticamente.
+9. Cancelamentos, exclusões e alterações de valor devem ser feitos no Bling; o Fidelizei reconciliará os pontos automaticamente. Para vincular o pedido, o contato no Bling precisa ter o mesmo CPF válido cadastrado no Fidelizei. A ausência de telefone no contato do Bling não impede o vínculo de uma cliente já cadastrada; para importar um contato novo, nome, CPF válido e telefone são necessários.
 
 ## Localizar cliente
 
