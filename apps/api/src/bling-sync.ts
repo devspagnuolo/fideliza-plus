@@ -29,10 +29,13 @@ const isReversedStatus=(value:string)=>/(cancel|exclu|estorn|devolv|anulad)/.tes
 
 function upsertContact(tenantId:string,item:Contact){
   const externalId=`bling:${item.id}`,email=item.email?.trim()||null,phone=(item.celular?.trim()||item.telefone?.trim()||'').replace(/\D/g,''),name=item.nome?.trim()||'',cpf=normalizeCpf(item.numeroDocumento||'');
-  if(name.length<2||phone.length<10||!validCpf(cpf))return false;
+  if(name.length<2||!validCpf(cpf))return false;
   const existing=db.prepare('SELECT id FROM customers WHERE tenant_id=? AND (external_id=? OR cpf=?) ORDER BY CASE WHEN external_id=? THEN 0 ELSE 1 END LIMIT 1').get(tenantId,externalId,cpf,externalId) as {id:string}|undefined;
-  if(existing)db.prepare('UPDATE customers SET external_id=?,name=?,email=COALESCE(?,email),phone=?,cpf=?,deleted_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?').run(externalId,name,email,phone,cpf,existing.id,tenantId);
-  else db.prepare('INSERT INTO customers (id,tenant_id,external_id,name,email,phone,cpf) VALUES (?,?,?,?,?,?,?)').run(randomUUID(),tenantId,externalId,name,email,phone,cpf);
+  if(existing)db.prepare("UPDATE customers SET external_id=?,name=?,email=COALESCE(?,email),phone=COALESCE(NULLIF(?,''),phone),cpf=?,deleted_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?").run(externalId,name,email,phone,cpf,existing.id,tenantId);
+  else{
+    if(phone.length<10)return false;
+    db.prepare('INSERT INTO customers (id,tenant_id,external_id,name,email,phone,cpf) VALUES (?,?,?,?,?,?,?)').run(randomUUID(),tenantId,externalId,name,email,phone,cpf);
+  }
   return true;
 }
 
