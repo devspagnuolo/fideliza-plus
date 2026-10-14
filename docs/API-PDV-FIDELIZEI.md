@@ -1,6 +1,22 @@
 # API do PDV Fidelizei
 
-Esta documentação conecta um PDV à empresa dona da chave de API. A primeira implantação é destinada à **Vivi Moda Plus Size**, mas o contrato é multiempresa: a empresa é identificada pela chave e nunca por um `tenantId` enviado pelo caixa.
+Esta documentação conecta o PDV à empresa dona da chave de API. Para a **Vivi Moda Plus Size**, o **Bling é a fonte oficial dos pedidos**. O Fidelizei recebe do PDV apenas dados de identificação/adesão da cliente e validações de benefícios; vendas, valores, números de pedido, situações e cancelamentos são conciliados a partir do Bling.
+
+## Princípio de integração
+
+```text
+PDV → cadastra/identifica cliente no Fidelizei
+PDV → cria ou atualiza contato e pedido no Bling
+Bling → webhook/sincronização → Fidelizei
+Fidelizei → vincula pelo CPF → registra pedido Bling → calcula/estorna pontos
+```
+
+Nunca envie ao Fidelizei o número interno do PDV como se fosse o pedido oficial. No banco do Fidelizei, pedidos dessa operação usam:
+
+- `source: bling`
+- `external_id: bling:<id-do-pedido-no-bling>`
+- `order_number: <número-do-pedido-no-bling>`
+- valor, data, cliente e situação recebidos do Bling
 
 ## URL e autenticação
 
@@ -17,32 +33,32 @@ Authorization: Bearer fz_live_SUA_CHAVE
 Content-Type: application/json
 ```
 
-Não envie a chave ao navegador, não a grave no repositório e não a reutilize em outro sistema. Cadastre uma chave chamada `PDV Vivi Moda Plus Size`; ela pode ser revogada pelo portal da loja a qualquer momento.
+A empresa é identificada pela chave. Nunca envie `tenantId` pelo caixa e nunca exponha a chave no navegador, aplicativo cliente, recibo ou log.
 
-## Escopos do perfil PDV
+## Escopos do perfil PDV com Bling
 
 | Escopo | Uso |
 |---|---|
-| `customers:read` | localizar cartão/cliente por CPF |
-| `customers:write` | criar ou atualizar dados do consumidor |
-| `sales:read` | consultar vendas quando necessário |
-| `sales:write` | lançar e estornar vendas |
-| `rewards:validate` | utilizar um cupom apresentado no caixa |
+| `customers:read` | localizar cliente/cartão pelo CPF |
+| `customers:write` | criar ou atualizar a adesão do consumidor |
+| `sales:read` | consultar pedidos já conciliados do Bling, se necessário |
+| `rewards:validate` | validar e utilizar o benefício apresentado no caixa |
 
-O perfil PDV é liberado pela capacidade **Integração ERP**, presente nos planos da plataforma. A chave de consulta genérica continua restrita à capacidade API pública.
+O escopo `sales:write` não deve ser usado pela integração PDV + Bling. Mesmo que uma chave antiga ainda possua esse escopo, o Fidelizei bloqueia criação e estorno direto quando o Bling está conectado.
 
-## Fluxo recomendado de caixa
+## Fluxo obrigatório do caixa
 
-1. Leia o código de barras do cartão ou digite o CPF.
-2. Consulte a cliente por CPF.
-3. Se não existir, faça o cadastro e registre a adesão somente após consentimento explícito ao programa. Se o pedido já tiver sido aberto, preserve o identificador externo.
-4. Se houver cupom, consuma o código antes de finalizar o desconto. O consumo é único e atômico.
-5. Após concluir a venda, registre-a usando o identificador imutável do pedido do PDV. Caso o pedido tenha sido enviado antes do cadastro, reenvie o mesmo pedido com o CPF depois da adesão.
-6. Em caso de cancelamento, estorne usando exatamente o mesmo identificador externo.
+1. Abra a venda no PDV.
+2. Leia o cartão ou informe o CPF da cliente.
+3. Consulte a cliente no Fidelizei.
+4. Se ela não existir, cadastre-a após o consentimento e mantenha o mesmo CPF no contato do Bling.
+5. Crie ou atualize o contato no Bling com esse CPF.
+6. Envie e confirme o pedido no Bling.
+7. Use sempre o ID e o número retornados pelo Bling para comprovantes, cupons e conferência.
+8. Aguarde o webhook ou a sincronização do Fidelizei. O pedido será vinculado à cliente pelo contato/CPF.
+9. Cancelamentos, exclusões e alterações de valor devem ser feitos no Bling; o Fidelizei reconciliará os pontos automaticamente.
 
-## Endpoints
-
-### Localizar cliente
+## Localizar cliente
 
 ```http
 GET /customers/lookup?cpf=52998224725
@@ -63,9 +79,9 @@ Resposta `200`:
 }
 ```
 
-`404` significa que o CPF não participa do programa daquela loja. Não existe acesso a dados de outras empresas.
+`404` significa que o CPF não participa do programa daquela loja.
 
-### Cadastrar ou atualizar cliente
+## Cadastrar ou atualizar cliente
 
 ```http
 POST /customers/upsert
@@ -81,61 +97,46 @@ POST /customers/upsert
 }
 ```
 
-`programConsent: true` só deve ser enviado quando a cliente aceitar participar. Para adesão são exigidos nome, CPF, celular e e-mail; o Fidelizei registra o consentimento com origem `pdv`.
+`programConsent: true` só deve ser enviado após aceite explícito. Nome, CPF, celular e e-mail são obrigatórios para a adesão pelo PDV.
 
-No primeiro cadastro consentido vindo do PDV, o Fidelizei cria o acesso da cliente ao aplicativo e coloca um e-mail de boas-vindas na fila de envio. A mensagem contém uma senha temporária, válida por 48 horas, e o endereço do programa da loja. A senha nunca é devolvida pela API, incluída em logs ou armazenada em texto puro. Se a cliente já possuir acesso, sua senha não é alterada.
+No primeiro cadastro consentido, o Fidelizei:
 
-Sem adesão, a cliente pode ser cadastrada, mas não recebe pontos automaticamente nem recebe o convite de acesso.
+- registra o consentimento com origem `pdv`;
+- cria a conta da cliente;
+- gera uma senha temporária válida por 48 horas;
+- coloca o e-mail de boas-vindas na fila de envio.
 
-### Registrar venda
+A senha nunca é devolvida pela API nem armazenada em texto puro.
 
-```http
-POST /sales
-```
+## Pedido oficial e pontuação do mesmo dia
 
-```json
-{
-  "externalSaleId": "vivi-20261008-000123",
-  "orderNumber": "000123",
-  "customerCpf": "52998224725",
-  "totalCents": 12500,
-  "occurredAt": "2026-10-08T15:30:00.000Z"
-}
-```
-
-`totalCents` deve sempre ser inteiro em centavos. O valor `12500` corresponde a R$ 125,00.
-
-O `externalSaleId` é obrigatório e deve ser imutável por venda. Repetir a mesma chamada com o mesmo identificador e valor retorna `200` com `idempotent: true`; não gera pontos novamente. Reutilizar o mesmo identificador com outro valor retorna `409`.
-
-Resposta de exemplo:
+O PDV **não deve chamar `POST /sales`** para a Vivi Moda Plus Size. Ao detectar o Bling conectado, o Fidelizei responde:
 
 ```json
 {
-  "data": {
-    "id": "uuid",
-    "externalId": "pdv:vivi-20261008-000123",
-    "points": 125,
-    "eligibleForPoints": true,
-    "idempotent": false
-  }
+  "error": "O Bling é a fonte oficial dos pedidos desta empresa. Registre ou cancele a venda no Bling; o Fidelizei fará a conciliação automática.",
+  "code": "BLING_ORDER_SOURCE_REQUIRED",
+  "provider": "bling",
+  "acceptedExternalIdPrefix": "bling:"
 }
 ```
 
-Quando não houver CPF, a venda pode ser registrada sem `customerCpf`; ela fica pendente de identificação e não gera pontos naquele momento. Depois de cadastrar a cliente, repita `POST /sales` com o **mesmo** `externalSaleId`, o mesmo valor e o `customerCpf`. O Fidelizei vincula a cliente ao pedido e reconcilia os pontos uma única vez.
+A adesão vale para todo o dia comercial no fuso de São Paulo. Se o pedido do Bling tiver sido aberto antes do cadastro, mas pedido e adesão ocorrerem no mesmo dia, ele recebe pontos normalmente depois que o contato do Bling for identificado pelo mesmo CPF.
 
-A adesão é válida para todo o dia comercial no fuso de São Paulo. Portanto, um pedido aberto antes do cadastro recebe pontos quando pedido e adesão ocorrerem no mesmo dia, mesmo que o horário do pedido seja anterior. Pedidos de dias anteriores não recebem crédito retroativo. A idempotência e o ledger impedem pontuação duplicada em reenvios.
+Pedidos de dias anteriores não recebem crédito retroativo. Reenvios, webhooks repetidos e sincronizações manuais não duplicam pontos porque a conciliação usa o ID imutável do pedido do Bling e o ledger de fidelidade.
 
-### Estornar venda
+## Cancelamentos e alterações
 
-```http
-POST /sales/vivi-20261008-000123/reverse
-```
+Não use o endpoint de estorno do PDV quando o Bling estiver conectado.
 
-O estorno é idempotente: uma segunda chamada retorna sucesso sem repetir a retirada dos pontos. O saldo é reconciliado a partir do ledger de fidelidade.
+- Cancele ou exclua o pedido no Bling.
+- Corrija valor, cliente ou situação no Bling.
+- O webhook ou a próxima sincronização atualizará o pedido no Fidelizei.
+- O Fidelizei estornará, complementará ou reativará somente a diferença necessária.
 
-### Consumir cupom no caixa
+## Consumir cupom no caixa
 
-O aplicativo gera um código quando a cliente toca em **Usar cupom**. No caixa, envie:
+Depois de obter o número oficial do pedido no Bling:
 
 ```http
 POST /redemptions/consume
@@ -144,53 +145,40 @@ POST /redemptions/consume
 ```json
 {
   "code": "FZ-AB12CD34",
-  "orderNumber": "000123"
+  "orderNumber": "400"
 }
 ```
 
-Resposta:
-
-```json
-{
-  "data": {
-    "status": "used",
-    "orderNumber": "000123",
-    "reward": {
-      "name": "Cupom 20%",
-      "discountType": "percent",
-      "discountValue": 20,
-      "minimumOrderCents": 0
-    }
-  }
-}
-```
-
-O endpoint já marca o cupom como utilizado na mesma transação. Um código usado, vencido, inexistente ou ainda não liberado não pode ser aplicado.
+`orderNumber` deve ser o número do pedido no Bling. O consumo é atômico e de uso único.
 
 ## Tratamento obrigatório de respostas
 
 | Código | Ação do PDV |
 |---:|---|
 | 200/201 | confirmar a operação localmente |
-| 400 | corrigir dados do formulário; não repetir automaticamente |
-| 401 | chave ausente, inválida, vencida ou revogada; bloquear integração e avisar administrador |
-| 403 | escopo ou plano não liberado; não tentar contornar |
-| 404 | cliente, venda ou cupom não pertence à loja/não existe |
-| 409 | conflito, cupom já utilizado ou venda já existente com valor diferente |
-| 429 | aguardar e repetir com backoff; limite atual é 120 requisições por minuto por chave |
-| 5xx | manter operação local pendente e reenviar depois com o mesmo `externalSaleId` |
+| 400 | corrigir os dados; não repetir automaticamente |
+| 401 | chave ausente, inválida, vencida ou revogada |
+| 403 | escopo ou plano não liberado |
+| 404 | cliente ou cupom não pertence à loja/não existe |
+| 409 + `BLING_ORDER_SOURCE_REQUIRED` | enviar/corrigir a venda no Bling; não criar pedido no Fidelizei |
+| 409 | tratar conflito ou cupom já utilizado |
+| 429 | repetir com backoff |
+| 5xx | manter a ação local pendente e repetir com idempotência |
 
-## Segurança e homologação
+## Homologação mínima
 
-- Use HTTPS; a URL de produção já opera com TLS.
-- Armazene `FIDELIZEI_API_KEY` em cofre de segredos ou variável de ambiente do servidor do PDV.
-- Nunca exponha a chave em aplicativo cliente, JavaScript público, recibo ou log de erro.
-- Gere uma chave exclusiva para o PDV e revogue-a imediatamente se houver suspeita de vazamento.
-- Homologue: uma cliente já cadastrada, uma adesão nova, uma venda, um reenvio da mesma venda, um estorno e um cupom usado duas vezes.
-- Confirme no portal da loja o extrato, o saldo e a venda antes de colocar o caixa em operação.
+1. Cadastrar uma cliente nova no Fidelizei pelo PDV.
+2. Criar o contato no Bling com o mesmo CPF.
+3. Abrir o pedido antes ou depois do cadastro, no mesmo dia.
+4. Confirmar o pedido no Bling.
+5. Sincronizar e verificar que o Fidelizei gravou apenas o pedido `bling:<id>`.
+6. Confirmar que os pontos foram lançados uma única vez.
+7. Alterar o valor no Bling e verificar o ajuste da diferença.
+8. Cancelar no Bling e verificar o estorno.
+9. Validar um cupom usando o número oficial do pedido do Bling.
 
-## Ajuste de saldo pela loja
+## Ajuste manual de saldo
 
-No portal do lojista, abra **Clientes**, selecione a cliente e use **Ajustar pontos**. Informe uma quantidade inteira positiva para crédito ou negativa para débito e descreva a justificativa.
+No portal do lojista, abra **Clientes**, selecione a cliente e use **Ajustar pontos**. Informe crédito ou débito e uma justificativa.
 
-O Fidelizei bloqueia qualquer débito que deixaria o saldo negativo. Cada ajuste gera lançamento no extrato, notificação para a cliente e evento de auditoria com usuário responsável, motivo, saldo anterior e saldo posterior.
+Cada ajuste gera lançamento no extrato, notificação para a cliente e evento de auditoria com responsável, motivo, saldo anterior e saldo posterior.
