@@ -17,7 +17,7 @@ const { app }=await import('./app.js');
 function seedTenant(id:string,email:string,customerId:string) {
   db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run(id,`Empresa ${id}`,id);
   db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run(`user-${id}`,id,`Dono ${id}`,email,hashPassword('Senha@123'),'owner');
-  db.prepare('INSERT INTO subscriptions(id,tenant_id,plan_code,status) VALUES(?,?,\'pilot\',\'active\')').run(`sub-${id}`,id);
+  db.prepare('INSERT INTO subscriptions(id,tenant_id,plan_code,status) VALUES(?,?,\'professional\',\'active\')').run(`sub-${id}`,id);
   db.prepare('INSERT INTO customers (id,tenant_id,name,email,points_balance,enrolled_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)').run(customerId,id,`Cliente ${id}`,`cliente-${id}@example.com`,100);
 }
 
@@ -126,6 +126,7 @@ describe('API multiempresa',()=>{
   it('calcula o onboarding e os indicadores de ativação com dados reais',async()=>{
     db.prepare('INSERT INTO tenants (id,name,slug,segment) VALUES (?,?,?,?)').run('tenant-onboarding','Empresa Onboarding','empresa-onboarding','Moda');
     db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('user-onboarding','tenant-onboarding','Dona Onboarding','onboarding@example.com',hashPassword('Senha@123'),'owner');
+    db.prepare("INSERT INTO subscriptions(id,tenant_id,plan_code,status)VALUES('sub-onboarding','tenant-onboarding','professional','active')").run();
     const agent=request.agent(app);
     await agent.post('/auth/login').send({email:'onboarding@example.com',password:'Senha@123'}).expect(200);
     const initial=await agent.get('/onboarding').expect(200);
