@@ -9,10 +9,10 @@ const READ_SCOPES:Scope[]=['customers:read','sales:read'];
 const PDV_SCOPES:Scope[]=['customers:read','customers:write','sales:read','sales:write','rewards:validate'];
 function keyScopes(value:Key['scopes']):string[]{if(Array.isArray(value))return value;try{const parsed=JSON.parse(value||'[]');return Array.isArray(parsed)?parsed:[]}catch{return[]}}
 export function ApiKeysPanel(){
- const[items,setItems]=useState<Key[]>([]),[created,setCreated]=useState(''),[open,setOpen]=useState(false),[profile,setProfile]=useState<'read'|'pdv'>('read'),[selected,setSelected]=useState<Scope[]>(['customers:read','sales:read']),[error,setError]=useState(''),[busy,setBusy]=useState(false),[copied,setCopied]=useState(false);
+ const[items,setItems]=useState<Key[]>([]),[created,setCreated]=useState(''),[open,setOpen]=useState(false),[profile,setProfile]=useState<'read'|'pdv'>('read'),[selected,setSelected]=useState<Scope[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false),[copied,setCopied]=useState(false);
  const load=()=>api<Key[]>('/api-keys').then(setItems).catch(()=>setError('Não foi possível carregar as chaves agora.'));
  useEffect(()=>{load()},[]);
- function chooseProfile(value:'read'|'pdv'){setProfile(value);setSelected(value==='pdv'?PDV_SCOPES:READ_SCOPES)}
+ function chooseProfile(value:'read'|'pdv'){setProfile(value);setSelected(value==='pdv'?PDV_SCOPES:[])}
  function toggle(scope:Scope){setSelected(current=>current.includes(scope)?current.filter(item=>item!==scope):[...current,scope])}
  async function create(event:React.FormEvent<HTMLFormElement>){event.preventDefault();setError('');if(profile==='read'&&!selected.length){setError('Selecione pelo menos um conjunto de dados para consulta.');return}const form=new FormData(event.currentTarget);setBusy(true);try{const scopes=profile==='pdv'?PDV_SCOPES:selected;const result=await api<{key:string}>('/api-keys',{method:'POST',body:JSON.stringify({name:String(form.get('name')||''),scopes})});setCreated(result.key);setOpen(false);await load()}catch(e){setError(e instanceof Error?e.message:'Não foi possível criar a chave. Verifique o plano e tente novamente.')}finally{setBusy(false)}}
  async function revoke(id:string){if(!confirm('Revogar esta chave? A integração deixará de acessar a API imediatamente.'))return;setError('');try{await api(`/api-keys/${id}`,{method:'DELETE'});await load()}catch(e){setError(e instanceof Error?e.message:'Não foi possível revogar a chave.')}}
