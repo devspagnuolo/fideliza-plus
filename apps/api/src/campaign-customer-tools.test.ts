@@ -16,6 +16,7 @@ describe('campanhas integradas e assistência ao consumidor',()=>{
   const agent=request.agent(app);
   beforeAll(async()=>{
     db.prepare("INSERT INTO tenants(id,name,slug)VALUES('campaign-tools','Loja Campanhas','loja-campanhas')").run();
+    db.prepare("INSERT INTO subscriptions(id,tenant_id,plan_code,status)VALUES('sub-campaign-tools','campaign-tools','growth','active')").run();
     db.prepare("INSERT INTO users(id,tenant_id,name,email,password_hash,role)VALUES('campaign-owner','campaign-tools','Gestora','gestora@campanhas.test',?,'owner')").run(hashPassword('Gestora@123'));
     db.prepare("INSERT INTO customers(id,tenant_id,name,email,phone,cpf,enrolled_at,status)VALUES('campaign-customer','campaign-tools','Cliente Teste','cliente@campanhas.test','11999999999','52998224725',CURRENT_TIMESTAMP,'active')").run();
     db.prepare("INSERT INTO customer_accounts(id,tenant_id,customer_id,password_hash)VALUES('campaign-account','campaign-tools','campaign-customer',?)").run(hashPassword('Cliente@123'));
