@@ -2,7 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /login
-Disallow: /cliente/
+Disallow: /cliente
 Disallow: /reset-password
 Disallow: /acesso
 
