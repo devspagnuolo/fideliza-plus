@@ -586,4 +586,5 @@ if(process.env.DATA_ENCRYPTION_KEY?.trim()){
     migrateEncryptedColumns('platform_admins',['two_factor_secret_encrypted','two_factor_pending_secret_encrypted'],'totp',decryptTotp,encryptTotp);
   })();
 }
-\nconsole.log('Banco atualizado com sucesso.');
+
+console.log('Banco atualizado com sucesso.');
