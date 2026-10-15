@@ -118,7 +118,7 @@ posApiRoutes.post('/sales/:externalSaleId/reverse',requireApiKey('sales:write'),
 const redemptionRequest=z.object({
   code:z.string().trim().min(8).max(24),
   orderNumber:z.string().trim().min(1).max(80),
-  customerCpf:z.string().regex(/^\\d{11}$/).optional(),
+  customerCpf:z.string().regex(/^\d{11}$/).optional(),
   subtotalCents:z.number().int().nonnegative().optional(),
   expectedReward:z.object({
     discountType:z.enum(['percent','fixed']),
@@ -159,7 +159,7 @@ const checkRedemption=(row:RedemptionRow|undefined,input:z.infer<typeof redempti
 posApiRoutes.post('/redemptions/preview',requireApiKey('rewards:validate'),requireErpIntegration,(req,res)=>{
   const parsed=redemptionRequest.safeParse(req.body);
   if(!parsed.success)return res.status(400).json({error:'Informe o código do cupom e o número do pedido'});
-  const input=parsed.data,code=input.code.replace(/\\s/g,'').toUpperCase();
+  const input=parsed.data,code=input.code.replace(/\s/g,'').toUpperCase();
   try{
     const row=checkRedemption(redemptionByCode(req.apiKey!.tenantId,code),input);
     res.json({data:redemptionData(row,input.orderNumber)});
@@ -168,7 +168,7 @@ posApiRoutes.post('/redemptions/preview',requireApiKey('rewards:validate'),requi
 posApiRoutes.post('/redemptions/consume',requireApiKey('rewards:validate'),requireErpIntegration,(req,res)=>{
   const parsed=redemptionRequest.safeParse(req.body);
   if(!parsed.success)return res.status(400).json({error:'Informe o código do cupom e o número do pedido'});
-  const tenantId=req.apiKey!.tenantId,input=parsed.data,code=input.code.replace(/\\s/g,'').toUpperCase();
+  const tenantId=req.apiKey!.tenantId,input=parsed.data,code=input.code.replace(/\s/g,'').toUpperCase();
   try{
     const result=db.transaction(()=>{
       const row=checkRedemption(redemptionByCode(tenantId,code),input);
