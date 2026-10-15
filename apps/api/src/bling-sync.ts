@@ -76,9 +76,9 @@ function customerForOrder(tenantId:string,item:Order){
   return db.prepare('SELECT id,enrolled_at FROM customers WHERE tenant_id=? AND external_id=? AND deleted_at IS NULL').get(tenantId,`bling:${item.contato.id}`) as {id:string;enrolled_at:string|null}|undefined;
 }
 
-function notifyAdjustment(tenantId:string,customerId:string,orderNumber:string,delta:number){
+function notifyAdjustment(tenantId:string,customerId:string,orderNumber:string|null,delta:number){
   if(!delta)return;
-  const reversed=delta<0,title=reversed?'Pontos ajustados por estorno':'Pontos creditados',points=Math.abs(delta),message=reversed?`${points} ponto(s) foram estornados após a atualização do pedido ${orderNumber}.`:`${points} ponto(s) foram creditados pelo pedido ${orderNumber}.`;
+  const reference=orderNumber?`pedido ${orderNumber}`:'pedido do Bling',reversed=delta<0,title=reversed?'Pontos ajustados por estorno':'Pontos creditados',points=Math.abs(delta),message=reversed?`${points} ponto(s) foram estornados após a atualização do ${reference}.`:`${points} ponto(s) foram creditados pelo ${reference}.`;
   db.prepare("INSERT INTO customer_notifications (id,tenant_id,customer_id,title,message,type) VALUES (?,?,?,?,?,'loyalty')").run(randomUUID(),tenantId,customerId,title,message);
 }
 
@@ -87,7 +87,7 @@ function reconcileOrder(tenantId:string,item:Order,situations:Map<string,Situati
   if(existing?.external_updated_at&&new Date(existing.external_updated_at)>new Date(externalUpdatedAt))return;
 
   const customer=customerForOrder(tenantId,item),hasContact=item.contato?.id!==undefined,customerId=hasContact?customer?.id??null:existing?.customer_id??null;
-  const rawOrderDate=item.dataSaida??item.data,totalCents=deleted&&existing?existing.total_cents:Math.max(0,Math.round(Number(item.total??0)*100)),date=deleted&&existing?existing.occurred_at:occurredAt(rawOrderDate),orderNumber=deleted&&existing?existing.order_number:String(item.numero??item.numeroLoja??''),state=orderState(item,situations,deleted);
+  const rawOrderDate=item.dataSaida??item.data,totalCents=deleted&&existing?existing.total_cents:Math.max(0,Math.round(Number(item.total??0)*100)),date=deleted&&existing?existing.occurred_at:occurredAt(rawOrderDate),orderNumber=deleted&&existing?existing.order_number:(item.numero===undefined||String(item.numero).trim()===''?null:String(item.numero).trim()),state=orderState(item,situations,deleted);
   const manualReversal=existing?.reversal_source==='manual',reversed=manualReversal?true:state.known||deleted?state.reversed:Boolean(existing?.reversed_at),saleId=existing?.id??randomUUID(),reversedAt=reversed?existing?.reversed_at??externalUpdatedAt:null,reversalSource=reversed?(manualReversal?'manual':'bling'):null;
 
   if(!existing){
