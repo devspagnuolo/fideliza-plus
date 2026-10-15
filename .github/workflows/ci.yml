@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SESSION_SECRET: ci-only-secret-with-at-least-32-characters
+      DATA_ENCRYPTION_KEY: ci-only-data-encryption-key-for-containers
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
