@@ -5,7 +5,7 @@ const valid = { NODE_ENV: 'production', SESSION_SECRET: 's'.repeat(32), DATA_ENC
 
 describe('configuração de produção', () => {
   it('aceita configuração segura', () => expect(() => validateProductionEnvironment(valid)).not.toThrow());
-  it('exige chave de dados independente e com tamanho mínimo',()=>{const{DATA_ENCRYPTION_KEY,...withoutKey}=valid;expect(()=>validateProductionEnvironment(withoutKey)).toThrow(/DATA_ENCRYPTION_KEY/);expect(()=>validateProductionEnvironment({...valid,DATA_ENCRYPTION_KEY:'short'})).toThrow(/DATA_ENCRYPTION_KEY/);});
+  it('mantém compatibilidade sem chave dedicada e valida tamanho quando configurada',()=>{const{DATA_ENCRYPTION_KEY,...legacyCompatible}=valid;expect(()=>validateProductionEnvironment(legacyCompatible)).not.toThrow();expect(()=>validateProductionEnvironment({...valid,DATA_ENCRYPTION_KEY:'short'})).toThrow(/DATA_ENCRYPTION_KEY/);});
   it('rejeita segredo curto e origem pública sem HTTPS', () => {
     expect(() => validateProductionEnvironment({ ...valid, SESSION_SECRET: 'curto' })).toThrow(/SESSION_SECRET/);
     expect(() => validateProductionEnvironment({ ...valid, WEB_ORIGIN: 'http://fidelizamais.com.br' })).toThrow(/HTTPS/);
