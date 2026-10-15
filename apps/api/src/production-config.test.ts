@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { validateProductionEnvironment } from './production-config.js';
 
-const valid = { NODE_ENV: 'production', SESSION_SECRET: 's'.repeat(32), WEB_ORIGIN: 'https://app.fidelizamais.com.br', WORKER_INTERVAL_MS: '15000' };
+const valid = { NODE_ENV: 'production', SESSION_SECRET: 's'.repeat(32), DATA_ENCRYPTION_KEY:'d'.repeat(48), WEB_ORIGIN: 'https://app.fidelizamais.com.br', WORKER_INTERVAL_MS: '15000' };
 
 describe('configuração de produção', () => {
   it('aceita configuração segura', () => expect(() => validateProductionEnvironment(valid)).not.toThrow());
+  it('exige chave de dados independente e com tamanho mínimo',()=>{const{DATA_ENCRYPTION_KEY,...withoutKey}=valid;expect(()=>validateProductionEnvironment(withoutKey)).toThrow(/DATA_ENCRYPTION_KEY/);expect(()=>validateProductionEnvironment({...valid,DATA_ENCRYPTION_KEY:'short'})).toThrow(/DATA_ENCRYPTION_KEY/);});
   it('rejeita segredo curto e origem pública sem HTTPS', () => {
     expect(() => validateProductionEnvironment({ ...valid, SESSION_SECRET: 'curto' })).toThrow(/SESSION_SECRET/);
     expect(() => validateProductionEnvironment({ ...valid, WEB_ORIGIN: 'http://fidelizamais.com.br' })).toThrow(/HTTPS/);
