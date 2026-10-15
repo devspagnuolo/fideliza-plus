@@ -34,6 +34,16 @@ describe('API multiempresa',()=>{
     await agent.post('/customers/customer-b/redeem').set('x-fideliza-request','web').send({points:10,reason:'Benefício teste'}).expect(404);
   });
 
+  it('restringe exportação de dados pessoais a owner e manager e audita o acesso',async()=>{
+    db.prepare("INSERT INTO users(id,tenant_id,name,email,password_hash,role)VALUES(?,?,?,?,?,'operator')").run('operator-export','tenant-a','Operador','operator-export@example.com',hashPassword('Senha@123'));
+    const operator=request.agent(app);
+    await operator.post('/auth/login').send({email:'operator-export@example.com',password:'Senha@123'}).expect(200);
+    await operator.get('/customers/customer-a/export').expect(403);
+    const owner=request.agent(app);
+    await owner.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    await owner.get('/customers/customer-a/export').expect(200);
+    expect(db.prepare("SELECT action,entity_type,entity_id FROM audit_logs WHERE tenant_id='tenant-a' AND action='export' ORDER BY created_at DESC LIMIT 1").get()).toEqual({action:'export',entity_type:'customer',entity_id:'customer-a'});
+  });
   it('não credita venda anterior à adesão e bloqueia limite quando a assinatura falta',async()=>{
     const agent=request.agent(app);
     await agent.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
