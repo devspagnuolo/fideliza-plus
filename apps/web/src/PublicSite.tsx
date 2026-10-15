@@ -1,5 +1,5 @@
 import{useEffect,useState,type FormEvent}from'react';
-import{ArrowRight,BarChart3,BookOpen,Building2,Check,ChevronRight,Clock3,CreditCard,Database,ExternalLink,Gift,LoaderCircle,LockKeyhole,MapPin,Megaphone,Menu,Plug,ReceiptText,Search,ShieldCheck,ShoppingBag,Sparkles,Users,X}from'lucide-react';
+import{ArrowRight,BarChart3,BookOpen,Building2,Check,ChevronRight,Clock3,CreditCard,Database,ExternalLink,Gift,KeyRound,LoaderCircle,LockKeyhole,MapPin,Megaphone,Menu,Plug,ReceiptText,Search,ShieldCheck,ShoppingBag,Sparkles,Users,X}from'lucide-react';
 import{api}from'./api';import{BrandLogo}from'./BrandLogo';import{LegalFooter}from'./LegalPages';import'./public-site.css';
 import'./trial-signup.css';
 import'./public-site-evolution.css';
