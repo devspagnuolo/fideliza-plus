@@ -15,7 +15,7 @@ Nunca envie ao Fidelizei o número interno do PDV como se fosse o pedido oficial
 
 - `source: bling`
 - `external_id: bling:<id-do-pedido-no-bling>`
-- `order_number: <número-do-pedido-no-bling>`
+- `order_number: <campo numero do pedido no Bling>` — este é o número exibido no Fidelizei; `numeroLoja` é uma referência externa e não substitui o número comercial do Bling.
 - valor, data, cliente e situação recebidos do Bling
 
 ## URL e autenticação
