@@ -5,7 +5,7 @@ import { audit } from '../audit.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { parseCsv } from '../csv.js';
 import { db } from '../database/db.js';
-import { calculateSalePoints, creditSalePoints, expirePoints, reconcileSalePoints } from '../loyalty.js';
+import { calculateSalePoints, creditSalePoints, expirePoints, isSaleEligibleFromEnrollmentDay, reconcileSalePoints } from '../loyalty.js';
 
 export const commerceRoutes = Router();
 commerceRoutes.use(requireAuth);
@@ -19,13 +19,21 @@ commerceRoutes.post('/sales', (req, res) => {
   const tenantId = req.auth!.tenantId;
   const id = randomUUID();
   const occurredAt = parsed.data.occurredAt || new Date().toISOString();
-  const { points, multiplier, promotionName } = calculateSalePoints(tenantId, parsed.data.totalCents, occurredAt);
+  const calculated = calculateSalePoints(tenantId, parsed.data.totalCents, occurredAt);
+  let points = 0;
   db.transaction(() => {
-    if (parsed.data.customerId && !db.prepare('SELECT id FROM customers WHERE id=? AND tenant_id=?').get(parsed.data.customerId, tenantId)) throw new Error('Cliente não pertence à empresa');
+    const customer = parsed.data.customerId
+      ? db.prepare('SELECT id,enrolled_at FROM customers WHERE id=? AND tenant_id=? AND deleted_at IS NULL').get(parsed.data.customerId, tenantId) as {id:string;enrolled_at:string|null}|undefined
+      : undefined;
+    if (parsed.data.customerId && !customer) throw new Error('Cliente não pertence à empresa');
     db.prepare('INSERT INTO sales (id,tenant_id,customer_id,order_number,total_cents,occurred_at,source) VALUES (?,?,?,?,?,?,?)').run(id, tenantId, parsed.data.customerId || null,parsed.data.orderNumber||null, parsed.data.totalCents, occurredAt,parsed.data.source||'manual');
-    if (parsed.data.customerId) creditSalePoints(tenantId, parsed.data.customerId, id, points, promotionName ? `Pontos por compra · ${promotionName}` : 'Pontos por compra');
+    if (customer?.enrolled_at && isSaleEligibleFromEnrollmentDay(occurredAt,customer.enrolled_at)) {
+      points = calculated.points;
+      creditSalePoints(tenantId, customer.id, id, points, calculated.promotionName ? `Pontos por compra · ${calculated.promotionName}` : 'Pontos por compra');
+    }
+    audit(tenantId,req.auth!.userId,'create','sale',id,{source:parsed.data.source||'manual',customerId:customer?.id??null,totalCents:parsed.data.totalCents,points});
   })();
-  res.status(201).json({ id, points, multiplier, promotionName });
+  res.status(201).json({ id, points, multiplier:calculated.multiplier, promotionName:calculated.promotionName });
 });
 
 commerceRoutes.post('/imports/sales', (req, res) => {
@@ -36,12 +44,12 @@ commerceRoutes.post('/imports/sales', (req, res) => {
   db.transaction(() => rows.forEach((row, index) => {
     const parsed = z.object({ external_id: z.string().min(1), customer_email: z.string().email().optional().or(z.literal('')), total: z.coerce.number().positive(), occurred_at: z.string().datetime() }).safeParse(row);
     if (!parsed.success) { errors.push({ row: index + 2, message: 'Venda inválida' }); return; }
-    const customer = parsed.data.customer_email ? db.prepare('SELECT id FROM customers WHERE tenant_id=? AND lower(email)=lower(?)').get(tenantId, parsed.data.customer_email) as { id: string } | undefined : undefined;
+    const customer = parsed.data.customer_email ? db.prepare('SELECT id,enrolled_at FROM customers WHERE tenant_id=? AND lower(email)=lower(?) AND deleted_at IS NULL').get(tenantId, parsed.data.customer_email) as { id: string; enrolled_at:string|null } | undefined : undefined;
     const id = randomUUID();
     const result = db.prepare('INSERT OR IGNORE INTO sales (id,tenant_id,customer_id,external_id,total_cents,occurred_at,source) VALUES (?,?,?,?,?,?,?)').run(id, tenantId, customer?.id ?? null, parsed.data.external_id, Math.round(parsed.data.total * 100), parsed.data.occurred_at, 'csv');
     if (!result.changes) return;
     imported++;
-    if (customer) { const bonus=calculateSalePoints(tenantId,Math.round(parsed.data.total*100),parsed.data.occurred_at); creditSalePoints(tenantId,customer.id,id,bonus.points,bonus.promotionName?`Pontos por importação · ${bonus.promotionName}`:'Pontos por importação'); }
+    if (customer?.enrolled_at && isSaleEligibleFromEnrollmentDay(parsed.data.occurred_at,customer.enrolled_at)) { const bonus=calculateSalePoints(tenantId,Math.round(parsed.data.total*100),parsed.data.occurred_at); creditSalePoints(tenantId,customer.id,id,bonus.points,bonus.promotionName?`Pontos por importação · ${bonus.promotionName}`:'Pontos por importação'); }
   }))();
   res.json({ imported, errors });
 });
