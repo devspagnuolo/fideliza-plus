@@ -17,7 +17,8 @@ const { app }=await import('./app.js');
 function seedTenant(id:string,email:string,customerId:string) {
   db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run(id,`Empresa ${id}`,id);
   db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run(`user-${id}`,id,`Dono ${id}`,email,hashPassword('Senha@123'),'owner');
-  db.prepare('INSERT INTO customers (id,tenant_id,name,email,points_balance) VALUES (?,?,?,?,?)').run(customerId,id,`Cliente ${id}`,`cliente-${id}@example.com`,100);
+  db.prepare('INSERT INTO subscriptions(id,tenant_id,plan_code,status) VALUES(?,?,\'professional\',\'active\')').run(`sub-${id}`,id);
+  db.prepare('INSERT INTO customers (id,tenant_id,name,email,points_balance,enrolled_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)').run(customerId,id,`Cliente ${id}`,`cliente-${id}@example.com`,100);
 }
 
 describe('API multiempresa',()=>{
@@ -33,6 +34,29 @@ describe('API multiempresa',()=>{
     await agent.post('/customers/customer-b/redeem').set('x-fideliza-request','web').send({points:10,reason:'Benefício teste'}).expect(404);
   });
 
+  it('restringe exportação de dados pessoais a owner e manager e audita o acesso',async()=>{
+    db.prepare("INSERT INTO users(id,tenant_id,name,email,password_hash,role)VALUES(?,?,?,?,?,'operator')").run('operator-export','tenant-a','Operador','operator-export@example.com',hashPassword('Senha@123'));
+    const operator=request.agent(app);
+    await operator.post('/auth/login').send({email:'operator-export@example.com',password:'Senha@123'}).expect(200);
+    await operator.get('/customers/customer-a/export').expect(403);
+    const owner=request.agent(app);
+    await owner.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    await owner.get('/customers/customer-a/export').expect(200);
+    expect(db.prepare("SELECT action,entity_type,entity_id FROM audit_logs WHERE tenant_id='tenant-a' AND action='export' ORDER BY created_at DESC LIMIT 1").get()).toEqual({action:'export',entity_type:'customer',entity_id:'customer-a'});
+  });
+  it('não credita venda anterior à adesão e bloqueia limite quando a assinatura falta',async()=>{
+    const agent=request.agent(app);
+    await agent.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
+    db.prepare("INSERT INTO customers(id,tenant_id,name,email)VALUES('customer-not-enrolled','tenant-a','Sem adesão','sem-adesao@example.com')").run();
+    const sale=await agent.post('/sales').set('x-fideliza-request','web').send({customerId:'customer-not-enrolled',totalCents:1000}).expect(201);
+    expect(sale.body.points).toBe(0);
+    expect(db.prepare("SELECT COUNT(*) total FROM loyalty_ledger WHERE customer_id='customer-not-enrolled'").get()).toEqual({total:0});
+    db.prepare("INSERT INTO tenants(id,name,slug)VALUES('tenant-planless','Sem plano','tenant-planless')").run();
+    db.prepare("INSERT INTO users(id,tenant_id,name,email,password_hash,role)VALUES('user-planless','tenant-planless','Owner','planless@example.com',?,'owner')").run(hashPassword('Senha@123'));
+    const planless=request.agent(app);
+    await planless.post('/auth/login').send({email:'planless@example.com',password:'Senha@123'}).expect(200);
+    await planless.post('/imports/customers').set('x-fideliza-request','web').send('name,email\\nCliente,cliente@example.com').expect(503,{error:'Plano da empresa não configurado. Contate o suporte.',code:'PLAN_CONFIGURATION_REQUIRED'});
+  });
   it('registra resgate e auditoria dentro da empresa',async()=>{
     const agent=request.agent(app);
     await agent.post('/auth/login').send({email:'owner-a@example.com',password:'Senha@123'}).expect(200);
@@ -102,6 +126,7 @@ describe('API multiempresa',()=>{
   it('calcula o onboarding e os indicadores de ativação com dados reais',async()=>{
     db.prepare('INSERT INTO tenants (id,name,slug,segment) VALUES (?,?,?,?)').run('tenant-onboarding','Empresa Onboarding','empresa-onboarding','Moda');
     db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('user-onboarding','tenant-onboarding','Dona Onboarding','onboarding@example.com',hashPassword('Senha@123'),'owner');
+    db.prepare("INSERT INTO subscriptions(id,tenant_id,plan_code,status)VALUES('sub-onboarding','tenant-onboarding','professional','active')").run();
     const agent=request.agent(app);
     await agent.post('/auth/login').send({email:'onboarding@example.com',password:'Senha@123'}).expect(200);
     const initial=await agent.get('/onboarding').expect(200);

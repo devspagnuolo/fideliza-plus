@@ -18,6 +18,7 @@ describe('catálogo de recompensas', () => {
   beforeAll(() => {
     db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('reward-a', 'Vivi Moda', 'reward-a');
     db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('reward-b', 'Outra Loja', 'reward-b');
+    db.prepare("INSERT INTO subscriptions(id,tenant_id,plan_code,status)VALUES('sub-reward-a','reward-a','pilot','active'),('sub-reward-b','reward-b','pilot','active')").run();
     db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('reward-owner', 'reward-a', 'Viviane', 'rewards@example.com', hashPassword('Senha@123'), 'owner');
     db.prepare('INSERT INTO customers (id,tenant_id,name,cpf,phone,points_balance,enrolled_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)').run('reward-customer', 'reward-a', 'Cliente Fiel', '52998224725', '11999990001', 200);
     db.prepare('UPDATE tenants SET customer_portal_enabled=1 WHERE id=?').run('reward-a');

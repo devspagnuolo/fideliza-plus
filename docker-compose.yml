@@ -9,6 +9,7 @@ services:
       WEB_ORIGIN: http://localhost:8080
       DATABASE_PATH: /data/fideliza.db
       SESSION_SECRET: ${SESSION_SECRET:?Defina SESSION_SECRET com pelo menos 32 caracteres}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
       AUTO_BACKUP_ENABLED: ${AUTO_BACKUP_ENABLED:-true}
       BACKUP_DIRECTORY: /data/backups
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}

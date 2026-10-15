@@ -26,6 +26,10 @@ services:
         value: embedded
       - key: SESSION_SECRET
         generateValue: true
+      - key: DATA_ENCRYPTION_KEY
+        sync: false
+      - key: DATA_ENCRYPTION_KEY_PREVIOUS
+        sync: false
       - key: WEB_ORIGIN
         value: https://fidelizaplus.com.br,https://www.fidelizaplus.com.br,https://fideliza-plus-web.onrender.com
       - key: BLING_CLIENT_ID

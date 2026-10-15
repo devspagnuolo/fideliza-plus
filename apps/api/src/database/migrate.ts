@@ -2,9 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { db } from './db.js';
 import { PLAN_CATALOG } from '../plan-catalog.js';
+import { decryptSecret,encryptSecret } from '../bling.js';
+import { decryptTotp,encryptTotp } from '../two-factor.js';
+import { isCurrentDataCipher } from '../data-encryption.js';
 
 const sql = fs.readFileSync(path.resolve(process.cwd(), 'src/database/schema.sql'), 'utf8');
 db.exec(sql);
+db.exec(`CREATE TABLE IF NOT EXISTS api_key_rate_limits(
+ api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,window_start INTEGER NOT NULL,request_count INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY(api_key_id,window_start)
+);
+CREATE INDEX IF NOT EXISTS idx_api_key_rate_limits_window ON api_key_rate_limits(window_start);`);
 
 function ensureColumn(table: string, column: string, definition: string) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
@@ -63,11 +71,9 @@ db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_cpf ON customers
 db.exec('CREATE INDEX IF NOT EXISTS idx_customers_tenant_visible ON customers(tenant_id,deleted_at,name)');
 const blingReset='2026-08-14-reset-initial-bling-customers';
 if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(blingReset)){
-  db.transaction(()=>{
-    db.prepare("DELETE FROM loyalty_ledger WHERE sale_id IN (SELECT id FROM sales WHERE source='bling')").run();
-    db.prepare("UPDATE customers SET points_balance=0,deleted_at=CURRENT_TIMESTAMP,enrolled_at=NULL WHERE external_id LIKE 'bling:%'").run();
-    db.prepare('INSERT INTO migrations (name) VALUES (?)').run(blingReset);
-  })();
+  const existingBlingData=(db.prepare("SELECT (SELECT COUNT(*) FROM sales WHERE source='bling')+(SELECT COUNT(*) FROM customers WHERE external_id LIKE 'bling:%') total").get() as {total:number}).total;
+  if(existingBlingData)console.warn('Migração histórica de limpeza Bling ignorada para preservar dados existentes.');
+  db.prepare('INSERT INTO migrations (name) VALUES (?)').run(blingReset);
 }
 db.exec(`CREATE TABLE IF NOT EXISTS erp_connectors (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id), name TEXT NOT NULL, provider TEXT NOT NULL,
@@ -555,4 +561,30 @@ CREATE TABLE IF NOT EXISTS integration_entity_links(
  UNIQUE(tenant_id,provider,entity_type,external_id)
 );
 CREATE INDEX IF NOT EXISTS idx_integration_entity_local ON integration_entity_links(tenant_id,provider,entity_type,local_id);`);
+
+// Rotação assistida: com DATA_ENCRYPTION_KEY definida, migra segredos legados e
+// chaves anteriores para a chave ativa antes de a aplicação começar a atender.
+if(process.env.DATA_ENCRYPTION_KEY?.trim()){
+  const migrateEncryptedColumns=(table:string,columns:string[],purpose:'bling'|'totp',decrypt:(value:string)=>string,encrypt:(value:string)=>string)=>{
+    const available=new Set((db.prepare(`PRAGMA table_info(${table})`).all() as {name:string}[]).map(item=>item.name));
+    if(!available.has('id'))return;
+    for(const column of columns){
+      if(!available.has(column))continue;
+      const rows=db.prepare(`SELECT id,${column} value FROM ${table} WHERE ${column} IS NOT NULL AND ${column}<>''`).all() as {id:string;value:string}[];
+      for(const row of rows){
+        if(isCurrentDataCipher(row.value,purpose))continue;
+        const clear=decrypt(row.value);
+        db.prepare(`UPDATE ${table} SET ${column}=? WHERE id=?`).run(encrypt(clear),row.id);
+      }
+    }
+  };
+  db.transaction(()=>{
+    migrateEncryptedColumns('integration_connections',['access_token_encrypted','refresh_token_encrypted'],'bling',decryptSecret,encryptSecret);
+    migrateEncryptedColumns('platform_integration_configs',['credentials_encrypted'],'bling',decryptSecret,encryptSecret);
+    migrateEncryptedColumns('erp_connectors',['credentials_encrypted'],'bling',decryptSecret,encryptSecret);
+    migrateEncryptedColumns('users',['two_factor_secret_encrypted','two_factor_pending_secret_encrypted'],'totp',decryptTotp,encryptTotp);
+    migrateEncryptedColumns('platform_admins',['two_factor_secret_encrypted','two_factor_pending_secret_encrypted'],'totp',decryptTotp,encryptTotp);
+  })();
+}
+
 console.log('Banco atualizado com sucesso.');
