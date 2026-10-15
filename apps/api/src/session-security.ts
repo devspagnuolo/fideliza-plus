@@ -23,7 +23,7 @@ export function createSecureSession(kind:SessionKind,ownerId:string,req:Request,
   db.transaction(()=>{
     db.prepare(`DELETE FROM ${definition.table} WHERE expires_at<=datetime('now')`).run();
     db.prepare(`INSERT INTO ${definition.table}(id,${definition.ownerColumn},token_hash,expires_at,ip_address,user_agent,last_seen_at)VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP)`).run(randomUUID(),ownerId,hashToken(token),expires.toISOString(),ip,userAgent);
-    db.prepare(`DELETE FROM ${definition.table} WHERE ${definition.ownerColumn}=? AND id NOT IN (SELECT id FROM ${definition.table} WHERE ${definition.ownerColumn}=? ORDER BY created_at DESC LIMIT 5)`).run(ownerId,ownerId);
+    db.prepare(`DELETE FROM ${definition.table} WHERE ${definition.ownerColumn}=? AND id NOT IN (SELECT id FROM ${definition.table} WHERE ${definition.ownerColumn}=? ORDER BY created_at DESC,rowid DESC LIMIT 5)`).run(ownerId,ownerId);
   })();
   res.cookie(definition.cookie,token,cookieOptions(expires));
 }
