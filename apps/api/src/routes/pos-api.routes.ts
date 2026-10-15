@@ -115,13 +115,69 @@ posApiRoutes.post('/sales/:externalSaleId/reverse',requireApiKey('sales:write'),
   }catch(error){if((error as Error).message==='NOT_FOUND')return res.status(404).json({error:'Venda não encontrada para esta empresa'});throw error;}
 });
 
-posApiRoutes.post('/redemptions/consume',requireApiKey('rewards:validate'),requireErpIntegration,(req,res)=>{
-  const parsed=z.object({code:z.string().trim().min(8).max(24),orderNumber:z.string().trim().min(1).max(80)}).safeParse(req.body);
+const redemptionRequest=z.object({
+  code:z.string().trim().min(8).max(24),
+  orderNumber:z.string().trim().min(1).max(80),
+  customerCpf:z.string().regex(/^\\d{11}$/).optional(),
+  subtotalCents:z.number().int().nonnegative().optional(),
+  expectedReward:z.object({
+    discountType:z.enum(['percent','fixed']),
+    discountValue:z.number().int().positive(),
+    minimumOrderCents:z.number().int().nonnegative()
+  }).optional()
+});
+type RedemptionRow={id:string;status:string;order_number:string|null;expires_at:string|null;reward_name:string;discount_type:string|null;discount_value:number|null;minimum_order_cents:number|null;customer_name:string;customer_cpf:string|null};
+const redemptionByCode=(tenantId:string,code:string)=>db.prepare(`SELECT rr.id,rr.status,rr.order_number,rr.expires_at,r.name reward_name,r.discount_type,r.discount_value,r.minimum_order_cents,c.name customer_name,c.cpf customer_cpf FROM reward_redemptions rr JOIN rewards r ON r.id=rr.reward_id JOIN customers c ON c.id=rr.customer_id WHERE rr.tenant_id=? AND upper(rr.redemption_code)=?`).get(tenantId,code) as RedemptionRow|undefined;
+const redemptionData=(row:RedemptionRow,orderNumber:string)=>({
+  id:row.id,status:row.status,orderNumber,
+  reward:{name:row.reward_name,discountType:row.discount_type,discountValue:row.discount_value,minimumOrderCents:row.minimum_order_cents??0},
+  customer:{name:row.customer_name,cpf:row.customer_cpf}
+});
+const redemptionError=(res:any,error:unknown)=>{
+  const value=(error as Error).message;
+  if(value==='NOT_FOUND')return res.status(404).json({error:'Código não encontrado para esta loja'});
+  if(value==='USED')return res.status(409).json({error:'Este código já foi utilizado em outro pedido'});
+  if(value==='EXPIRED')return res.status(409).json({error:'Este cupom está vencido'});
+  if(value==='CUSTOMER')return res.status(409).json({error:'Este cupom pertence a outra cliente'});
+  if(value==='MINIMUM')return res.status(409).json({error:'O pedido não atingiu o valor mínimo do cupom'});
+  if(value==='RULE')return res.status(422).json({error:'A regra deste cupom não possui desconto válido. Corrija a recompensa no Fidelizei antes de utilizar o código'});
+  if(value==='CHANGED')return res.status(409).json({error:'A regra do cupom mudou desde a consulta. Atualize o desconto antes de tentar novamente'});
+  return res.status(409).json({error:'Este cupom ainda não está liberado para uso'});
+};
+const checkRedemption=(row:RedemptionRow|undefined,input:z.infer<typeof redemptionRequest>)=>{
+  if(!row)throw new Error('NOT_FOUND');
+  if(input.customerCpf&&row.customer_cpf!==input.customerCpf)throw new Error('CUSTOMER');
+  if(row.status==='used'&&row.order_number!==input.orderNumber)throw new Error('USED');
+  if(row.status!=='ready_for_use'&&row.status!=='used')throw new Error('STATUS');
+  if(row.status!=='used'&&row.expires_at&&businessDate()>row.expires_at)throw new Error('EXPIRED');
+  if(row.discount_type!=='percent'&&row.discount_type!=='fixed'||!Number.isInteger(row.discount_value)||Number(row.discount_value)<=0||row.discount_type==='percent'&&Number(row.discount_value)>100)throw new Error('RULE');
+  const minimum=Number(row.minimum_order_cents??0);
+  if(input.subtotalCents!==undefined&&input.subtotalCents<minimum)throw new Error('MINIMUM');
+  if(input.expectedReward&&(input.expectedReward.discountType!==row.discount_type||input.expectedReward.discountValue!==row.discount_value||input.expectedReward.minimumOrderCents!==minimum))throw new Error('CHANGED');
+  return row;
+};
+posApiRoutes.post('/redemptions/preview',requireApiKey('rewards:validate'),requireErpIntegration,(req,res)=>{
+  const parsed=redemptionRequest.safeParse(req.body);
   if(!parsed.success)return res.status(400).json({error:'Informe o código do cupom e o número do pedido'});
-  const tenantId=req.apiKey!.tenantId,code=parsed.data.code.replace(/\s/g,'').toUpperCase();
+  const input=parsed.data,code=input.code.replace(/\\s/g,'').toUpperCase();
   try{
-    const result=db.transaction(()=>{const redemption=db.prepare(`SELECT rr.id,rr.status,rr.expires_at,r.name reward_name,r.discount_type,r.discount_value,r.minimum_order_cents,c.name customer_name,c.cpf customer_cpf FROM reward_redemptions rr JOIN rewards r ON r.id=rr.reward_id JOIN customers c ON c.id=rr.customer_id WHERE rr.tenant_id=? AND upper(rr.redemption_code)=?`).get(tenantId,code)as any;if(!redemption)throw new Error('NOT_FOUND');if(redemption.status==='used')throw new Error('USED');if(redemption.expires_at&&businessDate()>redemption.expires_at)throw new Error('EXPIRED');if(redemption.status!=='ready_for_use')throw new Error('STATUS');const update=db.prepare("UPDATE reward_redemptions SET status='used',used_at=CURRENT_TIMESTAMP,used_by=NULL,order_number=? WHERE id=? AND tenant_id=? AND status='ready_for_use'").run(parsed.data.orderNumber,redemption.id,tenantId);if(!update.changes)throw new Error('RACE');return{id:redemption.id,status:'used',orderNumber:parsed.data.orderNumber,reward:{name:redemption.reward_name,discountType:redemption.discount_type,discountValue:redemption.discount_value,minimumOrderCents:redemption.minimum_order_cents},customer:{name:redemption.customer_name,cpf:redemption.customer_cpf}};})();
-    audit(tenantId,req.apiKey!.createdBy,'pdv.redemption_consume','reward_redemption',result.id,{apiKeyId:req.apiKey!.id,orderNumber:result.orderNumber});
+    const row=checkRedemption(redemptionByCode(req.apiKey!.tenantId,code),input);
+    res.json({data:redemptionData(row,input.orderNumber)});
+  }catch(error){return redemptionError(res,error);}
+});
+posApiRoutes.post('/redemptions/consume',requireApiKey('rewards:validate'),requireErpIntegration,(req,res)=>{
+  const parsed=redemptionRequest.safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({error:'Informe o código do cupom e o número do pedido'});
+  const tenantId=req.apiKey!.tenantId,input=parsed.data,code=input.code.replace(/\\s/g,'').toUpperCase();
+  try{
+    const result=db.transaction(()=>{
+      const row=checkRedemption(redemptionByCode(tenantId,code),input);
+      if(row.status==='used')return{...redemptionData(row,input.orderNumber),idempotent:true};
+      const update=db.prepare("UPDATE reward_redemptions SET status='used',used_at=CURRENT_TIMESTAMP,used_by=NULL,order_number=? WHERE id=? AND tenant_id=? AND status='ready_for_use'").run(input.orderNumber,row.id,tenantId);
+      if(!update.changes)throw new Error('RACE');
+      return{...redemptionData({...row,status:'used'},input.orderNumber),idempotent:false};
+    })();
+    if(!result.idempotent)audit(tenantId,req.apiKey!.createdBy,'pdv.redemption_consume','reward_redemption',result.id,{apiKeyId:req.apiKey!.id,orderNumber:result.orderNumber});
     res.json({data:result});
-  }catch(error){const value=(error as Error).message;if(value==='NOT_FOUND')return res.status(404).json({error:'Código não encontrado para esta loja'});if(value==='USED')return res.status(409).json({error:'Este código já foi utilizado'});if(value==='EXPIRED')return res.status(409).json({error:'Este cupom está vencido'});return res.status(409).json({error:'Este cupom ainda não está liberado para uso'});}
+  }catch(error){return redemptionError(res,error);}
 });
