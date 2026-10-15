@@ -17,6 +17,7 @@ describe('API pública',()=>{
     db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('public-a','Empresa A','public-a');
     db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('public-b','Empresa B','public-b');
     db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('public-bling','Empresa com Bling','public-bling');
+    db.prepare("INSERT INTO subscriptions(id,tenant_id,plan_code,status)VALUES('sub-public-a','public-a','professional','active'),('sub-public-b','public-b','professional','active'),('sub-public-bling','public-bling','professional','active')").run();
     db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('public-owner','public-a','Dona A','public@example.com',hashPassword('Senha@123'),'owner');
     db.prepare('INSERT INTO users (id,tenant_id,name,email,password_hash,role) VALUES (?,?,?,?,?,?)').run('public-bling-owner','public-bling','Dona Bling','bling-owner@example.com',hashPassword('Senha@123'),'owner');
     db.prepare('INSERT INTO integration_connections (id,tenant_id,provider,access_token_encrypted,refresh_token_encrypted,expires_at,status) VALUES (?,?,?,?,?,?,?)').run('public-bling-connection','public-bling','bling','encrypted-access','encrypted-refresh','2099-12-31T23:59:59.000Z','connected');
