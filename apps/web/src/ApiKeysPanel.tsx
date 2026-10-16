@@ -6,7 +6,8 @@ import './api-keys.css';
 type Scope='customers:read'|'customers:write'|'customers:enroll'|'sales:read'|'sales:write'|'rewards:read'|'rewards:redeem'|'rewards:validate'|'rewards:cancel'|'events:read';
 type Key={id:string;name:string;key_prefix:string;scopes:string|string[];active:number;last_used_at?:string;expires_at?:string|null;created_at:string};
 const READ_SCOPES:Scope[]=['customers:read','sales:read'];
-const PDV_SCOPES:Scope[]=['customers:read','customers:write','sales:read','sales:write','rewards:validate'];\nconst STOREOS_SCOPES:Scope[]=['customers:enroll','rewards:read','rewards:redeem','rewards:validate','rewards:cancel','events:read'];
+const PDV_SCOPES:Scope[]=['customers:read','customers:write','sales:read','sales:write','rewards:validate'];
+const STOREOS_SCOPES:Scope[]=['customers:enroll','rewards:read','rewards:redeem','rewards:validate','rewards:cancel','events:read'];
 function keyScopes(value:Key['scopes']):string[]{if(Array.isArray(value))return value;try{const parsed=JSON.parse(value||'[]');return Array.isArray(parsed)?parsed:[]}catch{return[]}}
 export function ApiKeysPanel(){
  const[items,setItems]=useState<Key[]>([]),[created,setCreated]=useState(''),[open,setOpen]=useState(false),[profile,setProfile]=useState<'read'|'pdv'|'storeos'>('read'),[selected,setSelected]=useState<Scope[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false),[copied,setCopied]=useState(false);
