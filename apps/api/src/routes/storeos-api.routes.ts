@@ -125,7 +125,7 @@ storeOsApiRoutes.post('/storeos/customers/enroll', requireApiKey('customers:enro
       if (newlyEnrolled) {
         const sameDaySales = db.prepare("SELECT id,total_cents,occurred_at,order_number FROM sales WHERE tenant_id=? AND customer_id=? AND source='bling' AND reversed_at IS NULL").all(tenantId,id) as {id:string;total_cents:number;occurred_at:string;order_number:string|null}[];
         for (const sale of sameDaySales) {
-          if (!isSaleEligibleFromEnrollmentDay(sale.occurred_at, String(db.prepare('SELECT enrolled_at FROM customers WHERE id=? AND tenant_id=?').get(id,tenantId) as {enrolled_at:string}).enrolled_at)) continue;
+          if (!isSaleEligibleFromEnrollmentDay(sale.occurred_at, String((db.prepare('SELECT enrolled_at FROM customers WHERE id=? AND tenant_id=?').get(id,tenantId) as {enrolled_at:string}).enrolled_at))) continue;
           const points = calculateSalePoints(tenantId, sale.total_cents, sale.occurred_at).points;
           const adjustment = reconcileSalePoints(tenantId,id,sale.id,points,'Crédito retroativo do mesmo dia da adesão via StoreOS');
           if (adjustment.delta > 0) {
