@@ -61,7 +61,7 @@ function linkCustomer(tenantId: string, externalCustomerId: string, customerId: 
 }
 function releaseExpiredReservations(tenantId: string) {
   const rows = db.prepare(`SELECT rr.id,rr.reward_id,rr.customer_id,rr.points_spent,rr.expires_at,sr.reservation_expires_at,l.external_customer_id,r.name
-    FROM reward_redemptions rr JOIN storeos_customer_links l ON l.customer_id=rr.customer_id AND l.tenant_id=rr.tenant_id
+    FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' JOIN storeos_customer_links l ON l.customer_id=rr.customer_id AND l.tenant_id=rr.tenant_id
     JOIN rewards r ON r.id=rr.reward_id
     WHERE rr.tenant_id=? AND rr.status='ready_for_use'`).all(tenantId) as any[];
   const today = businessDate();
