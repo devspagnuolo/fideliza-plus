@@ -5,7 +5,7 @@ import { audit } from '../audit.js';
 import { requireApiKey } from '../api-key-auth.js';
 import { normalizeCpf, validCpf } from '../cpf.js';
 import { db } from '../database/db.js';
-import { customerVipTier } from '../loyalty.js';
+import { calculateSalePoints, customerVipTier, isSaleEligibleFromEnrollmentDay, reconcileSalePoints } from '../loyalty.js';
 import { PLAN_FEATURES, tenantPlan } from '../plan-catalog.js';
 
 export const storeOsApiRoutes = Router();
@@ -118,12 +118,22 @@ storeOsApiRoutes.post('/storeos/customers/enroll', requireApiKey('customers:enro
         db.prepare("INSERT INTO customers(id,tenant_id,name,cpf,email,phone,enrolled_at,status) VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP,'active')")
           .run(id, tenantId, p.name, p.cpf, p.email || null, p.phone || null);
       }
-      if (newlyEnrolled) db.prepare(`INSERT INTO customer_consents(id,tenant_id,customer_id,purpose,granted,source,document_version,privacy_version,ip_address,user_agent)
+      if (p.programConsent) db.prepare(`INSERT INTO customer_consents(id,tenant_id,customer_id,purpose,granted,source,document_version,privacy_version,ip_address,user_agent)
         VALUES(?,?,?,'loyalty_program',1,'storeos',?,?,?,?)`).run(randomUUID(), tenantId, id, p.termsVersion || null, p.privacyVersion || null, req.ip || null, String(req.headers['user-agent'] || '').slice(0, 500) || null);
       linkCustomer(tenantId, p.externalCustomerId, id);
+      let sameDayOrdersCredited = 0;
+      if (newlyEnrolled) {
+        const sameDaySales = db.prepare("SELECT id,total_cents,occurred_at FROM sales WHERE tenant_id=? AND customer_id=? AND source='bling' AND reversed_at IS NULL").all(tenantId,id) as {id:string;total_cents:number;occurred_at:string}[];
+        for (const sale of sameDaySales) {
+          if (!isSaleEligibleFromEnrollmentDay(sale.occurred_at, String(db.prepare('SELECT enrolled_at FROM customers WHERE id=? AND tenant_id=?').get(id,tenantId) as {enrolled_at:string}).enrolled_at)) continue;
+          const points = calculateSalePoints(tenantId, sale.total_cents, sale.occurred_at).points;
+          const adjustment = reconcileSalePoints(tenantId,id,sale.id,points,'Crédito retroativo do mesmo dia da adesão via StoreOS');
+          if (adjustment.delta > 0) sameDayOrdersCredited += adjustment.delta;
+        }
+      }
       const view = db.prepare('SELECT id,name,cpf,points_balance,enrolled_at FROM customers WHERE id=? AND tenant_id=?').get(id, tenantId) as any;
       addEvent(tenantId, p.externalCustomerId, newlyEnrolled ? 'customer.enrolled' : 'customer.linked', id, { customerId: id });
-      return { status: customer ? 200 : 201, body: { data: { id: view.id, name: view.name, cpf: view.cpf, pointsBalance: Number(view.points_balance), enrolledAt: view.enrolled_at, externalCustomerId: p.externalCustomerId, eligibleForPoints: Boolean(view.enrolled_at) } } };
+      return { status: customer ? 200 : 201, body: { data: { id: view.id, name: view.name, cpf: view.cpf, pointsBalance: Number(view.points_balance), enrolledAt: view.enrolled_at, externalCustomerId: p.externalCustomerId, eligibleForPoints: Boolean(view.enrolled_at), sameDayPointsCredited: sameDayOrdersCredited } } };
     })();
     audit(tenantId, req.apiKey!.createdBy, 'storeos.customer_enroll', 'customer', result.body.data.id as string, { apiKeyId: req.apiKey!.id, externalCustomerId: p.externalCustomerId, programConsent: p.programConsent });
     return result;
@@ -144,7 +154,7 @@ storeOsApiRoutes.get('/storeos/customers/:externalCustomerId/loyalty', requireAp
   return res.json({ data: { customer: { id: customer.id, externalCustomerId, name: customer.name, pointsBalance: Number(customer.points_balance), enrolledAt: customer.enrolled_at }, tierRank,
     rewards: rewards.map(reward => ({ ...reward, canRedeem: Number(customer.points_balance) >= Number(reward.pointsCost), reason: Number(customer.points_balance) >= Number(reward.pointsCost) ? null : 'INSUFFICIENT_POINTS' })) } });
 });
-const reserveBody = z.object({ externalCustomerId: externalIdSchema, rewardId: z.string().uuid(), checkoutId: externalIdSchema, subtotalCents: z.number().int().nonnegative().optional() });
+const reserveBody = z.object({ externalCustomerId: externalIdSchema, rewardId: z.string().trim().min(1).max(120), checkoutId: externalIdSchema, subtotalCents: z.number().int().nonnegative().optional() });
 storeOsApiRoutes.post('/storeos/redemptions', requireApiKey('rewards:redeem'), requireErpPlan, (req, res) => {
   const parsed = reserveBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dados do resgate inválidos.' });
