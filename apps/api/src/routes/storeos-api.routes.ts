@@ -88,8 +88,11 @@ const enrollmentBody = z.object({
   programConsent: z.boolean().default(false),
   termsVersion: z.string().trim().max(40).optional(),
   privacyVersion: z.string().trim().max(40).optional()
+}).superRefine((value, ctx) => {
+  if (value.programConsent && !value.termsVersion) ctx.addIssue({ code: 'custom', path: ['termsVersion'], message: 'Informe a versão dos termos aceita.' });
+  if (value.programConsent && !value.privacyVersion) ctx.addIssue({ code: 'custom', path: ['privacyVersion'], message: 'Informe a versão da política de privacidade aceita.' });
 });
-storeOsApiRoutes.post('/storeos/customers/enroll', requireApiKey('customers:write'), requireErpPlan, (req, res) => {
+storeOsApiRoutes.post('/storeos/customers/enroll', requireApiKey('customers:enroll'), requireErpPlan, (req, res) => {
   const parsed = enrollmentBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dados de cadastro inválidos.' });
   const p = parsed.data, tenantId = req.apiKey!.tenantId;
