@@ -183,7 +183,7 @@ storeOsApiRoutes.post('/storeos/coupons/validate', requireApiKey('rewards:valida
   releaseExpiredReservations(tenantId);
   const customer = findLink(tenantId, p.externalCustomerId);
   if (!customer || customer.deleted_at || !customer.enrolled_at) return res.status(404).json({ error: 'Cliente não localizado.' });
-  const row = db.prepare(`SELECT rr.id,rr.status,rr.external_checkout_id,rr.reservation_expires_at,rr.expires_at,rr.points_spent,r.name,r.discount_type,r.discount_value,r.minimum_order_cents
+  const row = db.prepare(`SELECT rr.id,rr.status,sr.checkout_id external_checkout_id,sr.reservation_expires_at,rr.expires_at,rr.points_spent,r.name,r.discount_type,r.discount_value,r.minimum_order_cents
     FROM reward_redemptions rr JOIN rewards r ON r.id=rr.reward_id
     WHERE rr.tenant_id=? AND rr.customer_id=? AND upper(rr.redemption_code)=upper(?)`)
     .get(tenantId, customer.id, p.code.replace(/\s/g, '')) as any;
