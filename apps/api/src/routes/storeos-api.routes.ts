@@ -19,7 +19,7 @@ const requireErpPlan = (req: Request, res: Response, next: (error?: unknown) => 
   if (!plan.features.includes(PLAN_FEATURES.ERP_INTEGRATIONS)) return res.status(403).json({ error: 'Integrações ERP não estão incluídas no plano.', code: 'PLAN_UPGRADE_REQUIRED', requiredFeature: PLAN_FEATURES.ERP_INTEGRATIONS });
   next();
 };
-type Reply = { status: number; body: Record<string, unknown> };
+type Reply = { status: number; body: { [key: string]: any } };
 function idempotent(req: Request, res: Response, operation: string, action: () => Reply) {
   const key = String(req.header('Idempotency-Key') || '').trim();
   if (!/^[A-Za-z0-9._:-]{8,128}$/.test(key)) return res.status(400).json({ error: 'Envie Idempotency-Key único (8 a 128 caracteres) para esta operação.' });
