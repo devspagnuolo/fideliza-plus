@@ -70,7 +70,7 @@ function releaseExpiredReservations(tenantId: string) {
       const expired = row.reservation_expires_at && new Date(row.reservation_expires_at).getTime() <= Date.now() ||
         row.expires_at && String(row.expires_at).slice(0, 10) < today;
       if (!expired) continue;
-      const changed = db.prepare("UPDATE reward_redemptions SET status='expired',updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=? AND status='ready_for_use'").run(row.id, tenantId);
+      const changed = db.prepare("UPDATE reward_redemptions SET status='expired' WHERE id=? AND tenant_id=? AND status='ready_for_use'").run(row.id, tenantId);
       if (!changed.changes) continue;
       db.prepare('UPDATE customers SET points_balance=points_balance+? WHERE id=? AND tenant_id=?').run(row.points_spent, row.customer_id, tenantId);
       db.prepare("INSERT INTO loyalty_ledger(id,tenant_id,customer_id,points,reason,entry_type) VALUES(?,?,?,?,?,'reinstatement')").run(randomUUID(), tenantId, row.customer_id, row.points_spent, `Liberação automática de resgate StoreOS expirado: ${row.name}`);
@@ -238,7 +238,7 @@ storeOsApiRoutes.post('/storeos/redemptions/:id/cancel', requireApiKey('rewards:
         const sale = db.prepare("SELECT id,customer_id,reversed_at FROM sales WHERE tenant_id=? AND source='bling' AND external_id=? LIMIT 1").get(tenantId, `bling:${p.blingOrderId}`) as any;
         if (!sale || !sale.reversed_at || sale.customer_id !== row.customer_id) throw new Error('BLING_REVERSAL_REQUIRED');
       } else if (row.status !== 'ready_for_use' || !p.checkoutId || p.checkoutId !== row.external_checkout_id) throw new Error('CHECKOUT');
-      const update = db.prepare("UPDATE reward_redemptions SET status='cancelled',updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=? AND status=?").run(id, tenantId, row.status);
+      const update = db.prepare("UPDATE reward_redemptions SET status='cancelled' WHERE id=? AND tenant_id=? AND status=?").run(id, tenantId, row.status);
       if (!update.changes) throw new Error('RACE');
       db.prepare('UPDATE customers SET points_balance=points_balance+? WHERE id=? AND tenant_id=?').run(row.points_spent, row.customer_id, tenantId);
       db.prepare("INSERT INTO loyalty_ledger(id,tenant_id,customer_id,points,reason,entry_type) VALUES(?,?,?,?,?,'reinstatement')").run(randomUUID(), tenantId, row.customer_id, row.points_spent, `Estorno de resgate StoreOS: ${row.name}`);
