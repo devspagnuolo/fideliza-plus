@@ -139,3 +139,45 @@ CREATE INDEX IF NOT EXISTS idx_jobs_tenant_status ON jobs(tenant_id, status, cre
 CREATE INDEX IF NOT EXISTS idx_connections_tenant ON integration_connections(tenant_id, provider);
 CREATE INDEX IF NOT EXISTS idx_webhooks_tenant_date ON integration_webhook_events(tenant_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_tenant_date ON audit_logs(tenant_id, created_at);
+
+CREATE TABLE IF NOT EXISTS storeos_customer_links(
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  external_customer_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(tenant_id,external_customer_id)
+);
+CREATE INDEX IF NOT EXISTS idx_storeos_links_customer ON storeos_customer_links(tenant_id,customer_id);
+CREATE TABLE IF NOT EXISTS storeos_idempotency(
+  api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+  idempotency_key TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  response_json TEXT NOT NULL,
+  status_code INTEGER NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(api_key_id,idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_storeos_idempotency_expiry ON storeos_idempotency(expires_at);
+CREATE TABLE IF NOT EXISTS storeos_events(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  external_customer_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  payload TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_storeos_events_tenant_cursor ON storeos_events(tenant_id,id);
+CREATE TABLE IF NOT EXISTS storeos_redemptions(
+  redemption_id TEXT PRIMARY KEY REFERENCES reward_redemptions(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL DEFAULT 'storeos',
+  checkout_id TEXT NOT NULL,
+  reservation_expires_at TEXT NOT NULL,
+  confirmed_order_id TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_storeos_redemptions_reservation ON storeos_redemptions(tenant_id,reservation_expires_at);
