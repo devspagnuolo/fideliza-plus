@@ -101,7 +101,7 @@ O limite atual é de **120 requisições por minuto por chave**. Respeite respos
 
 Não registre o valor completo do cabeçalho Authorization em logs.
 
-## Integração com outros sistemas
+## Integração com outros sistemas\n\nPara integrar loja, identidade, benefícios, resgate de cupons e conciliação autoritativa com Bling, consulte o [guia StoreOS ↔ Fidelizei ↔ Bling](INTEGRACAO-STOREOS-FIDELIZEI.md). A integração usa permissões próprias, reserva idempotente e eventos incrementais.\n
 
 Uma conexão real precisa de mais que uma chave. O sistema consumidor deve implementar este fluxo:
 
