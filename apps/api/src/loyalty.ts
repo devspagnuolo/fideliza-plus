@@ -59,6 +59,15 @@ export function reconcileSalePoints(tenantId: string, customerId: string, saleId
   db.prepare(`INSERT INTO loyalty_ledger (id,tenant_id,customer_id,sale_id,points,reason,entry_type,expires_at)
     VALUES (?,?,?,?,?,?,?,?)`).run(randomUUID(), tenantId, customerId, saleId, delta, reason, entryType, expiresAt);
   db.prepare('UPDATE customers SET points_balance=points_balance+? WHERE id=? AND tenant_id=?').run(delta, customerId, tenantId);
+  const sale = db.prepare('SELECT id,order_number,external_id,reversed_at FROM sales WHERE id=? AND tenant_id=?').get(saleId, tenantId) as {id:string;order_number:string|null;external_id:string|null;reversed_at:string|null}|undefined;
+  const links = db.prepare('SELECT external_customer_id FROM storeos_customer_links WHERE tenant_id=? AND customer_id=?').all(tenantId, customerId) as {external_customer_id:string}[];
+  if (sale && links.length) {
+    const balance = Number((db.prepare('SELECT points_balance FROM customers WHERE id=? AND tenant_id=?').get(customerId, tenantId) as {points_balance:number}).points_balance);
+    const eventType = sale.reversed_at || entryType === 'reversal' ? 'points.reversed' : 'points.reconciled';
+    const payload = JSON.stringify({ delta, balance, orderNumber: sale.order_number, source: sale.external_id?.startsWith('bling:') ? 'bling' : 'other' });
+    const insert = db.prepare('INSERT INTO storeos_events(tenant_id,external_customer_id,event_type,entity_id,payload) VALUES(?,?,?,?,?)');
+    for (const link of links) insert.run(tenantId, link.external_customer_id, eventType, sale.id, payload);
+  }
   return { delta, previousPoints: current.points, desiredPoints: desired, effectiveDesiredPoints: effectiveDesired, entryType };
 }
 

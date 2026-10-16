@@ -103,6 +103,9 @@ Não registre o valor completo do cabeçalho Authorization em logs.
 
 ## Integração com outros sistemas
 
+Para integrar loja, identidade, benefícios, resgate de cupons e conciliação autoritativa com Bling, consulte o [guia StoreOS ↔ Fidelizei ↔ Bling](INTEGRACAO-STOREOS-FIDELIZEI.md). A integração usa permissões próprias, reserva idempotente e eventos incrementais.
+
+
 Uma conexão real precisa de mais que uma chave. O sistema consumidor deve implementar este fluxo:
 
 1. Armazenar a chave em backend seguro.
