@@ -116,7 +116,7 @@ storeOsApiRoutes.post('/storeos/customers/enroll', requireApiKey('customers:writ
           .run(id, tenantId, p.name, p.cpf, p.email || null, p.phone || null);
       }
       if (newlyEnrolled) db.prepare(`INSERT INTO customer_consents(id,tenant_id,customer_id,purpose,granted,source,document_version,privacy_version,ip_address,user_agent)
-        VALUES(?,?,?,'loyalty_program',1,'storeos',?,?,?,?,?)`).run(randomUUID(), tenantId, id, p.termsVersion || null, p.privacyVersion || null, req.ip || null, String(req.headers['user-agent'] || '').slice(0, 500) || null);
+        VALUES(?,?,?,'loyalty_program',1,'storeos',?,?,?,?)`).run(randomUUID(), tenantId, id, p.termsVersion || null, p.privacyVersion || null, req.ip || null, String(req.headers['user-agent'] || '').slice(0, 500) || null);
       linkCustomer(tenantId, p.externalCustomerId, id);
       const view = db.prepare('SELECT id,name,cpf,points_balance,enrolled_at FROM customers WHERE id=? AND tenant_id=?').get(id, tenantId) as any;
       addEvent(tenantId, p.externalCustomerId, newlyEnrolled ? 'customer.enrolled' : 'customer.linked', id, { customerId: id });
@@ -256,4 +256,30 @@ storeOsApiRoutes.get('/storeos/events', requireApiKey('events:read'), requireErp
   const items = db.prepare('SELECT id,event_type eventType,external_customer_id externalCustomerId,entity_id entityId,payload,created_at createdAt FROM storeos_events WHERE tenant_id=? AND id>? ORDER BY id LIMIT ?').all(req.apiKey!.tenantId, cursor, limit) as any[];
   const data = items.map(item => ({ ...item, payload: JSON.parse(item.payload) }));
   return res.json({ data, nextCursor: data.length ? data[data.length - 1].id : cursor, hasMore: data.length === limit });
+});
+
+storeOsApiRoutes.use((error: unknown, _req: Request, res: Response, _next: (error?: unknown) => void) => {
+  const code = (error as Error)?.message || '';
+  const known: Record<string, { status: number; message: string; code: string }> = {
+    LINK_CONFLICT: { status: 409, message: 'Este identificador do StoreOS já está vinculado a outro CPF.', code: 'IDENTITY_LINK_CONFLICT' },
+    CUSTOMER_INACTIVE: { status: 409, message: 'O cadastro Fidelizei está inativo. Solicite a regularização à loja.', code: 'CUSTOMER_INACTIVE' },
+    CONSENT_REQUIRED: { status: 422, message: 'É necessário consentimento explícito para adesão ao programa de fidelidade.', code: 'LOYALTY_CONSENT_REQUIRED' },
+    LIMIT: { status: 409, message: 'Limite de consumidores do plano atingido.', code: 'PLAN_LIMIT_REACHED' },
+    CUSTOMER: { status: 404, message: 'Cliente não está vinculado ou não aderiu ao programa.', code: 'CUSTOMER_NOT_ENROLLED' },
+    REWARD: { status: 404, message: 'Benefício indisponível.', code: 'REWARD_NOT_AVAILABLE' },
+    VALIDITY: { status: 409, message: 'Benefício fora do período de validade.', code: 'REWARD_OUT_OF_VALIDITY' },
+    TIER: { status: 403, message: 'Benefício indisponível para o nível atual do cliente.', code: 'CUSTOMER_TIER_REQUIRED' },
+    BALANCE: { status: 409, message: 'Saldo de pontos insuficiente.', code: 'INSUFFICIENT_POINTS' },
+    MINIMUM: { status: 409, message: 'O subtotal mínimo da recompensa não foi atingido.', code: 'MINIMUM_ORDER_NOT_MET' },
+    STOCK: { status: 409, message: 'Benefício sem disponibilidade.', code: 'REWARD_OUT_OF_STOCK' },
+    NOT_FOUND: { status: 404, message: 'Resgate não encontrado.', code: 'REDEMPTION_NOT_FOUND' },
+    STATUS: { status: 409, message: 'O resgate não está em um estado que permita esta operação.', code: 'INVALID_REDEMPTION_STATUS' },
+    CHECKOUT: { status: 409, message: 'A referência do checkout não corresponde à reserva.', code: 'CHECKOUT_MISMATCH' },
+    BLING_ORDER: { status: 409, message: 'O pedido confirmado não foi encontrado no Bling, está estornado ou pertence a outra cliente.', code: 'BLING_ORDER_NOT_CONFIRMED' },
+    BLING_REVERSAL_REQUIRED: { status: 409, message: 'Para estornar um cupom utilizado, primeiro o cancelamento do pedido deve ser confirmado e conciliado pelo Bling.', code: 'BLING_REVERSAL_REQUIRED' },
+    RACE: { status: 409, message: 'O estado do resgate foi alterado por outra operação. Consulte novamente antes de tentar.', code: 'REDEMPTION_STATE_CHANGED' }
+  };
+  const issue = known[code];
+  if (issue) return res.status(issue.status).json({ error: issue.message, code: issue.code });
+  return res.status(500).json({ error: 'Não foi possível concluir a operação StoreOS.' });
 });
