@@ -34,13 +34,14 @@ const rewardFields = z.object({
   validUntil: dateField,
   minimumTierRank: z.number().int().positive().nullable().optional(),
 }).superRefine((value,ctx)=>{
-  if((value.discountType&&!value.discountValue)||(!value.discountType&&value.discountValue))ctx.addIssue({code:'custom',path:['discountValue'],message:'Informe o tipo e o valor do desconto'});
+  if(!value.discountType||!value.discountValue)ctx.addIssue({code:'custom',path:['discountValue'],message:'Toda recompensa em cupom precisa de tipo e valor de desconto'});
+  if(value.discountType==='percent'&&value.discountValue&&value.discountValue>100)ctx.addIssue({code:'custom',path:['discountValue'],message:'O desconto percentual não pode exceder 100%'});
   if(value.validFrom&&value.validFrom>value.validUntil)ctx.addIssue({code:'custom',path:['validUntil'],message:'A validade final deve ser posterior ao início'});
 });
 
 rewardRoutes.post('/rewards', requireRole('owner', 'manager'), requirePlanStorage, (req, res) => {
   const parsed = rewardFields.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Recompensa inválida' });
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Recompensa inválida' });
   if(parsed.data.validUntil<businessDate())return res.status(400).json({error:'A validade não pode estar no passado'});
   if(parsed.data.minimumTierRank&&!db.prepare('SELECT 1 FROM loyalty_tiers WHERE tenant_id=? AND rank=?').get(req.auth!.tenantId,parsed.data.minimumTierRank))return res.status(400).json({error:'Nível de cliente inválido'});
   const id = randomUUID();
@@ -62,6 +63,10 @@ rewardRoutes.patch('/rewards/:id', requireRole('owner', 'manager'), requirePlanS
   const current = db.prepare('SELECT * FROM rewards WHERE id=? AND tenant_id=?').get(id, req.auth!.tenantId) as any;
   if (!current) return res.status(404).json({ error: 'Recompensa não encontrada' });
   const changes = parsed.data;
+  const nextDiscountType=changes.discountType===undefined?current.discount_type:changes.discountType;
+  const nextDiscountValue=changes.discountValue===undefined?current.discount_value:changes.discountValue;
+  if(!nextDiscountType||!Number.isInteger(Number(nextDiscountValue))||Number(nextDiscountValue)<=0)return res.status(400).json({error:'Toda recompensa em cupom precisa de tipo e valor de desconto'});
+  if(nextDiscountType==='percent'&&Number(nextDiscountValue)>100)return res.status(400).json({error:'O desconto percentual não pode exceder 100%'});
   if(changes.validUntil&&changes.validUntil<businessDate())return res.status(400).json({error:'A validade não pode estar no passado'});
   const nextFrom=changes.validFrom===undefined?current.valid_from:changes.validFrom,nextUntil=changes.validUntil??current.valid_until;
   if(nextFrom&&nextUntil&&nextFrom>nextUntil)return res.status(400).json({error:'A validade final deve ser posterior ao início'});
@@ -112,9 +117,10 @@ rewardRoutes.post('/rewards/:id/redeem', (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Cliente inválido' });
   try {
     const result = db.transaction(() => {
-      const reward = db.prepare('SELECT id,name,points_cost,active,valid_from,valid_until,minimum_tier_rank FROM rewards WHERE id=? AND tenant_id=?').get(String(req.params.id), req.auth!.tenantId) as any;
+      const reward = db.prepare('SELECT id,name,points_cost,active,valid_from,valid_until,minimum_tier_rank,discount_type,discount_value FROM rewards WHERE id=? AND tenant_id=?').get(String(req.params.id), req.auth!.tenantId) as any;
       const customer = db.prepare('SELECT id,points_balance FROM customers WHERE id=? AND tenant_id=?').get(parsed.data.customerId, req.auth!.tenantId) as { id: string; points_balance: number } | undefined;
       if (!reward || !reward.active) throw new Error('REWARD');
+      if(!['percent','fixed'].includes(reward.discount_type)||!Number.isInteger(Number(reward.discount_value))||Number(reward.discount_value)<=0||reward.discount_type==='percent'&&Number(reward.discount_value)>100)throw new Error('INVALID_DISCOUNT');
       if (!customer) throw new Error('CUSTOMER');
       const today=businessDate(),tierRank=customerVipTier(req.auth!.tenantId,customer.id)?.current?.rank??0;
       if(reward.valid_from&&today<reward.valid_from||reward.valid_until&&today>reward.valid_until)throw new Error('VALIDITY');
@@ -131,7 +137,7 @@ rewardRoutes.post('/rewards/:id/redeem', (req, res) => {
     res.status(201).json(result);
   } catch (error) {
     const code = (error as Error).message;
-    const map: Record<string, [number, string]> = { REWARD: [404, 'Recompensa não encontrada'], CUSTOMER: [404, 'Cliente não encontrado'], BALANCE: [409, 'Saldo de pontos insuficiente'], VALIDITY:[409,'Este benefício está fora do período de validade'],TIER:[403,'Este benefício é exclusivo para outro nível de cliente'], LIMIT: [429, 'Limite diário de resgates atingido. Tente novamente amanhã ou solicite análise da loja.'] };
+    const map: Record<string, [number, string]> = { INVALID_DISCOUNT:[409,'Esta recompensa está sem uma regra válida de desconto. Corrija o tipo e o valor antes de resgatar.'], REWARD: [404, 'Recompensa não encontrada'], CUSTOMER: [404, 'Cliente não encontrado'], BALANCE: [409, 'Saldo de pontos insuficiente'], VALIDITY:[409,'Este benefício está fora do período de validade'],TIER:[403,'Este benefício é exclusivo para outro nível de cliente'], LIMIT: [429, 'Limite diário de resgates atingido. Tente novamente amanhã ou solicite análise da loja.'] };
     const response = map[code];
     if (response) return res.status(response[0]).json({ error: response[1] });
     throw error;
