@@ -1,6 +1,6 @@
 import express from 'express';import cors from 'cors';import helmet from 'helmet';import cookieParser from 'cookie-parser';import { config } from './config.js';import { apiRoutes } from './routes/index.js';
 import { db } from './database/db.js';import { observeRequest,runtimeMetrics } from './observability.js';
-import { publicApiRoutes } from './routes/public-api.routes.js';import{posApiRoutes}from'./routes/pos-api.routes.js';
+import { publicApiRoutes } from './routes/public-api.routes.js';import{posApiRoutes}from'./routes/pos-api.routes.js';import{storeOsApiRoutes}from'./routes/storeos-api.routes.js';
 import { credentialPayloadGuard,securityEnvelope } from './security-middleware.js';
 export const app=express();
 app.disable('x-powered-by');app.set('trust proxy',1);
@@ -8,6 +8,6 @@ app.use(observeRequest);app.use(helmet({crossOriginResourcePolicy:{policy:'same-
 app.use((req,res,next)=>{const publicAuth=['/auth/login','/auth/forgot-password','/auth/reset-password','/auth/reset-password-code','/customer/auth/login','/customer/auth/register','/customer/auth/forgot-password','/customer/auth/reset-password','/customer/auth/reset-password-code','/api/v1/auth/login','/api/v1/auth/forgot-password','/api/v1/auth/reset-password','/api/v1/auth/reset-password-code','/api/v1/customer/auth/login','/api/v1/customer/auth/register','/api/v1/customer/auth/forgot-password','/api/v1/customer/auth/reset-password','/api/v1/customer/auth/reset-password-code'].includes(req.path),publicApi=req.path.startsWith('/public/v1/')&&/^Bearer\s+fz_live_/i.test(String(req.header('authorization')||''));if(!['GET','HEAD','OPTIONS'].includes(req.method)&&!publicAuth&&!publicApi&&!['/webhooks/bling','/webhooks/asaas','/api/v1/webhooks/asaas'].includes(req.path)&&req.header('x-fideliza-request')!=='web')return res.status(403).json({error:'Origem da requisição inválida'});next();});
 app.get('/health',(_req,res)=>res.json({status:'ok',version:'v1',uptimeSeconds:runtimeMetrics().uptimeSeconds}));
 app.get('/ready',(_req,res)=>{try{db.prepare('SELECT 1').get();res.json({status:'ready',database:'ok'});}catch{res.status(503).json({status:'unavailable',database:'error'});}});
-app.use('/public/v1',publicApiRoutes,posApiRoutes);
+app.use('/public/v1',publicApiRoutes,posApiRoutes,storeOsApiRoutes);
 app.use('/api/v1',apiRoutes);app.use(apiRoutes);
 app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{console.error(err);res.status(500).json({error:'Não foi possível concluir a operação'});});
