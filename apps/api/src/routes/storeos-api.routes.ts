@@ -249,8 +249,8 @@ storeOsApiRoutes.post('/storeos/redemptions/:id/cancel', requireApiKey('rewards:
       if (row.status === 'cancelled' || row.status === 'expired') return { status: 200, body: { data: { id, status: row.status, pointsRestored: 0, idempotent: true } } };
       if (row.status === 'used') {
         if (p.reason !== 'order_cancelled' || !p.blingOrderId) throw new Error('BLING_REVERSAL_REQUIRED');
-        const sale = db.prepare("SELECT id,customer_id,reversed_at FROM sales WHERE tenant_id=? AND source='bling' AND external_id=? LIMIT 1").get(tenantId, `bling:${p.blingOrderId}`) as any;
-        if (!sale || !sale.reversed_at || sale.customer_id !== row.customer_id) throw new Error('BLING_REVERSAL_REQUIRED');
+        const sale = db.prepare("SELECT id,customer_id,reversed_at,reversal_source FROM sales WHERE tenant_id=? AND source='bling' AND external_id=? LIMIT 1").get(tenantId, `bling:${p.blingOrderId}`) as any;
+        if (!sale || !sale.reversed_at || sale.reversal_source !== 'bling' || sale.customer_id !== row.customer_id) throw new Error('BLING_REVERSAL_REQUIRED');
       } else if (row.status !== 'ready_for_use' || !p.checkoutId || p.checkoutId !== row.external_checkout_id) throw new Error('CHECKOUT');
       const update = db.prepare("UPDATE reward_redemptions SET status='cancelled' WHERE id=? AND tenant_id=? AND status=?").run(id, tenantId, row.status);
       if (!update.changes) throw new Error('RACE');
