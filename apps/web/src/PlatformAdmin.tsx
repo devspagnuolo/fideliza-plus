@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, BarChart3, Building2, ChevronDown, CreditCard, Headphones, KeyRound, LayoutDashboard, LockKeyhole, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Plug, RefreshCw, Search, Settings, Users, WalletCards, Wrench, X } from 'lucide-react';
-import { api } from './api';
+import { api,ApiError } from './api';
 import { PurposeAdminSubpage } from './AdminSubpages';
 import { CompaniesWorkspace, UsersWorkspace } from './AdminCoreWorkspaces';
 import { AdvancedWorkspace } from './AdminWorkspaceRouter';
@@ -47,6 +47,8 @@ export function PlatformAdmin() {
   const [page, setPage] = useState('dashboard');
   const [subpage, setSubpage] = useState('Visão geral');
   const [error, setError] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [mobile, setMobile] = useState(false);
   const [notice, setNotice] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ dashboard: true });
@@ -60,13 +62,19 @@ export function PlatformAdmin() {
   const [requiresTotp, setRequiresTotp] = useState(false);
 
   const load = async () => {
-    setRefreshing(true);
+    setRefreshing(true); setLoadError('');
     try {
       const [dashboard, overview] = await Promise.all([api('/platform/dashboard'), api('/platform/overview')]);
       setDash(dashboard); setAll(overview); setUpdatedAt(new Date());
+    } catch {
+      setLoadError('Não foi possível atualizar os indicadores. Confira a conexão e tente novamente.');
     } finally { setRefreshing(false); }
   };
-  const check = () => api('/platform/me').then(value => { setAdmin(value); return value; });
+  const check = () => api('/platform/me').then(value => { setAuthError(''); setAdmin(value); return value; }).catch(reason => {
+    if (reason instanceof ApiError && reason.status === 401) { setAuthError(''); setAdmin(null); }
+    else { setAuthError('Não foi possível validar seu acesso administrativo. Confira a conexão e tente novamente.'); setAdmin(undefined); }
+    return undefined;
+  });
   useEffect(() => { check().catch(() => setAdmin(null)); }, []);
   useEffect(() => { if (admin) void load(); }, [admin]);
   useEffect(() => {
@@ -104,9 +112,9 @@ export function PlatformAdmin() {
     } catch (reason) { setPasswordError((reason as Error).message); }
   }
 
-  if (admin === undefined) return <main className="pa-loading"><BrandLogo full /><span>Validando acesso administrativo...</span></main>;
+  if (admin === undefined) return <main className="pa-loading"><BrandLogo full />{authError?<section className="pa-load-state" role="alert"><b>Conexão indisponível</b><span>{authError}</span><button onClick={()=>void check()}>Tentar novamente</button></section>:<span>Validando acesso administrativo...</span>}</main>;
   if (!admin) return <main className="admin-login"><section><BrandLogo full /><small>ADMINISTRAÇÃO DA PLATAFORMA</small><h1>Central Fidelizei</h1><p>Gestão segura de empresas, receita e operação SaaS.</p><form onSubmit={login}><label>E-mail<input name="email" type="email" autoComplete="username" required /></label><label>Senha<input name="password" type="password" autoComplete="current-password" minLength={10} maxLength={128} required /></label>{requiresTotp&&<label>Código do autenticador<input name="totpCode" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} placeholder="000000" required/></label>}{error && <div className="error">{error}</div>}<button>Entrar no painel</button></form><a href="/acesso">Voltar para a seleção de acesso</a><LegalFooter compact /></section></main>;
-  if (!dash || !all) return <main className="pa-loading"><BrandLogo full /><span>Preparando a central de comando...</span></main>;
+  if (!dash || !all) return <main className="pa-loading"><BrandLogo full />{loadError?<section className="pa-load-state" role="alert"><b>Não foi possível carregar o painel</b><span>{loadError}</span><button disabled={refreshing} onClick={()=>void load()}>{refreshing?'Atualizando…':'Tentar novamente'}</button></section>:<span>Preparando a central de comando...</span>}</main>;
 
   const current = menu.find(item => item.id === page)!;
   const core = ['companies', 'users'].includes(page);
@@ -124,7 +132,8 @@ export function PlatformAdmin() {
 
     <section className="pa-content">
       <header className="pa-topbar"><button className="pa-menu" onClick={() => setMobile(true)} aria-label="Abrir menu"><Menu /></button><div className="pa-breadcrumb"><small>ADMINISTRAÇÃO / {current.label.toUpperCase()} / {subpage.toUpperCase()}</small><h1>{subpage}</h1><p>{pageDescription[page]}</p></div><div className="pa-topbar-actions"><button className="pa-global-search" onClick={() => setSearchOpen(true)}><Search /><span>Buscar</span><kbd>Ctrl K</kbd></button><button className="pa-refresh" onClick={() => void load()} disabled={refreshing} title="Atualizar dados"><RefreshCw className={refreshing ? 'spin' : ''} /></button><span className="pa-live"><i /> Produção operacional</span></div></header>
-      {notice && <div className="pa-notice">{notice}<button onClick={() => setNotice('')}>×</button></div>}
+      {notice && <div className="pa-notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
+      {loadError && <div className="pa-load-warning" role="status"><span>{loadError} Os dados exibidos podem estar desatualizados.</span><button disabled={refreshing} onClick={()=>void load()}>{refreshing?'Atualizando…':'Atualizar agora'}</button></div>}
       {executive && <AdminDashboardWorkspace subpage={subpage} dash={dash} all={all} updatedAt={updatedAt} refreshing={refreshing} onRefresh={() => void load()} onNavigate={navigate} />}
       {core && page === 'companies' && <CompaniesWorkspace subpage={subpage} all={all} refresh={load} />}
       {core && page === 'users' && <UsersWorkspace subpage={subpage} all={all} refresh={load} />}

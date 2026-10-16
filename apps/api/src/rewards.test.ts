@@ -36,7 +36,7 @@ describe('catálogo de recompensas', () => {
   it('resgata de forma transacional sem cruzar empresa e sem limitar quantidade de cupons', async () => {
     const owner = request.agent(app);
     await owner.post('/auth/login').send({ email: 'rewards@example.com', password: 'Senha@123' }).expect(200);
-    const reward = await owner.post('/rewards').set('x-fideliza-request', 'web').send({ name: 'Cupom R$ 20', pointsCost: 150, validUntil:tomorrow }).expect(201);
+    const reward = await owner.post('/rewards').set('x-fideliza-request', 'web').send({ name: 'Cupom R$ 20', pointsCost: 150, discountType: 'fixed', discountValue: 2000, validUntil:tomorrow }).expect(201);
     await owner.post(`/rewards/${reward.body.id}/redeem`).set('x-fideliza-request', 'web').send({ customerId: 'reward-other' }).expect(404);
     const redeemed = await owner.post(`/rewards/${reward.body.id}/redeem`).set('x-fideliza-request', 'web').send({ customerId: 'reward-customer' }).expect(201);
     expect(redeemed.body).toMatchObject({ pointsSpent: 150, balance: 50 });
@@ -60,7 +60,7 @@ describe('catálogo de recompensas', () => {
   it('edita, exclui e arquiva recompensas preservando histórico e isolamento', async () => {
     const owner = request.agent(app);
     await owner.post('/auth/login').send({ email: 'rewards@example.com', password: 'Senha@123' }).expect(200);
-    const created = await owner.post('/rewards').set('x-fideliza-request', 'web').send({ name: 'Brinde teste', description: 'Original', pointsCost: 80, validUntil:tomorrow }).expect(201);
+    const created = await owner.post('/rewards').set('x-fideliza-request', 'web').send({ name: 'Brinde teste', description: 'Original', pointsCost: 80, discountType: 'fixed', discountValue: 1000, validUntil:tomorrow }).expect(201);
     await owner.patch(`/rewards/${created.body.id}`).set('x-fideliza-request', 'web').send({ name: 'Brinde atualizado', description: 'Nova descrição', pointsCost: 90, validUntil:dayAfterTomorrow,minimumTierRank:1 }).expect(204);
     expect(db.prepare('SELECT name,description,points_cost,stock,valid_until,minimum_tier_rank FROM rewards WHERE id=?').get(created.body.id)).toEqual({ name: 'Brinde atualizado', description: 'Nova descrição', points_cost: 90, stock:null,valid_until:dayAfterTomorrow,minimum_tier_rank:1 });
     expect((await owner.delete(`/rewards/${created.body.id}`).set('x-fideliza-request', 'web').expect(200)).body).toEqual({ deleted: true, archived: false });
@@ -81,8 +81,8 @@ describe('catálogo de recompensas', () => {
     const owner=request.agent(app),customer=request.agent(app);
     await owner.post('/auth/login').send({email:'rewards@example.com',password:'Senha@123'}).expect(200);
     await customer.post('/customer/auth/login').set('x-fideliza-request','web').send({tenantSlug:'reward-a',cpf:'52998224725',password:'Cliente@123'}).expect(200);
-    const gold=await owner.post('/rewards').set('x-fideliza-request','web').send({name:'Experiência Ouro',pointsCost:10,validUntil:tomorrow,minimumTierRank:2}).expect(201);
-    const scheduled=await owner.post('/rewards').set('x-fideliza-request','web').send({name:'Cupom futuro',pointsCost:10,validFrom:tomorrow,validUntil:dayAfterTomorrow,minimumTierRank:1}).expect(201);
+    const gold=await owner.post('/rewards').set('x-fideliza-request','web').send({name:'Experiência Ouro',pointsCost:10,discountType:'fixed',discountValue:1000,validUntil:tomorrow,minimumTierRank:2}).expect(201);
+    const scheduled=await owner.post('/rewards').set('x-fideliza-request','web').send({name:'Cupom futuro',pointsCost:10,discountType:'fixed',discountValue:1000,validFrom:tomorrow,validUntil:dayAfterTomorrow,minimumTierRank:1}).expect(201);
     const catalog=await customer.get('/customer/rewards').expect(200);
     expect(catalog.body.items.map((item:any)=>item.id)).not.toEqual(expect.arrayContaining([gold.body.id,scheduled.body.id]));
     await owner.post(`/rewards/${gold.body.id}/redeem`).set('x-fideliza-request','web').send({customerId:'reward-customer'}).expect(403);

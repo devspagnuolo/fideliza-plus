@@ -5,7 +5,7 @@
 .sidebar,.customer-portal>aside,.pa-shell>aside{background:var(--fideliza-navy)!important}
 .customer-portal{--p:var(--fideliza-teal-dark);--ink:var(--fideliza-navy)}
 .cp-welcome,.login>aside{background:linear-gradient(125deg,var(--fideliza-navy),var(--fideliza-blue) 58%,var(--fideliza-teal))!important}
-.pa-content button:not(.pa-purpose-row):not(.pa-row-button),.pa-advanced-head>button,.pa-cnpj button,.pa-list-tools>button{background:var(--fideliza-teal-dark)}
+.pa-advanced-head>button,.pa-cnpj button,.pa-list-tools>button{background:var(--fideliza-teal-dark)}
 .pa-content header small,.pa-workspace-title>svg,.pa-manager-toolbar>span svg,.pa-advanced-tools svg,.pa-detail header small{color:var(--fideliza-teal-dark)!important}
 .pa-kpi-button{background:#fff!important;color:var(--fideliza-navy)!important}
 .pa-kpi-button span{color:#5f6979!important}.pa-kpi-button b{color:var(--fideliza-navy)!important}.pa-kpi-button small{color:var(--fideliza-teal-dark)!important}
