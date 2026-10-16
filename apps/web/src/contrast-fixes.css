@@ -13,3 +13,33 @@
 .password-form button:hover,.management-form button:hover{background:#066a66}.password-form button:disabled,.management-form button:disabled{background:#d9e0e7;color:#34465a;box-shadow:none}
 .sidebar .brand{max-width:100%;overflow:hidden}.sidebar .fideliza-brand{display:flex!important;width:100%;max-width:100%;padding:4px 4px 22px}.sidebar .fideliza-brand>img{width:48px;height:48px;flex:0 0 48px;padding:3px;border-radius:12px;background:#fff;object-fit:contain}.sidebar .fideliza-brand-copy{min-width:0}.sidebar .fideliza-brand-copy b{display:block;color:#fff;font-size:16px;letter-spacing:.08em}.sidebar .fideliza-brand-copy small{max-width:130px;color:#a9bad0;white-space:normal}.sidebar-collapsed .sidebar .fideliza-brand{justify-content:center;padding:48px 0 14px}.sidebar-collapsed .sidebar .fideliza-brand>img{width:46px;height:46px;flex-basis:46px}.sidebar-collapsed .sidebar .fideliza-brand-copy{display:none}
 @media(max-width:560px){.sidebar nav{display:flex!important;overflow-x:auto;justify-content:flex-start!important;scrollbar-width:none}.sidebar nav::-webkit-scrollbar{display:none}.sidebar nav button{flex:0 0 52px;min-width:52px}.sidebar .plan-badge{display:none}}
+
+
+/* Leitura consistente em ações administrativas, cartões e estados de rede. */
+.pa-content .db-kpi,.pa-content .pa-kpi-button,.pa-content .pa-exec-card,
+.pa-content .fin-table>button,.pa-content .ana-table>button,.pa-content .int-table>button,
+.pa-content .ops-table>button,.pa-content .mon-table>button,.pa-content .pa-portfolio-table>button,
+.pa-content .pa-registry-list>button,.pa-content .pa-health-list button,.pa-content .pa-alert-center>div>button,
+.pa-content .pa-profile-grid button{background:#fff!important;color:#071f42!important}
+.pa-content .db-kpi span,.pa-content .db-kpi small,.pa-content .pa-exec-card small,
+.pa-content .fin-table>button small,.pa-content .ana-table>button small,.pa-content .int-table>button small,
+.pa-content .ops-table>button small,.pa-content .mon-table>button small{color:#52667a!important}
+.pa-content .pa-profile-grid button.selected{background:#eaf6f5!important;color:#071f42!important;border-color:#087f78!important}
+.pa-content button.secondary,.pa-content button.icon-button,.pa-content button.pa-refresh{background:#eef5f6!important;color:#075e59!important;border-color:#c6dcda!important}
+.pa-content .pa-company-tabs button.active{background:#087f78!important;color:#fff!important}
+.pa-content .pa-purpose-row,.pa-content .pa-row-button{color:#071f42}
+.pa-content button:focus-visible,.content button:focus-visible,.customer-portal button:focus-visible,.customer-portal a:focus-visible{outline:3px solid #007f78!important;outline-offset:3px}
+.customer-portal .cp-welcome>div>small{color:#a5f4ec!important}
+.customer-portal .cp-title small,.customer-portal .cp-card-head small{color:#087f78!important}
+.customer-portal .cp-reward-grid article>button,.customer-portal .cp-modal .cp-actions button:not(.secondary),
+.customer-portal .cp-privacy button,.customer-portal .cp-use-coupon{background:#087f78!important;color:#fff!important;border-color:#087f78!important}
+.customer-portal .cp-reward-grid article>button:hover,.customer-portal .cp-modal .cp-actions button:not(.secondary):hover,
+.customer-portal .cp-privacy button:hover,.customer-portal .cp-use-coupon:hover{background:#066a66!important}
+.ad-warning,.pa-load-warning,.cp-data-warning{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 15px;border:1px solid #e8c98f;border-radius:12px;background:#fff7e8;color:#684400}
+.ad-warning button,.pa-load-warning button,.cp-data-warning button{flex:0 0 auto;background:#fff!important;color:#075e59!important;border:1px solid #b8d5d1!important}
+.pa-load-warning{margin:0 0 16px}.pa-load-state{display:grid;gap:10px;max-width:480px;margin:20px auto;padding:22px;border:1px solid #dfe7ef;border-radius:16px;background:#fff;color:#071f42}
+.pa-load-state span{color:#52667a}.pa-load-state button,.cp-retry{min-height:44px;padding:10px 16px;border:0;border-radius:10px;background:#087f78;color:#fff;font-weight:800}
+.cp-loading{display:grid;justify-items:center;align-content:center;gap:12px;min-height:70vh;padding:24px;text-align:center;color:#071f42}
+.cp-loading>span{max-width:480px;color:#52667a}
+.route-loading{display:grid;place-items:center;min-height:60vh;padding:24px;color:#071f42;font-weight:700}
+@media(max-width:640px){.ad-warning,.pa-load-warning,.cp-data-warning{align-items:stretch;flex-direction:column}.ad-warning button,.pa-load-warning button,.cp-data-warning button{width:100%}}
