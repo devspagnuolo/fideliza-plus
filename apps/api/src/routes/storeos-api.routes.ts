@@ -60,10 +60,10 @@ function linkCustomer(tenantId: string, externalCustomerId: string, customerId: 
     VALUES(?,?,?) ON CONFLICT(tenant_id,external_customer_id) DO UPDATE SET updated_at=CURRENT_TIMESTAMP`).run(tenantId, externalCustomerId, customerId);
 }
 function releaseExpiredReservations(tenantId: string) {
-  const rows = db.prepare(`SELECT rr.id,rr.reward_id,rr.customer_id,rr.points_spent,rr.expires_at,rr.reservation_expires_at,l.external_customer_id,r.name
+  const rows = db.prepare(`SELECT rr.id,rr.reward_id,rr.customer_id,rr.points_spent,rr.expires_at,sr.reservation_expires_at,l.external_customer_id,r.name
     FROM reward_redemptions rr JOIN storeos_customer_links l ON l.customer_id=rr.customer_id AND l.tenant_id=rr.tenant_id
     JOIN rewards r ON r.id=rr.reward_id
-    WHERE rr.tenant_id=? AND rr.external_source='storeos' AND rr.status='ready_for_use'`).all(tenantId) as any[];
+    WHERE rr.tenant_id=? AND rr.status='ready_for_use'`).all(tenantId) as any[];
   const today = businessDate();
   db.transaction(() => {
     for (const row of rows) {
@@ -163,7 +163,8 @@ storeOsApiRoutes.post('/storeos/redemptions', requireApiKey('rewards:redeem'), r
       do { code = `FZ-${randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`; } while (db.prepare('SELECT 1 FROM reward_redemptions WHERE redemption_code=?').get(code));
       const reservationExpiresAt = new Date(Date.now() + 20 * 60_000).toISOString();
       db.prepare(`INSERT INTO reward_redemptions(id,tenant_id,reward_id,customer_id,points_spent,status,redemption_code,code_generated_at,expires_at,external_source,external_checkout_id,reservation_expires_at)
-        VALUES(?,?,?,?,?,'ready_for_use',?,?,?, 'storeos',?,?)`).run(id, tenantId, reward.id, customer.id, reward.points_cost, code, new Date().toISOString(), reward.valid_until || null, p.checkoutId, reservationExpiresAt);
+        VALUES(?,?,?,?,?,'ready_for_use',?,?,?, 'storeos',?,?)`).run(id, tenantId, reward.id, customer.id, reward.points_cost, code, new Date().toISOString(), reward.valid_until || null);
+      db.prepare('INSERT INTO storeos_redemptions(redemption_id,tenant_id,checkout_id,reservation_expires_at) VALUES(?,?,?,?)').run(id,tenantId,p.checkoutId,reservationExpiresAt);
       db.prepare('UPDATE customers SET points_balance=points_balance-? WHERE id=? AND tenant_id=? AND points_balance>=?').run(reward.points_cost, customer.id, tenantId, reward.points_cost);
       if (reward.stock !== null) db.prepare('UPDATE rewards SET stock=stock-1 WHERE id=? AND tenant_id=? AND stock>0').run(reward.id, tenantId);
       db.prepare("INSERT INTO loyalty_ledger(id,tenant_id,customer_id,points,reason,entry_type) VALUES(?,?,?,?,?,'redemption')").run(randomUUID(), tenantId, customer.id, -reward.points_cost, `Resgate StoreOS: ${reward.name}`);
@@ -184,7 +185,7 @@ storeOsApiRoutes.post('/storeos/coupons/validate', requireApiKey('rewards:valida
   if (!customer || customer.deleted_at || !customer.enrolled_at) return res.status(404).json({ error: 'Cliente não localizado.' });
   const row = db.prepare(`SELECT rr.id,rr.status,rr.external_checkout_id,rr.reservation_expires_at,rr.expires_at,rr.points_spent,r.name,r.discount_type,r.discount_value,r.minimum_order_cents
     FROM reward_redemptions rr JOIN rewards r ON r.id=rr.reward_id
-    WHERE rr.tenant_id=? AND rr.customer_id=? AND upper(rr.redemption_code)=upper(?) AND rr.external_source='storeos'`)
+    WHERE rr.tenant_id=? AND rr.customer_id=? AND upper(rr.redemption_code)=upper(?)`)
     .get(tenantId, customer.id, p.code.replace(/\s/g, '')) as any;
   if (!row) return res.status(404).json({ error: 'Cupom não encontrado para esta cliente.' });
   if (row.status !== 'ready_for_use') return res.status(409).json({ error: row.status === 'used' ? 'Cupom já utilizado.' : 'Cupom não está disponível.', code: 'COUPON_NOT_AVAILABLE' });
@@ -203,7 +204,7 @@ storeOsApiRoutes.post('/storeos/redemptions/:id/confirm', requireApiKey('rewards
   if (!z.string().uuid().safeParse(id).success) return res.status(400).json({ error: 'Identificador de resgate inválido.' });
   return idempotent(req, res, 'redemption.confirm', () => {
     const result = db.transaction(() => {
-      const row = db.prepare("SELECT id,status,customer_id,external_checkout_id,order_number FROM reward_redemptions WHERE id=? AND tenant_id=? AND external_source='storeos'").get(id, tenantId) as any;
+      const row = db.prepare("SELECT rr.id,rr.status,rr.customer_id,sr.checkout_id external_checkout_id,rr.order_number FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' WHERE rr.id=? AND rr.tenant_id=?").get(id, tenantId) as any;
       if (!row) throw new Error('NOT_FOUND');
       if (row.status === 'used' && row.order_number === p.blingOrderNumber) return { status: 200, body: { data: { id, status: 'used', blingOrderNumber: row.order_number, idempotent: true } } };
       if (row.status !== 'ready_for_use') throw new Error('STATUS');
@@ -211,7 +212,7 @@ storeOsApiRoutes.post('/storeos/redemptions/:id/confirm', requireApiKey('rewards
       const sale = db.prepare("SELECT id,customer_id,order_number,reversed_at FROM sales WHERE tenant_id=? AND source='bling' AND (external_id=? OR order_number=?) LIMIT 1")
         .get(tenantId, `bling:${p.blingOrderId}`, p.blingOrderNumber) as any;
       if (!sale || sale.reversed_at || sale.customer_id !== row.customer_id || String(sale.order_number) !== p.blingOrderNumber) throw new Error('BLING_ORDER');
-      const update = db.prepare("UPDATE reward_redemptions SET status='used',used_at=CURRENT_TIMESTAMP,order_number=?,reservation_expires_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=? AND status='ready_for_use'").run(p.blingOrderNumber, id, tenantId);
+      const update = db.prepare("UPDATE reward_redemptions SET status='used',used_at=CURRENT_TIMESTAMP,order_number=? WHERE id=? AND tenant_id=? AND status='ready_for_use'").run(p.blingOrderNumber, id, tenantId);
       if (!update.changes) throw new Error('RACE');
       const link = db.prepare('SELECT external_customer_id FROM storeos_customer_links WHERE tenant_id=? AND customer_id=? LIMIT 1').get(tenantId, row.customer_id) as any;
       if (link) addEvent(tenantId, link.external_customer_id, 'redemption.used', id, { blingOrderId: p.blingOrderId, blingOrderNumber: p.blingOrderNumber });
@@ -229,7 +230,7 @@ storeOsApiRoutes.post('/storeos/redemptions/:id/cancel', requireApiKey('rewards:
   if (!z.string().uuid().safeParse(id).success) return res.status(400).json({ error: 'Identificador de resgate inválido.' });
   return idempotent(req, res, 'redemption.cancel', () => {
     const result = db.transaction(() => {
-      const row = db.prepare("SELECT rr.id,rr.status,rr.customer_id,rr.reward_id,rr.points_spent,rr.external_checkout_id,rr.order_number,r.name FROM reward_redemptions rr JOIN rewards r ON r.id=rr.reward_id WHERE rr.id=? AND rr.tenant_id=? AND rr.external_source='storeos'").get(id, tenantId) as any;
+      const row = db.prepare("SELECT rr.id,rr.status,rr.customer_id,rr.reward_id,rr.points_spent,sr.checkout_id external_checkout_id,rr.order_number,r.name FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' JOIN rewards r ON r.id=rr.reward_id WHERE rr.id=? AND rr.tenant_id=? ").get(id, tenantId) as any;
       if (!row) throw new Error('NOT_FOUND');
       if (row.status === 'cancelled' || row.status === 'expired') return { status: 200, body: { data: { id, status: row.status, pointsRestored: 0, idempotent: true } } };
       if (row.status === 'used') {
