@@ -162,8 +162,8 @@ storeOsApiRoutes.post('/storeos/redemptions', requireApiKey('rewards:redeem'), r
       const id = randomUUID(); let code = '';
       do { code = `FZ-${randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`; } while (db.prepare('SELECT 1 FROM reward_redemptions WHERE redemption_code=?').get(code));
       const reservationExpiresAt = new Date(Date.now() + 20 * 60_000).toISOString();
-      db.prepare(`INSERT INTO reward_redemptions(id,tenant_id,reward_id,customer_id,points_spent,status,redemption_code,code_generated_at,expires_at,external_source,external_checkout_id,reservation_expires_at)
-        VALUES(?,?,?,?,?,'ready_for_use',?,?,?, 'storeos',?,?)`).run(id, tenantId, reward.id, customer.id, reward.points_cost, code, new Date().toISOString(), reward.valid_until || null);
+      db.prepare(`INSERT INTO reward_redemptions(id,tenant_id,reward_id,customer_id,points_spent,status,redemption_code,code_generated_at,expires_at)
+        VALUES(?,?,?,?,?,'ready_for_use',?,?,?)`).run(id, tenantId, reward.id, customer.id, reward.points_cost, code, new Date().toISOString(), reward.valid_until || null);
       db.prepare('INSERT INTO storeos_redemptions(redemption_id,tenant_id,checkout_id,reservation_expires_at) VALUES(?,?,?,?)').run(id,tenantId,p.checkoutId,reservationExpiresAt);
       db.prepare('UPDATE customers SET points_balance=points_balance-? WHERE id=? AND tenant_id=? AND points_balance>=?').run(reward.points_cost, customer.id, tenantId, reward.points_cost);
       if (reward.stock !== null) db.prepare('UPDATE rewards SET stock=stock-1 WHERE id=? AND tenant_id=? AND stock>0').run(reward.id, tenantId);
