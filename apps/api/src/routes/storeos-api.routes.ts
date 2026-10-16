@@ -60,11 +60,11 @@ function linkCustomer(tenantId: string, externalCustomerId: string, customerId: 
     VALUES(?,?,?) ON CONFLICT(tenant_id,external_customer_id) DO UPDATE SET updated_at=CURRENT_TIMESTAMP`).run(tenantId, externalCustomerId, customerId);
 }
 function releaseExpiredReservations(tenantId: string) {
+  const today = businessDate();
   const rows = db.prepare(`SELECT rr.id,rr.reward_id,rr.customer_id,rr.points_spent,rr.expires_at,sr.reservation_expires_at,l.external_customer_id,r.name
     FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' JOIN storeos_customer_links l ON l.customer_id=rr.customer_id AND l.tenant_id=rr.tenant_id
     JOIN rewards r ON r.id=rr.reward_id
-    WHERE rr.tenant_id=? AND rr.status='ready_for_use'`).all(tenantId) as any[];
-  const today = businessDate();
+    WHERE rr.tenant_id=? AND rr.status='ready_for_use' AND (datetime(sr.reservation_expires_at)<=CURRENT_TIMESTAMP OR (rr.expires_at IS NOT NULL AND date(rr.expires_at)<date(?)))`).all(tenantId,today) as any[];
   db.transaction(() => {
     for (const row of rows) {
       const expired = row.reservation_expires_at && new Date(row.reservation_expires_at).getTime() <= Date.now() ||
@@ -227,6 +227,7 @@ storeOsApiRoutes.post('/storeos/redemptions/:id/confirm', requireApiKey('rewards
       if (!sale || sale.reversed_at || sale.customer_id !== row.customer_id || String(sale.order_number) !== p.blingOrderNumber) throw new Error('BLING_ORDER');
       const update = db.prepare("UPDATE reward_redemptions SET status='used',used_at=CURRENT_TIMESTAMP,order_number=? WHERE id=? AND tenant_id=? AND status='ready_for_use'").run(p.blingOrderNumber, id, tenantId);
       if (!update.changes) throw new Error('RACE');
+      db.prepare('UPDATE storeos_redemptions SET confirmed_order_id=?,updated_at=CURRENT_TIMESTAMP WHERE redemption_id=? AND tenant_id=?').run(p.blingOrderId,id,tenantId);
       const link = db.prepare('SELECT external_customer_id FROM storeos_customer_links WHERE tenant_id=? AND customer_id=? LIMIT 1').get(tenantId, row.customer_id) as any;
       if (link) addEvent(tenantId, link.external_customer_id, 'redemption.used', id, { blingOrderId: p.blingOrderId, blingOrderNumber: p.blingOrderNumber });
       return { status: 200, body: { data: { id, status: 'used', blingOrderNumber: p.blingOrderNumber, idempotent: false } } };
