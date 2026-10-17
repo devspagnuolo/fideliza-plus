@@ -209,6 +209,8 @@ storeOsApiRoutes.post('/storeos/redemptions/:id/link-order', requireApiKey('rewa
       if (new Date(row.reservation_expires_at).getTime() <= Date.now() || row.expires_at && businessDate() > String(row.expires_at).slice(0,10)) throw new Error('RESERVATION_EXPIRED');
       const existing = db.prepare('SELECT storeos_order_id,state,pending_until FROM storeos_redemption_orders WHERE redemption_id=? AND tenant_id=?').get(id,tenantId) as any;
       if (existing && existing.storeos_order_id !== p.storeosOrderId) throw new Error('ORDER_LINK_CONFLICT');
+      const orderOwner = db.prepare('SELECT redemption_id FROM storeos_redemption_orders WHERE tenant_id=? AND storeos_order_id=?').get(tenantId,p.storeosOrderId) as any;
+      if (orderOwner && orderOwner.redemption_id !== id) throw new Error('ORDER_LINK_CONFLICT');
       const pendingUntil = existing ? existing.pending_until : new Date(Date.now() + 48 * 60 * 60_000).toISOString();
       if (!existing) {
         db.prepare("INSERT INTO storeos_redemption_orders(redemption_id,tenant_id,storeos_order_id,state,pending_until) VALUES(?,?,?,'awaiting_bling',?)").run(id,tenantId,p.storeosOrderId,pendingUntil);
