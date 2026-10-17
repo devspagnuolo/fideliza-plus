@@ -138,7 +138,7 @@ storeOsApiRoutes.post('/storeos/customers/enroll', requireApiKey('customers:enro
           .run(randomUUID(), tenantId, id, hashPassword(password));
         const tenant = db.prepare('SELECT name,slug FROM tenants WHERE id=?').get(tenantId) as { name: string; slug: string } | undefined;
         if (!tenant) throw new Error('TENANT_NOT_FOUND');
-        const message = `Olá, ${p.name || customer?.name}. Você foi cadastrada no programa de fidelidade da ${tenant.name}.\\n\\nAcesse ${webOrigin()}/cliente/${encodeURIComponent(tenant.slug)} usando seu CPF e esta senha temporária: ${password}\\n\\nPor segurança, altere a senha no primeiro acesso. Esta senha temporária expira em 48 horas.\\n\\nSe você não reconhece este cadastro, entre em contato com a loja.`;
+        const message = `Olá, ${p.name || customer?.name}. Você foi cadastrada no programa de fidelidade da ${tenant.name}.\n\nAcesse ${webOrigin()}/cliente/${encodeURIComponent(tenant.slug)} usando seu CPF e esta senha temporária: ${password}\n\nPor segurança, altere a senha no primeiro acesso. Esta senha temporária expira em 48 horas.\n\nSe você não reconhece este cadastro, entre em contato com a loja.`;
         db.prepare("INSERT INTO outbound_messages(id,tenant_id,recipient,channel,template,subject,message,scheduled_at) VALUES(?,?,?,'email','customer.storeos_welcome',?,?,CURRENT_TIMESTAMP)")
           .run(randomUUID(), tenantId, recipient, `Bem-vinda ao programa ${tenant.name}`, message);
         portalAccessCreated = true;
