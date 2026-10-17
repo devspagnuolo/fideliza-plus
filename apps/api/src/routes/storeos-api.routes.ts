@@ -7,11 +7,14 @@ import { normalizeCpf, validCpf } from '../cpf.js';
 import { db } from '../database/db.js';
 import { calculateSalePoints, customerVipTier, isSaleEligibleFromEnrollmentDay, reconcileSalePoints } from '../loyalty.js';
 import { PLAN_FEATURES, tenantPlan } from '../plan-catalog.js';
+import { hashPassword } from '../security.js';
 
 export const storeOsApiRoutes = Router();
 const cpfSchema = z.string().transform(normalizeCpf).refine(validCpf, 'CPF inválido');
 const businessDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const externalIdSchema = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9._:-]+$/);
+const temporaryPassword = () => `Fz!${randomUUID().replace(/-/g, '').slice(0, 12)}Aa`;
+const webOrigin = () => ((process.env.WEB_ORIGIN || 'https://fidelizaplus.com.br').split(',')[0] || 'https://fidelizaplus.com.br').trim();
 const requireErpPlan = (req: Request, res: Response, next: (error?: unknown) => void) => {
   const plan = tenantPlan(req.apiKey!.tenantId);
   if (!plan) return res.status(503).json({ error: 'Plano da empresa não configurado.', code: 'PLAN_CONFIGURATION_REQUIRED' });
@@ -122,6 +125,24 @@ storeOsApiRoutes.post('/storeos/customers/enroll', requireApiKey('customers:enro
       if (p.programConsent) db.prepare(`INSERT INTO customer_consents(id,tenant_id,customer_id,purpose,granted,source,document_version,privacy_version,ip_address,user_agent)
         VALUES(?,?,?,'loyalty_program',1,'storeos',?,?,?,?)`).run(randomUUID(), tenantId, id, p.termsVersion || null, p.privacyVersion || null, req.ip || null, String(req.headers['user-agent'] || '').slice(0, 500) || null);
       linkCustomer(tenantId, p.externalCustomerId, id);
+
+      // Create customer portal access only once. The temporary secret is delivered
+      // through the durable outbound queue and is never returned by this API.
+      const portalAccount = db.prepare('SELECT id FROM customer_accounts WHERE tenant_id=? AND customer_id=?').get(tenantId, id) as { id: string } | undefined;
+      let portalAccessCreated = false;
+      if (!portalAccount) {
+        const recipient = String(p.email || customer?.email || '').trim().toLowerCase();
+        if (!recipient) throw new Error('WELCOME_EMAIL_REQUIRED');
+        const password = temporaryPassword();
+        db.prepare("INSERT INTO customer_accounts(id,tenant_id,customer_id,password_hash,must_change_password,temporary_password_expires_at) VALUES(?,?,?,?,1,datetime('now','+48 hours'))")
+          .run(randomUUID(), tenantId, id, hashPassword(password));
+        const tenant = db.prepare('SELECT name,slug FROM tenants WHERE id=?').get(tenantId) as { name: string; slug: string } | undefined;
+        if (!tenant) throw new Error('TENANT_NOT_FOUND');
+        const message = `Olá, ${p.name || customer?.name}. Você foi cadastrada no programa de fidelidade da ${tenant.name}.\\n\\nAcesse ${webOrigin()}/cliente/${encodeURIComponent(tenant.slug)} usando seu CPF e esta senha temporária: ${password}\\n\\nPor segurança, altere a senha no primeiro acesso. Esta senha temporária expira em 48 horas.\\n\\nSe você não reconhece este cadastro, entre em contato com a loja.`;
+        db.prepare("INSERT INTO outbound_messages(id,tenant_id,recipient,channel,template,subject,message,scheduled_at) VALUES(?,?,?,'email','customer.storeos_welcome',?,?,CURRENT_TIMESTAMP)")
+          .run(randomUUID(), tenantId, recipient, `Bem-vinda ao programa ${tenant.name}`, message);
+        portalAccessCreated = true;
+      }
       let sameDayOrdersCredited = 0;
       if (newlyEnrolled) {
         const sameDaySales = db.prepare("SELECT id,total_cents,occurred_at,order_number FROM sales WHERE tenant_id=? AND customer_id=? AND source='bling' AND reversed_at IS NULL").all(tenantId,id) as {id:string;total_cents:number;occurred_at:string;order_number:string|null}[];
@@ -138,7 +159,7 @@ storeOsApiRoutes.post('/storeos/customers/enroll', requireApiKey('customers:enro
       }
       const view = db.prepare('SELECT id,name,cpf,points_balance,enrolled_at FROM customers WHERE id=? AND tenant_id=?').get(id, tenantId) as any;
       addEvent(tenantId, p.externalCustomerId, newlyEnrolled ? 'customer.enrolled' : 'customer.linked', id, { customerId: id });
-      return { status: customer ? 200 : 201, body: { data: { id: view.id, name: view.name, cpf: view.cpf, pointsBalance: Number(view.points_balance), enrolledAt: view.enrolled_at, externalCustomerId: p.externalCustomerId, eligibleForPoints: Boolean(view.enrolled_at), sameDayPointsCredited: sameDayOrdersCredited } } };
+      return { status: customer ? 200 : 201, body: { data: { id: view.id, name: view.name, cpf: view.cpf, pointsBalance: Number(view.points_balance), enrolledAt: view.enrolled_at, externalCustomerId: p.externalCustomerId, eligibleForPoints: Boolean(view.enrolled_at), sameDayPointsCredited: sameDayOrdersCredited, portalAccessCreated, welcomeEmailQueued: portalAccessCreated } } };
     })();
     audit(tenantId, req.apiKey!.createdBy, 'storeos.customer_enroll', 'customer', result.body.data.id as string, { apiKeyId: req.apiKey!.id, externalCustomerId: p.externalCustomerId, programConsent: p.programConsent });
     return result;
@@ -320,6 +341,8 @@ storeOsApiRoutes.use((error: unknown, _req: Request, res: Response, _next: (erro
   const known: Record<string, { status: number; message: string; code: string }> = {
     LINK_CONFLICT: { status: 409, message: 'Este identificador do StoreOS já está vinculado a outro CPF.', code: 'IDENTITY_LINK_CONFLICT' },
     CUSTOMER_INACTIVE: { status: 409, message: 'O cadastro Fidelizei está inativo. Solicite a regularização à loja.', code: 'CUSTOMER_INACTIVE' },
+    WELCOME_EMAIL_REQUIRED: { status: 422, message: 'Informe um e-mail válido para criar o acesso do cliente e enviar a senha provisória.', code: 'CUSTOMER_EMAIL_REQUIRED' },
+    TENANT_NOT_FOUND: { status: 500, message: 'Não foi possível localizar a loja para concluir o cadastro.', code: 'TENANT_CONFIGURATION_ERROR' },
     CONSENT_REQUIRED: { status: 422, message: 'É necessário consentimento explícito para adesão ao programa de fidelidade.', code: 'LOYALTY_CONSENT_REQUIRED' },
     LIMIT: { status: 409, message: 'Limite de consumidores do plano atingido.', code: 'PLAN_LIMIT_REACHED' },
     CUSTOMER: { status: 404, message: 'Cliente não está vinculado ou não aderiu ao programa.', code: 'CUSTOMER_NOT_ENROLLED' },
