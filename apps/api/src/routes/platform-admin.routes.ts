@@ -50,8 +50,9 @@ platformAdminRoutes.get('/platform/analytics/reports/:id/export',auth,(req,res)=
  const period=Math.min(365,Math.max(1,Number(report.period)||30)),cutoff=new Date(Date.now()-period*86400000).toISOString(),tenantId=typeof req.query.tenantId==='string'?req.query.tenantId:'';
  const selects=[...selectedDimensions.map((item,index)=>`${item.sql} AS d${index}`),...selectedMetrics.map((item,index)=>`${item.sql} AS m${index}`)];
  const groups=selectedDimensions.map(item=>item.sql);
- const sql=`SELECT ${selects.join(', ')} FROM sales s JOIN tenants t ON t.id=s.tenant_id WHERE s.reversed_at IS NULL AND datetime(s.occurred_at)>=datetime(?) ${tenantId?'AND s.tenant_id=?':''} GROUP BY ${groups.join(', ')} ORDER BY ${groups.join(', ')} LIMIT 10000`;
+ const sql=`SELECT ${selects.join(', ')} FROM sales s JOIN tenants t ON t.id=s.tenant_id WHERE s.reversed_at IS NULL AND datetime(s.occurred_at)>=datetime(?) ${tenantId?'AND s.tenant_id=?':''} GROUP BY ${groups.join(', ')} ORDER BY ${groups.join(', ')} LIMIT 10001`;
  const rows=db.prepare(sql).all(...(tenantId?[cutoff,tenantId]:[cutoff])) as Record<string,unknown>[];
+ if(rows.length>10000)return res.status(422).json({error:'O relatório excede 10 mil linhas. Reduza o período ou selecione uma empresa antes de exportar.'});
  const headers=[...selectedDimensions.map(item=>item.key),...selectedMetrics.map(item=>item.key)],escape=(value:unknown)=>{const raw=String(value??'');const safe=/^[=+@-]/.test(raw)?"'"+raw:raw;return '"'+safe.replaceAll('"','""')+'"'};
  db.prepare('UPDATE platform_analytics_reports SET last_generated_at=CURRENT_TIMESTAMP WHERE id=?').run(id);
  audit(req,'analytics_report.export','analytics_report',id,{rows:rows.length,period,tenantId:tenantId||null});
