@@ -55,6 +55,7 @@ import './fideliza-design-system.css';
 import './brand-usability.css';
 import './merchant-login.css';
 import './contrast-fixes.css';
+import './visual-quality.css';
 
 type Page = 'dashboard' | 'customers' | 'sales' | 'rewards' | 'offers' | 'campaigns' | 'analytics' | 'integrations' | 'governance' | 'settings';
 type Customer = { id:string; name:string; email?:string; phone?:string; points_balance:number };
