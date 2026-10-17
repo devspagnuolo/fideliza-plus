@@ -338,3 +338,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .pa-content .ana-erp-actions button{display:inline-flex;align-items:center;gap:7px;min-height:40px;width:auto;padding:8px 13px;background:#056f72 !important;color:#fff !important;white-space:nowrap;}
 .ana-erp-actions button svg{width:16px;height:16px;}
 @media(max-width:650px){.ana-erp-actions>*{flex:1 1 100%;}.pa-content .ana-erp-actions button{justify-content:center;width:100%;}}
+
+
+/* Tabelas de gestão de planos usam linhas div, não botões. */
+.pa-content .plan-table > div:not(.head):not(.plan-empty) {
+  background: #fff !important;
+  color: #10233b !important;
+  text-shadow: none !important;
+}
+.pa-content .plan-table > div:not(.head):not(.plan-empty) :is(b,strong) { color: #10233b !important; }
+.pa-content .plan-table > div:not(.head):not(.plan-empty) small { color: #52677d !important; }
+.pa-content .plan-table > div:not(.head):not(.plan-empty):hover { background: #f4f9fa !important; }
