@@ -330,3 +330,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .pa-content .pa-action-grid article button{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;align-self:flex-start;width:auto;border:0;background:transparent !important;color:#086b67 !important;padding:7px 0;font-weight:800;text-align:left;}
 .pa-action-grid article button svg{width:17px;height:17px;}
 @media(max-width:900px){.pa-action-grid{grid-template-columns:1fr;}}
+
+
+.ana-erp-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px;margin:-5px 0 12px;}
+.ana-erp-actions select{min-height:40px;border:1px solid #cbd5e1;border-radius:10px;padding:8px 12px;background:#fff;color:#10233b;}
+.ana-erp-actions small{margin-right:auto;color:#52677d;}
+.pa-content .ana-erp-actions button{display:inline-flex;align-items:center;gap:7px;min-height:40px;width:auto;padding:8px 13px;background:#056f72 !important;color:#fff !important;white-space:nowrap;}
+.ana-erp-actions button svg{width:16px;height:16px;}
+@media(max-width:650px){.ana-erp-actions>*{flex:1 1 100%;}.pa-content .ana-erp-actions button{justify-content:center;width:100%;}}
