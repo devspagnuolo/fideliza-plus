@@ -271,3 +271,81 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .customer-portal .cp-welcome article { min-width: 0; width: 100%; }
   .pa-content .pa-topbar { align-items: flex-start; }
 }
+
+
+/* Linhas de consulta são superfícies claras, não ações primárias. */
+.pa-content .db-health-row,
+.pa-content .pa-portfolio-table > button,
+.pa-content .plan-table > button,
+.pa-content .pa-purpose-list > button,
+.pa-content .pa-health-list button,
+.pa-content .pa-alert-center > div > button {
+  background:#fff !important;
+  color:#10233b !important;
+  border-radius:0 !important;
+  text-shadow:none !important;
+}
+.pa-content .db-health-row:hover,
+.pa-content .pa-portfolio-table > button:hover,
+.pa-content .plan-table > button:hover,
+.pa-content .pa-health-list button:hover,
+.pa-content .pa-alert-center > div > button:hover {background:#eef7f7 !important;}
+.pa-content .db-health-row :is(b,strong),
+.pa-content .pa-portfolio-table > button :is(b,strong) {color:#10233b !important;}
+.pa-content .db-health-row :is(small,em),
+.pa-content .pa-portfolio-table > button small {color:#52677d !important;}
+.pa-content .db-health-row {gap:12px;min-height:50px;text-align:left;}
+.pa-content .db-health-row > :last-child {flex:0 0 auto;text-align:right;}
+.pa-content .pa-portfolio-table .badge.canceled {background:#fbe8ed;color:#862842 !important;}
+.pa-content .pa-portfolio-table .badge.active {background:#dff4ef;color:#086750 !important;}
+.pa-content .pa-portfolio-table .badge.trialing {background:#fff2d7;color:#785100 !important;}
+
+/* A barra de cobranças não pode encolher botões até quebrar letras. */
+.pa-content .asaas-filters{display:grid !important;grid-template-columns:minmax(230px,2fr) minmax(150px,1fr) minmax(140px,1fr) auto auto;gap:10px;align-items:stretch;}
+.pa-content .asaas-filters > *{min-width:0;min-height:44px;}
+.pa-content .asaas-filters > label{width:auto !important;min-width:0 !important;}
+.pa-content .asaas-filters > select{width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:8px 12px;background:#fff;color:#10233b;}
+.pa-content .asaas-filters > button{width:auto !important;min-width:132px;padding:9px 14px !important;white-space:normal;overflow-wrap:normal;word-break:normal;line-height:1.25;}
+.pa-content .asaas-filters > button svg{width:18px;height:18px;flex:0 0 auto;}
+@media(max-width:1180px){.pa-content .asaas-filters{grid-template-columns:repeat(2,minmax(0,1fr));}.pa-content .asaas-filters > label{grid-column:1/-1;}}
+@media(max-width:640px){.pa-content .asaas-filters{grid-template-columns:1fr;}.pa-content .asaas-filters > label{grid-column:auto;}.pa-content .asaas-filters > button{width:100% !important;}}
+
+/* Controles de relatórios legíveis mesmo com zoom e largura reduzida. */
+.pa-content .ana-report-choices{display:flex;flex-wrap:wrap;gap:10px 20px;border:1px solid #d5e0e8;border-radius:12px;padding:14px 16px;min-width:0;}
+.pa-content .ana-report-choices legend{font-weight:800;color:#10233b;padding:0 6px;}
+.pa-content .ana-report-choices label{display:inline-flex;align-items:center;gap:7px;margin:0;color:#284158;}
+.pa-content .ana-report-choices input{width:16px;height:16px;accent-color:#007d79;}
+
+
+.pa-action-center{border:1px solid #d7e3e8;border-radius:18px;background:#f8fbfc;padding:20px 22px;}
+.pa-action-center>header small{font-size:11px;letter-spacing:.08em;font-weight:800;color:#007d79;}
+.pa-action-center>header h3{font-size:20px;margin:4px 0;color:#10233b;}
+.pa-action-center>header p{margin:0 0 16px;color:#52677d;}
+.pa-action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+.pa-action-grid article{display:flex;flex-direction:column;gap:8px;min-width:0;border:1px solid #d6e3e9;border-radius:14px;background:#fff;padding:16px;color:#10233b;}
+.pa-action-grid article.attention{border-left:4px solid #bd6a15;}
+.pa-action-grid article>span{color:#08736c;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;}
+.pa-action-grid article strong{font-size:20px;line-height:1.25;color:#10233b;}
+.pa-action-grid article p{margin:0;flex:1;color:#52677d;font-size:14px;}
+.pa-content .pa-action-grid article button{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;align-self:flex-start;width:auto;border:0;background:transparent !important;color:#086b67 !important;padding:7px 0;font-weight:800;text-align:left;}
+.pa-action-grid article button svg{width:17px;height:17px;}
+@media(max-width:900px){.pa-action-grid{grid-template-columns:1fr;}}
+
+
+.ana-erp-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px;margin:-5px 0 12px;}
+.ana-erp-actions select{min-height:40px;border:1px solid #cbd5e1;border-radius:10px;padding:8px 12px;background:#fff;color:#10233b;}
+.ana-erp-actions small{margin-right:auto;color:#52677d;}
+.pa-content .ana-erp-actions button{display:inline-flex;align-items:center;gap:7px;min-height:40px;width:auto;padding:8px 13px;background:#056f72 !important;color:#fff !important;white-space:nowrap;}
+.ana-erp-actions button svg{width:16px;height:16px;}
+@media(max-width:650px){.ana-erp-actions>*{flex:1 1 100%;}.pa-content .ana-erp-actions button{justify-content:center;width:100%;}}
+
+
+/* Tabelas de gestão de planos usam linhas div, não botões. */
+.pa-content .plan-table > div:not(.head):not(.plan-empty) {
+  background: #fff !important;
+  color: #10233b !important;
+  text-shadow: none !important;
+}
+.pa-content .plan-table > div:not(.head):not(.plan-empty) :is(b,strong) { color: #10233b !important; }
+.pa-content .plan-table > div:not(.head):not(.plan-empty) small { color: #52677d !important; }
+.pa-content .plan-table > div:not(.head):not(.plan-empty):hover { background: #f4f9fa !important; }
