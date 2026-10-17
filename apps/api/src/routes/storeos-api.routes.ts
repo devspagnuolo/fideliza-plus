@@ -64,7 +64,7 @@ function releaseExpiredReservations(tenantId: string) {
   const rows = db.prepare(`SELECT rr.id,rr.reward_id,rr.customer_id,rr.points_spent,rr.expires_at,sr.reservation_expires_at,l.external_customer_id,r.name
     FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' JOIN storeos_customer_links l ON l.customer_id=rr.customer_id AND l.tenant_id=rr.tenant_id
     JOIN rewards r ON r.id=rr.reward_id
-    WHERE rr.tenant_id=? AND rr.status='ready_for_use' AND (datetime(sr.reservation_expires_at)<=CURRENT_TIMESTAMP OR (rr.expires_at IS NOT NULL AND date(rr.expires_at)<date(?)))`).all(tenantId,today) as any[];
+    WHERE rr.tenant_id=? AND rr.status='ready_for_use' AND NOT EXISTS (SELECT 1 FROM storeos_redemption_orders so WHERE so.redemption_id=rr.id AND so.tenant_id=rr.tenant_id AND so.state='awaiting_bling' AND datetime(so.pending_until)>CURRENT_TIMESTAMP) AND (datetime(sr.reservation_expires_at)<=CURRENT_TIMESTAMP OR (rr.expires_at IS NOT NULL AND date(rr.expires_at)<date(?)))`).all(tenantId,today) as any[];
   db.transaction(() => {
     for (const row of rows) {
       const expired = row.reservation_expires_at && new Date(row.reservation_expires_at).getTime() <= Date.now() ||
@@ -75,7 +75,8 @@ function releaseExpiredReservations(tenantId: string) {
       db.prepare('UPDATE customers SET points_balance=points_balance+? WHERE id=? AND tenant_id=?').run(row.points_spent, row.customer_id, tenantId);
       db.prepare("INSERT INTO loyalty_ledger(id,tenant_id,customer_id,points,reason,entry_type) VALUES(?,?,?,?,?,'reinstatement')").run(randomUUID(), tenantId, row.customer_id, row.points_spent, `Liberação automática de resgate StoreOS expirado: ${row.name}`);
       db.prepare('UPDATE rewards SET stock=stock+1 WHERE id=? AND tenant_id=? AND stock IS NOT NULL').run(row.reward_id, tenantId);
-      addEvent(tenantId, row.external_customer_id, 'redemption.expired', row.id, { pointsRestored: row.points_spent });
+      db.prepare("UPDATE storeos_redemption_orders SET state='expired',updated_at=CURRENT_TIMESTAMP WHERE redemption_id=? AND tenant_id=? AND state='awaiting_bling'").run(row.id,tenantId);
+      addEvent(tenantId, row.external_customer_id, 'redemption.expired', row.id, { pointsRestored: row.points_spent, reason: 'order_hold_expired' });
     }
   })();
 }
@@ -189,6 +190,35 @@ storeOsApiRoutes.post('/storeos/redemptions', requireApiKey('rewards:redeem'), r
       return { status: 201, body: { data: { id, code, status: 'reserved', checkoutId: p.checkoutId, pointsDebited: reward.points_cost, expiresAt: reward.valid_until || null, reservationExpiresAt, discount: { type: reward.discount_type, value: reward.discount_value, minimumOrderCents: reward.minimum_order_cents || 0 } } } };
     })();
     audit(tenantId, req.apiKey!.createdBy, 'storeos.redemption_reserve', 'reward_redemption', result.body.data.id as string, { apiKeyId: req.apiKey!.id, checkoutId: p.checkoutId });
+    return result;
+  });
+});
+const linkOrderBody = z.object({ checkoutId: externalIdSchema, storeosOrderId: externalIdSchema });
+storeOsApiRoutes.post('/storeos/redemptions/:id/link-order', requireApiKey('rewards:redeem'), requireErpPlan, (req, res) => {
+  const parsed = linkOrderBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Informe o checkout e o identificador do pedido criado no StoreOS.' });
+  const p = parsed.data, tenantId = req.apiKey!.tenantId, id = String(req.params.id);
+  if (!z.string().uuid().safeParse(id).success) return res.status(400).json({ error: 'Identificador de resgate inválido.' });
+  releaseExpiredReservations(tenantId);
+  return idempotent(req, res, 'redemption.link_order', () => {
+    const result = db.transaction(() => {
+      const row = db.prepare("SELECT rr.status,rr.customer_id,rr.expires_at,sr.checkout_id,sr.reservation_expires_at FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' WHERE rr.id=? AND rr.tenant_id=?").get(id,tenantId) as any;
+      if (!row) throw new Error('NOT_FOUND');
+      if (row.status !== 'ready_for_use') throw new Error('STATUS');
+      if (row.checkout_id !== p.checkoutId) throw new Error('CHECKOUT');
+      if (new Date(row.reservation_expires_at).getTime() <= Date.now() || row.expires_at && businessDate() > String(row.expires_at).slice(0,10)) throw new Error('RESERVATION_EXPIRED');
+      const existing = db.prepare('SELECT storeos_order_id,state,pending_until FROM storeos_redemption_orders WHERE redemption_id=? AND tenant_id=?').get(id,tenantId) as any;
+      if (existing && existing.storeos_order_id !== p.storeosOrderId) throw new Error('ORDER_LINK_CONFLICT');
+      const pendingUntil = existing ? existing.pending_until : new Date(Date.now() + 48 * 60 * 60_000).toISOString();
+      if (!existing) {
+        db.prepare("INSERT INTO storeos_redemption_orders(redemption_id,tenant_id,storeos_order_id,state,pending_until) VALUES(?,?,?,'awaiting_bling',?)").run(id,tenantId,p.storeosOrderId,pendingUntil);
+        db.prepare('UPDATE storeos_redemptions SET reservation_expires_at=?,updated_at=CURRENT_TIMESTAMP WHERE redemption_id=? AND tenant_id=?').run(pendingUntil,id,tenantId);
+        const link = db.prepare('SELECT external_customer_id FROM storeos_customer_links WHERE tenant_id=? AND customer_id=? LIMIT 1').get(tenantId,row.customer_id) as any;
+        if (link) addEvent(tenantId,link.external_customer_id,'redemption.pending_bling',id,{storeosOrderId:p.storeosOrderId,pendingUntil});
+      }
+      return { status: 200, body: { data: { id, status: existing ? existing.state : 'awaiting_bling', storeosOrderId: p.storeosOrderId, pendingUntil, pointsRemainReserved: true } } };
+    })();
+    if (result.body.data) audit(tenantId,req.apiKey!.createdBy,'storeos.redemption_link_order','reward_redemption',id,{apiKeyId:req.apiKey!.id,storeosOrderId:p.storeosOrderId});
     return result;
   });
 });
