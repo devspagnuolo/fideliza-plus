@@ -181,3 +181,18 @@ CREATE TABLE IF NOT EXISTS storeos_redemptions(
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_storeos_redemptions_reservation ON storeos_redemptions(tenant_id,reservation_expires_at);
+
+CREATE TABLE IF NOT EXISTS storeos_redemption_orders(
+  redemption_id TEXT PRIMARY KEY REFERENCES storeos_redemptions(redemption_id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  storeos_order_id TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'awaiting_bling' CHECK(state IN ('awaiting_bling','confirmed','cancelled','expired')),
+  linked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  pending_until TEXT NOT NULL,
+  confirmed_at TEXT,
+  cancelled_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(tenant_id,storeos_order_id)
+);
+CREATE INDEX IF NOT EXISTS idx_storeos_redemption_orders_pending
+  ON storeos_redemption_orders(tenant_id,state,pending_until);

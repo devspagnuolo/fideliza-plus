@@ -64,7 +64,7 @@ function releaseExpiredReservations(tenantId: string) {
   const rows = db.prepare(`SELECT rr.id,rr.reward_id,rr.customer_id,rr.points_spent,rr.expires_at,sr.reservation_expires_at,l.external_customer_id,r.name
     FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' JOIN storeos_customer_links l ON l.customer_id=rr.customer_id AND l.tenant_id=rr.tenant_id
     JOIN rewards r ON r.id=rr.reward_id
-    WHERE rr.tenant_id=? AND rr.status='ready_for_use' AND (datetime(sr.reservation_expires_at)<=CURRENT_TIMESTAMP OR (rr.expires_at IS NOT NULL AND date(rr.expires_at)<date(?)))`).all(tenantId,today) as any[];
+    WHERE rr.tenant_id=? AND rr.status='ready_for_use' AND NOT EXISTS (SELECT 1 FROM storeos_redemption_orders so WHERE so.redemption_id=rr.id AND so.tenant_id=rr.tenant_id AND so.state='awaiting_bling' AND datetime(so.pending_until)>CURRENT_TIMESTAMP) AND (datetime(sr.reservation_expires_at)<=CURRENT_TIMESTAMP OR (rr.expires_at IS NOT NULL AND date(rr.expires_at)<date(?)))`).all(tenantId,today) as any[];
   db.transaction(() => {
     for (const row of rows) {
       const expired = row.reservation_expires_at && new Date(row.reservation_expires_at).getTime() <= Date.now() ||
@@ -75,7 +75,8 @@ function releaseExpiredReservations(tenantId: string) {
       db.prepare('UPDATE customers SET points_balance=points_balance+? WHERE id=? AND tenant_id=?').run(row.points_spent, row.customer_id, tenantId);
       db.prepare("INSERT INTO loyalty_ledger(id,tenant_id,customer_id,points,reason,entry_type) VALUES(?,?,?,?,?,'reinstatement')").run(randomUUID(), tenantId, row.customer_id, row.points_spent, `Liberação automática de resgate StoreOS expirado: ${row.name}`);
       db.prepare('UPDATE rewards SET stock=stock+1 WHERE id=? AND tenant_id=? AND stock IS NOT NULL').run(row.reward_id, tenantId);
-      addEvent(tenantId, row.external_customer_id, 'redemption.expired', row.id, { pointsRestored: row.points_spent });
+      db.prepare("UPDATE storeos_redemption_orders SET state='expired',updated_at=CURRENT_TIMESTAMP WHERE redemption_id=? AND tenant_id=? AND state='awaiting_bling'").run(row.id,tenantId);
+      addEvent(tenantId, row.external_customer_id, 'redemption.expired', row.id, { pointsRestored: row.points_spent, reason: 'order_hold_expired' });
     }
   })();
 }
@@ -192,6 +193,37 @@ storeOsApiRoutes.post('/storeos/redemptions', requireApiKey('rewards:redeem'), r
     return result;
   });
 });
+const linkOrderBody = z.object({ checkoutId: externalIdSchema, storeosOrderId: externalIdSchema });
+storeOsApiRoutes.post('/storeos/redemptions/:id/link-order', requireApiKey('rewards:redeem'), requireErpPlan, (req, res) => {
+  const parsed = linkOrderBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Informe o checkout e o identificador do pedido criado no StoreOS.' });
+  const p = parsed.data, tenantId = req.apiKey!.tenantId, id = String(req.params.id);
+  if (!z.string().uuid().safeParse(id).success) return res.status(400).json({ error: 'Identificador de resgate inválido.' });
+  releaseExpiredReservations(tenantId);
+  return idempotent(req, res, 'redemption.link_order', () => {
+    const result = db.transaction(() => {
+      const row = db.prepare("SELECT rr.status,rr.customer_id,rr.expires_at,sr.checkout_id,sr.reservation_expires_at FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' WHERE rr.id=? AND rr.tenant_id=?").get(id,tenantId) as any;
+      if (!row) throw new Error('NOT_FOUND');
+      if (row.status !== 'ready_for_use') throw new Error('STATUS');
+      if (row.checkout_id !== p.checkoutId) throw new Error('CHECKOUT');
+      if (new Date(row.reservation_expires_at).getTime() <= Date.now() || row.expires_at && businessDate() > String(row.expires_at).slice(0,10)) throw new Error('RESERVATION_EXPIRED');
+      const existing = db.prepare('SELECT storeos_order_id,state,pending_until FROM storeos_redemption_orders WHERE redemption_id=? AND tenant_id=?').get(id,tenantId) as any;
+      if (existing && existing.storeos_order_id !== p.storeosOrderId) throw new Error('ORDER_LINK_CONFLICT');
+      const orderOwner = db.prepare('SELECT redemption_id FROM storeos_redemption_orders WHERE tenant_id=? AND storeos_order_id=?').get(tenantId,p.storeosOrderId) as any;
+      if (orderOwner && orderOwner.redemption_id !== id) throw new Error('ORDER_LINK_CONFLICT');
+      const pendingUntil = existing ? existing.pending_until : new Date(Date.now() + 48 * 60 * 60_000).toISOString();
+      if (!existing) {
+        db.prepare("INSERT INTO storeos_redemption_orders(redemption_id,tenant_id,storeos_order_id,state,pending_until) VALUES(?,?,?,'awaiting_bling',?)").run(id,tenantId,p.storeosOrderId,pendingUntil);
+        db.prepare('UPDATE storeos_redemptions SET reservation_expires_at=?,updated_at=CURRENT_TIMESTAMP WHERE redemption_id=? AND tenant_id=?').run(pendingUntil,id,tenantId);
+        const link = db.prepare('SELECT external_customer_id FROM storeos_customer_links WHERE tenant_id=? AND customer_id=? LIMIT 1').get(tenantId,row.customer_id) as any;
+        if (link) addEvent(tenantId,link.external_customer_id,'redemption.pending_bling',id,{storeosOrderId:p.storeosOrderId,pendingUntil});
+      }
+      return { status: 200, body: { data: { id, status: existing ? existing.state : 'awaiting_bling', storeosOrderId: p.storeosOrderId, pendingUntil, pointsRemainReserved: true } } };
+    })();
+    if (result.body.data) audit(tenantId,req.apiKey!.createdBy,'storeos.redemption_link_order','reward_redemption',id,{apiKeyId:req.apiKey!.id,storeosOrderId:p.storeosOrderId});
+    return result;
+  });
+});
 const validateBody = z.object({ code: z.string().trim().min(8).max(24), externalCustomerId: externalIdSchema, checkoutId: externalIdSchema, subtotalCents: z.number().int().nonnegative() });
 storeOsApiRoutes.post('/storeos/coupons/validate', requireApiKey('rewards:validate'), requireErpPlan, (req, res) => {
   const parsed = validateBody.safeParse(req.body);
@@ -213,7 +245,7 @@ storeOsApiRoutes.post('/storeos/coupons/validate', requireApiKey('rewards:valida
   if (!['percent', 'fixed'].includes(row.discount_type) || !Number.isInteger(row.discount_value) || row.discount_value <= 0 || row.discount_type === 'percent' && row.discount_value > 100) return res.status(422).json({ error: 'Regra de desconto inválida.', code: 'INVALID_REWARD_RULE' });
   return res.json({ data: { redemptionId: row.id, code: p.code.toUpperCase(), checkoutId: p.checkoutId, status: 'valid', discount: { type: row.discount_type, value: row.discount_value, minimumOrderCents: row.minimum_order_cents || 0 } } });
 });
-const confirmBody = z.object({ blingOrderId: externalIdSchema, blingOrderNumber: z.string().trim().min(1).max(80), checkoutId: externalIdSchema });
+const confirmBody = z.object({ blingOrderId: externalIdSchema, blingOrderNumber: z.string().trim().min(1).max(80), checkoutId: externalIdSchema, storeosOrderId: externalIdSchema.optional() });
 storeOsApiRoutes.post('/storeos/redemptions/:id/confirm', requireApiKey('rewards:validate'), requireErpPlan, (req, res) => {
   const parsed = confirmBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Informe o ID e número oficial do pedido Bling e o checkout.' });
@@ -221,17 +253,19 @@ storeOsApiRoutes.post('/storeos/redemptions/:id/confirm', requireApiKey('rewards
   if (!z.string().uuid().safeParse(id).success) return res.status(400).json({ error: 'Identificador de resgate inválido.' });
   return idempotent(req, res, 'redemption.confirm', () => {
     const result = db.transaction(() => {
-      const row = db.prepare("SELECT rr.id,rr.status,rr.customer_id,sr.checkout_id external_checkout_id,rr.order_number FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' WHERE rr.id=? AND rr.tenant_id=?").get(id, tenantId) as any;
+      const row = db.prepare("SELECT rr.id,rr.status,rr.customer_id,sr.checkout_id external_checkout_id,rr.order_number,so.storeos_order_id,so.state linked_order_state FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' LEFT JOIN storeos_redemption_orders so ON so.redemption_id=rr.id AND so.tenant_id=rr.tenant_id WHERE rr.id=? AND rr.tenant_id=?").get(id, tenantId) as any;
       if (!row) throw new Error('NOT_FOUND');
       if (row.status === 'used' && row.order_number === p.blingOrderNumber) return { status: 200, body: { data: { id, status: 'used', blingOrderNumber: row.order_number, idempotent: true } } };
       if (row.status !== 'ready_for_use') throw new Error('STATUS');
       if (row.external_checkout_id !== p.checkoutId) throw new Error('CHECKOUT');
+      if (row.storeos_order_id && (p.storeosOrderId !== row.storeos_order_id || row.linked_order_state !== 'awaiting_bling')) throw new Error('ORDER_LINK_CONFLICT');
       const sale = db.prepare("SELECT id,customer_id,order_number,reversed_at FROM sales WHERE tenant_id=? AND source='bling' AND (external_id=? OR order_number=?) LIMIT 1")
         .get(tenantId, `bling:${p.blingOrderId}`, p.blingOrderNumber) as any;
       if (!sale || sale.reversed_at || sale.customer_id !== row.customer_id || String(sale.order_number) !== p.blingOrderNumber) throw new Error('BLING_ORDER');
       const update = db.prepare("UPDATE reward_redemptions SET status='used',used_at=CURRENT_TIMESTAMP,order_number=? WHERE id=? AND tenant_id=? AND status='ready_for_use'").run(p.blingOrderNumber, id, tenantId);
       if (!update.changes) throw new Error('RACE');
       db.prepare('UPDATE storeos_redemptions SET confirmed_order_id=?,updated_at=CURRENT_TIMESTAMP WHERE redemption_id=? AND tenant_id=?').run(p.blingOrderId,id,tenantId);
+      db.prepare("UPDATE storeos_redemption_orders SET state='confirmed',confirmed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE redemption_id=? AND tenant_id=? AND state='awaiting_bling'").run(id,tenantId);
       const link = db.prepare('SELECT external_customer_id FROM storeos_customer_links WHERE tenant_id=? AND customer_id=? LIMIT 1').get(tenantId, row.customer_id) as any;
       if (link) addEvent(tenantId, link.external_customer_id, 'redemption.used', id, { blingOrderId: p.blingOrderId, blingOrderNumber: p.blingOrderNumber });
       return { status: 200, body: { data: { id, status: 'used', blingOrderNumber: p.blingOrderNumber, idempotent: false } } };
@@ -240,7 +274,7 @@ storeOsApiRoutes.post('/storeos/redemptions/:id/confirm', requireApiKey('rewards
     return result;
   });
 });
-const cancelBody = z.object({ checkoutId: externalIdSchema.optional(), blingOrderId: externalIdSchema.optional(), reason: z.enum(['checkout_failed', 'customer_cancelled', 'order_cancelled', 'expired']) });
+const cancelBody = z.object({ checkoutId: externalIdSchema.optional(), storeosOrderId: externalIdSchema.optional(), blingOrderId: externalIdSchema.optional(), reason: z.enum(['checkout_failed', 'customer_cancelled', 'order_cancelled', 'expired']) });
 storeOsApiRoutes.post('/storeos/redemptions/:id/cancel', requireApiKey('rewards:cancel'), requireErpPlan, (req, res) => {
   const parsed = cancelBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Informe o motivo e a referência de checkout ou cancelamento do pedido.' });
@@ -248,20 +282,24 @@ storeOsApiRoutes.post('/storeos/redemptions/:id/cancel', requireApiKey('rewards:
   if (!z.string().uuid().safeParse(id).success) return res.status(400).json({ error: 'Identificador de resgate inválido.' });
   return idempotent(req, res, 'redemption.cancel', () => {
     const result = db.transaction(() => {
-      const row = db.prepare("SELECT rr.id,rr.status,rr.customer_id,rr.reward_id,rr.points_spent,sr.checkout_id external_checkout_id,rr.order_number,r.name FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' JOIN rewards r ON r.id=rr.reward_id WHERE rr.id=? AND rr.tenant_id=? ").get(id, tenantId) as any;
+      const row = db.prepare("SELECT rr.id,rr.status,rr.customer_id,rr.reward_id,rr.points_spent,sr.checkout_id external_checkout_id,rr.order_number,r.name,so.storeos_order_id,so.state linked_order_state FROM reward_redemptions rr JOIN storeos_redemptions sr ON sr.redemption_id=rr.id AND sr.tenant_id=rr.tenant_id AND sr.provider='storeos' JOIN rewards r ON r.id=rr.reward_id LEFT JOIN storeos_redemption_orders so ON so.redemption_id=rr.id AND so.tenant_id=rr.tenant_id WHERE rr.id=? AND rr.tenant_id=? ").get(id, tenantId) as any;
       if (!row) throw new Error('NOT_FOUND');
       if (row.status === 'cancelled' || row.status === 'expired') return { status: 200, body: { data: { id, status: row.status, pointsRestored: 0, idempotent: true } } };
       if (row.status === 'used') {
         if (p.reason !== 'order_cancelled' || !p.blingOrderId) throw new Error('BLING_REVERSAL_REQUIRED');
         const sale = db.prepare("SELECT id,customer_id,reversed_at,reversal_source FROM sales WHERE tenant_id=? AND source='bling' AND external_id=? LIMIT 1").get(tenantId, `bling:${p.blingOrderId}`) as any;
         if (!sale || !sale.reversed_at || sale.reversal_source !== 'bling' || sale.customer_id !== row.customer_id) throw new Error('BLING_REVERSAL_REQUIRED');
-      } else if (row.status !== 'ready_for_use' || !p.checkoutId || p.checkoutId !== row.external_checkout_id) throw new Error('CHECKOUT');
+      } else if (row.status !== 'ready_for_use') throw new Error('CHECKOUT');
+      else if (row.storeos_order_id) {
+        if (p.reason !== 'order_cancelled' || p.storeosOrderId !== row.storeos_order_id || row.linked_order_state !== 'awaiting_bling') throw new Error('ORDER_LINK_REQUIRED');
+      } else if (!p.checkoutId || p.checkoutId !== row.external_checkout_id) throw new Error('CHECKOUT');
       const update = db.prepare("UPDATE reward_redemptions SET status='cancelled' WHERE id=? AND tenant_id=? AND status=?").run(id, tenantId, row.status);
       if (!update.changes) throw new Error('RACE');
       db.prepare('UPDATE customers SET points_balance=points_balance+? WHERE id=? AND tenant_id=?').run(row.points_spent, row.customer_id, tenantId);
       db.prepare("INSERT INTO loyalty_ledger(id,tenant_id,customer_id,points,reason,entry_type) VALUES(?,?,?,?,?,'reinstatement')").run(randomUUID(), tenantId, row.customer_id, row.points_spent, `Estorno de resgate StoreOS: ${row.name}`);
       db.prepare('UPDATE rewards SET stock=stock+1 WHERE id=? AND tenant_id=? AND stock IS NOT NULL').run(row.reward_id, tenantId);
       const link = db.prepare('SELECT external_customer_id FROM storeos_customer_links WHERE tenant_id=? AND customer_id=? LIMIT 1').get(tenantId, row.customer_id) as any;
+      db.prepare("UPDATE storeos_redemption_orders SET state='cancelled',cancelled_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE redemption_id=? AND tenant_id=? AND state='awaiting_bling'").run(id,tenantId);
       if (link) addEvent(tenantId, link.external_customer_id, 'redemption.cancelled', id, { pointsRestored: row.points_spent, reason: p.reason });
       return { status: 200, body: { data: { id, status: 'cancelled', pointsRestored: row.points_spent, idempotent: false } } };
     })();
@@ -294,6 +332,9 @@ storeOsApiRoutes.use((error: unknown, _req: Request, res: Response, _next: (erro
     NOT_FOUND: { status: 404, message: 'Resgate não encontrado.', code: 'REDEMPTION_NOT_FOUND' },
     STATUS: { status: 409, message: 'O resgate não está em um estado que permita esta operação.', code: 'INVALID_REDEMPTION_STATUS' },
     CHECKOUT: { status: 409, message: 'A referência do checkout não corresponde à reserva.', code: 'CHECKOUT_MISMATCH' },
+    RESERVATION_EXPIRED: { status: 409, message: 'A reserva expirou antes de ser vinculada ao pedido. Os pontos serão liberados na próxima conciliação.', code: 'RESERVATION_EXPIRED' },
+    ORDER_LINK_CONFLICT: { status: 409, message: 'O resgate já está vinculado a outro pedido ou a referência do pedido é conflitante.', code: 'ORDER_LINK_CONFLICT' },
+    ORDER_LINK_REQUIRED: { status: 409, message: 'Este resgate está vinculado a um pedido pendente. Informe a referência StoreOS e confirme o cancelamento para liberar os pontos.', code: 'ORDER_LINK_REQUIRED' },
     BLING_ORDER: { status: 409, message: 'O pedido confirmado não foi encontrado no Bling, está estornado ou pertence a outra cliente.', code: 'BLING_ORDER_NOT_CONFIRMED' },
     BLING_REVERSAL_REQUIRED: { status: 409, message: 'Para estornar um cupom utilizado, primeiro o cancelamento do pedido deve ser confirmado e conciliado pelo Bling.', code: 'BLING_REVERSAL_REQUIRED' },
     RACE: { status: 409, message: 'O estado do resgate foi alterado por outra operação. Consulte novamente antes de tentar.', code: 'REDEMPTION_STATE_CHANGED' }

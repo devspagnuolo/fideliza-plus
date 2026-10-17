@@ -68,10 +68,24 @@ POST /storeos/redemptions (escopo rewards:redeem; Idempotency-Key obrigatório)
       "subtotalCents": 25000
     }
 
-Em uma transação, Fidelizei valida a adesão, nível, validade, estoque e saldo; debita os pontos uma única vez; registra o ledger/auditoria; e emite um código único vinculado à cliente e ao checkout. A reserva expira em 20 minutos, ou antes se o cupom vencer. Uma nova tentativa com o mesmo Idempotency-Key e mesmo corpo retorna a resposta original; mesmo identificador com outro corpo retorna 409 IDEMPOTENCY_KEY_REUSED.
+Em uma transação, Fidelizei valida a adesão, nível, validade, estoque e saldo; debita os pontos uma única vez; registra o ledger/auditoria; e emite um código único vinculado à cliente e ao checkout. Sem vínculo a pedido, a reserva expira em 20 minutos, ou antes se o cupom vencer. Uma nova tentativa com o mesmo Idempotency-Key e mesmo corpo retorna a resposta original; mesmo identificador com outro corpo retorna 409 IDEMPOTENCY_KEY_REUSED.
 
 O checkout deve aplicar o desconto retornado pela API de validação (não recalcular a regra localmente) e manter a referência redemptionId e checkoutId.
 
+### Vincular a reserva ao pedido StoreOS
+
+Assim que `createOrder` retornar sucesso (após o StoreOS gerar seu ID de pedido), vincule o resgate antes de encerrar o fluxo:
+
+POST /storeos/redemptions/{redemptionId}/link-order (escopo rewards:redeem; Idempotency-Key obrigatório)
+
+    {
+      "checkoutId": "checkout_987",
+      "storeosOrderId": "order_456"
+    }
+
+Isso muda o estado para `awaiting_bling` e suspende a expiração curta de 20 minutos enquanto o pedido aguarda conciliação. O pedido e os pontos ficam vinculados por até **48 horas**. Quando o Bling conciliar, confirme o resgate no passo 5. Se o StoreOS cancelar o pedido antes da conciliação, chame o cancelamento com `reason: order_cancelled` e o mesmo `storeosOrderId`. Se o pedido não chegar ao Bling em 48 horas, o Fidelizei expira a retenção, devolve pontos/estoque e emite `redemption.expired`; investigue e reconcilie esse caso, sem aplicar o desconto novamente automaticamente.
+
+A reserva deve ser vinculada imediatamente após a criação do pedido. Se os 20 minutos já tiverem passado, a API rejeitará o vínculo; nesse caso não conceda nem mantenha o desconto no StoreOS.
 ## 4. Validar antes de aplicar o desconto
 
 POST /storeos/coupons/validate (escopo rewards:validate)
@@ -92,8 +106,11 @@ POST /storeos/redemptions/{redemptionId}/confirm (escopo rewards:validate; Idemp
     {
       "checkoutId": "checkout_987",
       "blingOrderId": "123456789",
-      "blingOrderNumber": "25781"
+      "blingOrderNumber": "25781",
+      "storeosOrderId": "order_456"
     }
+
+Quando a reserva estiver vinculada a um pedido StoreOS, `storeosOrderId` é obrigatório e deve corresponder à referência vinculada.
 
 Fidelizei só marca o cupom como usado depois que o pedido existe em sales com origem Bling, mesmo cliente, ID e número comercial correspondentes e sem estorno. Se o pedido ainda não chegou pela sincronização/webhook do Bling, a API retorna 409 BLING_ORDER_NOT_CONFIRMED; mantenha a confirmação pendente e tente novamente com backoff, sem repetir o pedido/cupom no checkout. O StoreOS deve preservar a relação entre checkout, pedido emitido pelo Bling e cliente.
 
@@ -101,15 +118,19 @@ Fidelizei só marca o cupom como usado depois que o pedido existe em sales com o
 
 POST /storeos/redemptions/{redemptionId}/cancel (escopo rewards:cancel; Idempotency-Key obrigatório)
 
-Falha/abandono do checkout antes do uso:
+Falha/abandono antes de existir pedido StoreOS:
 
     { "checkoutId": "checkout_987", "reason": "checkout_failed" }
+
+Pedido StoreOS criado, mas cancelado antes da conciliação Bling:
+
+    { "storeosOrderId": "order_456", "reason": "order_cancelled" }
 
 Cancelamento do pedido já utilizado:
 
     { "blingOrderId": "123456789", "reason": "order_cancelled" }
 
-Uma reserva cancelada ou expirada devolve os pontos ao saldo, registra lançamento de estorno, repõe estoque quando limitado e emite evento. Um cupom já utilizado só pode ser estornado depois que o Bling confirmar o estorno/cancelamento daquela venda. A expiração é aplicada automaticamente na próxima chamada à API StoreOS e antes das operações de saldo/resgate; por isso o integrador deve reconciliar periodicamente e também cancelar reservas assim que souber que o checkout falhou.
+Uma reserva cancelada ou expirada devolve os pontos ao saldo, registra lançamento de estorno, repõe estoque quando limitado e emite evento. Um cupom já utilizado só pode ser estornado depois que o Bling confirmar o estorno/cancelamento daquela venda. A expiração é aplicada automaticamente na próxima chamada à API StoreOS e antes das operações de saldo/resgate. Reservas sem pedido seguem o prazo de 20 minutos; reservas vinculadas a pedido StoreOS aguardam até 48 horas pela conciliação Bling. O integrador deve cancelar pedidos StoreOS cancelados e reconciliar eventos expirados.
 
 ## 7. Eventos e reconciliação
 
