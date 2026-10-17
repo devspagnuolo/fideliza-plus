@@ -102,15 +102,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
    preservando botões de navegação por linha e controles iconográficos. */
 .pa-shell { color: var(--ui-ink); }
 .pa-content { min-width: 0; }
-.pa-content button:not(.secondary):not(.icon-button):not(.pa-refresh):not(.pa-global-search):not(.pa-menu):not(.pa-collapse):not(.pa-mobile-close):not(.pa-row-button):not(.pa-purpose-row):not(.pa-kpi-button):not(.pa-exec-card):not(.pa-nav-search):not([class*="table"]):not([class*="tab"]):not([class*="row"]):not([class*="close"]):not([class*="search"]):not([class*="refresh"]):not([class*="collapse"]):not([class*="icon"]) {
+.pa-content form button:not(.secondary):not(.danger):not(.close):not(.pa-detail-backdrop):not(:disabled),
+.pa-content button.wide:not(:disabled),
+.pa-content button.pa-inline-action:not(.danger):not(:disabled) {
   background: var(--ui-action) !important;
   border-color: var(--ui-action) !important;
   color: #fff !important;
   text-shadow: none !important;
 }
-.pa-content button:not(:disabled):not(.secondary):not(.icon-button):hover {
-  filter: brightness(.92);
+.pa-content button.danger:not(:disabled) {
+  background: #a91f3b !important;
+  border-color: #a91f3b !important;
+  color: #fff !important;
 }
+.pa-content button.pa-inline-action:not(.danger) { background: #e8f5f3 !important; color: #075e59 !important; border-color: #b8d5d1 !important; }
+.pa-content button:not(:disabled):not(.secondary):not(.icon-button):not(.danger):not(.pa-row-button):hover { filter: brightness(.94); }
 .pa-content .secondary,
 .pa-content button.secondary,
 .pa-content button.icon-button,
@@ -133,29 +139,50 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .pa-content .pa-kpi, .pa-content .pa-card, .pa-content .pa-home-card,
 .pa-content .pa-exec-card, .pa-content .pa-insight-card,
-.pa-content .pa-load-state, .pa-content .pa-purpose-list {
-  background-color: var(--ui-surface);
-  color: var(--ui-ink);
+.pa-content .pa-load-state, .pa-content .pa-purpose-list,
+.pa-content article[class*="card"]:not([class*="hero"]),
+.pa-content section[class*="card"]:not([class*="hero"]),
+.pa-content article[class*="kpi"]:not([class*="hero"]),
+.pa-content section[class*="kpi"]:not([class*="hero"]) {
+  background: var(--ui-surface) !important;
+  color: var(--ui-ink) !important;
+}
+.pa-content .pa-kpi :is(h1,h2,h3,b,strong,span),
+.pa-content .pa-card :is(h1,h2,h3,b,strong),
+.pa-content .pa-home-card :is(h1,h2,h3,b,strong),
+.pa-content article[class*="card"]:not([class*="hero"]) :is(h1,h2,h3,b,strong),
+.pa-content section[class*="card"]:not([class*="hero"]) :is(h1,h2,h3,b,strong),
+.pa-content article[class*="kpi"]:not([class*="hero"]) :is(h1,h2,h3,b,strong),
+.pa-content section[class*="kpi"]:not([class*="hero"]) :is(h1,h2,h3,b,strong) {
+  color: var(--ui-ink) !important;
+}
+.pa-content .pa-kpi :is(small,p), .pa-content .pa-card :is(small,p),
+.pa-content .pa-home-card :is(small,p),
+.pa-content article[class*="card"]:not([class*="hero"]) :is(small,p),
+.pa-content section[class*="card"]:not([class*="hero"]) :is(small,p),
+.pa-content article[class*="kpi"]:not([class*="hero"]) :is(small,p),
+.pa-content section[class*="kpi"]:not([class*="hero"]) :is(small,p) {
+  color: var(--ui-muted) !important;
 }
 .pa-content .pa-kpi span, .pa-content .pa-kpi small,
 .pa-content .pa-card small, .pa-content .pa-home-card small,
 .pa-content .pa-exec-card small, .pa-content .pa-insight-card p {
   color: var(--ui-muted);
 }
-.pa-content .pa-nav-group > button {
+.pa-shell > aside .pa-nav-group > button {
   align-items: center;
   min-height: 44px;
 }
-.pa-content .pa-nav-group > button > span {
+.pa-shell > aside .pa-nav-group > button > span {
   flex: 1 1 auto;
   min-width: 0;
   white-space: normal !important;
   overflow-wrap: anywhere;
   line-height: 1.25;
 }
-.pa-content .pa-nav-group > button > svg { flex: 0 0 auto; }
-.pa-content .pa-subnav { min-width: 0; }
-.pa-content .pa-subnav button {
+.pa-shell > aside .pa-nav-group > button > svg { flex: 0 0 auto; }
+.pa-shell > aside .pa-subnav { min-width: 0; }
+.pa-shell > aside .pa-subnav button {
   min-width: 0;
   white-space: normal !important;
   overflow-wrap: anywhere;
@@ -232,8 +259,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 800px) {
   .pa-shell > aside { width: min(320px, 88vw); }
   .pa-content { width: 100%; overflow-x: clip; }
-  .pa-content .pa-subnav { margin-left: 28px; }
-  .pa-content .pa-nav-group > button { padding: 10px 9px; }
+  .pa-shell > aside .pa-subnav { margin-left: 28px; }
+  .pa-shell > aside .pa-nav-group > button { padding: 10px 9px; }
 }
 @media (max-width: 560px) {
   .content { padding-left: 16px; padding-right: 16px; }
