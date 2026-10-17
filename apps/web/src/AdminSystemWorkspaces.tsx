@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import {
   Activity, AlertTriangle, CheckCircle2, Clock3, Database, FileClock, Filter,
   KeyRound, LockKeyhole, Mail, Network, PauseCircle, PlayCircle, Plug, Plus,
-  RefreshCw, Search, Server, ShieldCheck, Trash2, Webhook, Workflow, X
+  RefreshCw, Search, Server, ShieldCheck, Trash2, Webhook, Workflow, X, Download, LayoutGrid, List
 } from 'lucide-react';
 import { api } from './api';
+import { downloadCsv } from './list-workbench';
 import './admin-system-workspaces.css';
 
 const date = (value?: string) => value ? new Date(value).toLocaleString('pt-BR') : '—';
@@ -195,9 +196,40 @@ function SupportWorkspace({ subpage, data, setNotice }: any) {
 }
 
 function RegistryPanel({ page, subpage, records, tenants, onChange }: { page: string; subpage: string; records: ModuleRecord[]; tenants: any[]; onChange: () => Promise<void> }) {
-  const definition = registryDefinitions[`${page}:${subpage}`], [selected, setSelected] = useState<ModuleRecord | null>(null);
+  const definition = registryDefinitions[`${page}:${subpage}`];
+  const [selected, setSelected] = useState<ModuleRecord | null>(null);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('all');
+  const [priority, setPriority] = useState('all');
+  const [order, setOrder] = useState('updated');
+  const [view, setView] = useState<'table' | 'grid'>('table');
+  const [checked, setChecked] = useState<string[]>([]);
+  const statuses = [...new Set(records.map(record => record.status).filter(Boolean))];
+  const priorities = [...new Set(records.map(record => record.priority).filter(Boolean))];
+  const visible = records.filter(record => {
+    const searchable = [record.title, record.companyName, record.owner, record.status, record.priority].join(' ').toLocaleLowerCase('pt-BR');
+    return searchable.includes(query.trim().toLocaleLowerCase('pt-BR')) && (status === 'all' || record.status === status) && (priority === 'all' || record.priority === priority);
+  }).sort((left, right) => order === 'title' ? left.title.localeCompare(right.title, 'pt-BR') : order === 'company' ? (left.companyName || '').localeCompare(right.companyName || '', 'pt-BR') : (right.updatedAt || '').localeCompare(left.updatedAt || ''));
+  const exported = checked.length ? visible.filter(record => checked.includes(record.id)) : visible;
+  const exportCsv = () => downloadCsv(`registros-${page}-${slug(subpage)}.csv`, ['Título', 'Empresa', 'Status', 'Prioridade', 'Responsável', 'Prazo', 'Atualizado em'], exported.map(record => [record.title, record.companyName || 'Plataforma', labels[record.status] || record.status, labels[record.priority] || record.priority, record.owner || '', record.dueAt ? date(record.dueAt) : '', record.updatedAt ? date(record.updatedAt) : '']));
   if (!definition) return null;
-  return <section className="pa-card pa-registry"><header><div><h3>{definition.title}</h3><p>{definition.text}</p></div><button type="button" onClick={() => setSelected({ id: '', title: '', status: 'active', priority: 'medium', payload: {} })}><Plus /> {definition.action}</button></header>{records.length ? <div className="pa-registry-list">{records.map(record => <button type="button" key={record.id} onClick={() => setSelected({ ...record, payload: parsePayload(record.payload) })}><span><b>{record.title}</b><small>{record.companyName || 'Plataforma'} · {record.owner || 'Sem responsável'}</small></span><span><Badge value={record.status} /><small>{record.dueAt ? `Prazo ${date(record.dueAt)}` : labels[record.priority] || record.priority}</small></span></button>)}</div> : <Empty>Nenhum registro cadastrado. Use “{definition.action}” para iniciar a gestão.</Empty>}{selected && <RecordModal page={page} subpage={subpage} item={selected} definition={definition} tenants={tenants} onClose={() => setSelected(null)} onSaved={async () => { setSelected(null); await onChange(); }} />}</section>;
+  return <section className="pa-card pa-registry">
+    <header><div><h3>{definition.title}</h3><p>{definition.text}</p></div><button type="button" onClick={() => setSelected({ id: '', title: '', status: 'active', priority: 'medium', payload: {} })}><Plus /> {definition.action}</button></header>
+    <div className="pa-registry-tools">
+      <label className="pa-registry-search"><Search size={17} /><input aria-label="Pesquisar registros" placeholder="Pesquisar título, empresa ou responsável" value={query} onChange={event => setQuery(event.target.value)} /></label>
+      <select aria-label="Filtrar status" value={status} onChange={event => setStatus(event.target.value)}><option value="all">Todos os status</option>{statuses.map(item => <option key={item} value={item}>{labels[item] || item}</option>)}</select>
+      <select aria-label="Filtrar prioridade" value={priority} onChange={event => setPriority(event.target.value)}><option value="all">Todas as prioridades</option>{priorities.map(item => <option key={item} value={item}>{labels[item] || item}</option>)}</select>
+      <select aria-label="Ordenar registros" value={order} onChange={event => setOrder(event.target.value)}><option value="updated">Mais recentes</option><option value="title">Título A–Z</option><option value="company">Empresa A–Z</option></select>
+      <div className="pa-registry-views"><button type="button" aria-label="Visualizar tabela" aria-pressed={view === 'table'} onClick={() => setView('table')}><List size={17} /></button><button type="button" aria-label="Visualizar grade" aria-pressed={view === 'grid'} onClick={() => setView('grid')}><LayoutGrid size={17} /></button></div>
+      <button type="button" className="pa-registry-export" disabled={!exported.length} onClick={exportCsv}><Download size={16} /> Exportar {checked.length ? `(${exported.length})` : ''}</button>
+    </div>
+    <p className="pa-registry-count">{visible.length} de {records.length} registros · {checked.length ? `${checked.length} selecionados` : 'Selecione para exportar somente os itens desejados'}</p>
+    {visible.length ? <div className={`pa-registry-results pa-registry-${view}`}>
+      {view === 'table' && <div className="pa-registry-row pa-registry-head"><input type="checkbox" aria-label="Selecionar registros visíveis" checked={visible.every(record => checked.includes(record.id))} onChange={event => setChecked(event.target.checked ? [...new Set([...checked, ...visible.map(record => record.id)])] : checked.filter(id => !visible.some(record => record.id === id)))} /><span>Registro</span><span>Empresa</span><span>Status</span><span>Responsável</span><span>Prazo</span></div>}
+      {visible.map(record => <div className="pa-registry-row" key={record.id}><input type="checkbox" aria-label={`Selecionar ${record.title}`} checked={checked.includes(record.id)} onChange={event => setChecked(event.target.checked ? [...checked, record.id] : checked.filter(id => id !== record.id))} /><button type="button" onClick={() => setSelected({ ...record, payload: parsePayload(record.payload) })}><b>{record.title}</b></button><span>{record.companyName || 'Plataforma'}</span><span><Badge value={record.status} /></span><span>{record.owner || '—'}</span><span>{record.dueAt ? date(record.dueAt) : '—'}</span></div>)}
+    </div> : <Empty>{records.length ? 'Nenhum registro corresponde aos filtros.' : `Nenhum registro cadastrado. Use “${definition.action}” para iniciar a gestão.`}</Empty>}
+    {selected && <RecordModal page={page} subpage={subpage} item={selected} definition={definition} tenants={tenants} onClose={() => setSelected(null)} onSaved={async () => { setSelected(null); setChecked([]); await onChange(); }} />}
+  </section>;
 }
 function RecordModal({ page, subpage, item, definition, tenants, onClose, onSaved }: any) {
   async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>, body = { title: values.title, tenantId: values.tenantId || null, status: values.status, priority: values.priority, owner: values.owner, dueAt: values.dueAt || null, payload: { first: values.first, second: values.second, notes: values.notes } }; await api(`/platform/modules/${page}/${slug(subpage)}${item.id ? `/${item.id}` : ''}`, { method: item.id ? 'PATCH' : 'POST', body: JSON.stringify(body) }); await onSaved(); }
