@@ -1,0 +1,246 @@
+/* Camada final de contraste, leitura e contenção de overflow para os três portais.
+   Valores de texto/ação seguem combinações AA para texto normal. */
+:root {
+  --ui-ink: #071a37;
+  --ui-muted: #52677d;
+  --ui-border: #d5e0e8;
+  --ui-surface: #ffffff;
+  --ui-surface-soft: #f2f7f8;
+  --ui-action: #006b66;
+  --ui-action-hover: #005650;
+  --ui-focus: #006b66;
+  --ui-disabled-bg: #e4e9ed;
+  --ui-disabled-ink: #3b4d5d;
+}
+
+html, body, #root { max-width: 100%; min-width: 0; }
+body { color: var(--ui-ink); }
+button, a, input, select, textarea { min-width: 0; }
+button, a { overflow-wrap: anywhere; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--ui-focus) !important;
+  outline-offset: 3px;
+}
+:disabled, [aria-disabled="true"] { cursor: not-allowed !important; }
+
+/* Portal da empresa: ações sólidas sempre têm texto claro; ações secundárias,
+   de ícone e links ficam claras com texto escuro. */
+.content button.primary,
+.content form button:not(.link-action):not(.link-danger):not(.secondary),
+.content .inline-form button,
+.content .campaign-form button,
+.content .settings-form button,
+.content .stack-form button,
+.content .password-form button,
+.content .management-form button,
+.content .recommendation-actions button:not(.muted) {
+  background: var(--ui-action) !important;
+  border: 1px solid var(--ui-action) !important;
+  color: #fff !important;
+  text-shadow: none !important;
+}
+.content button.primary:hover,
+.content form button:not(:disabled):hover,
+.content .inline-form button:not(:disabled):hover,
+.content .campaign-form button:not(:disabled):hover,
+.content .settings-form button:not(:disabled):hover,
+.content .stack-form button:not(:disabled):hover,
+.content .password-form button:not(:disabled):hover,
+.content .management-form button:not(:disabled):hover {
+  background: var(--ui-action-hover) !important;
+  border-color: var(--ui-action-hover) !important;
+}
+.content button.secondary,
+.content .secondary,
+.content button.icon-button,
+.content button.link-action,
+.content button.pa-refresh {
+  background: #fff !important;
+  color: #075e59 !important;
+  border: 1px solid #b8d5d1 !important;
+}
+.content button.link-danger { background: transparent !important; color: #a91f3b !important; }
+.content button:disabled,
+.content form button:disabled {
+  background: var(--ui-disabled-bg) !important;
+  color: var(--ui-disabled-ink) !important;
+  border-color: #c7d1d8 !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+.content .metric, .content .panel, .content .cards > *,
+.content .operation-grid article, .content .campaign-feedback {
+  color: var(--ui-ink);
+}
+.content .metric span, .content .panel p, .content .operation-grid span,
+.content .operation-grid small, .content .ledger small {
+  color: var(--ui-muted);
+}
+.content header, .content header > div, .content .section-heading,
+.content .panel-title { min-width: 0; }
+.content header h1, .content h1, .content h2, .content h3,
+.content p, .content small, .content label { overflow-wrap: anywhere; }
+
+/* Menus do lojista/admin: texto longo pode quebrar, nunca invade o ícone
+   seguinte nem fica escondido atrás do botão de expansão. */
+.sidebar nav { min-width: 0; }
+.sidebar nav button { min-width: 0; }
+.sidebar nav button span {
+  min-width: 0;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+.sidebar .tenant, .sidebar .sidebar-profile, .sidebar .sidebar-profile > div { min-width: 0; }
+.sidebar .tenant span, .sidebar .sidebar-profile b, .sidebar .sidebar-profile small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Administração: neutraliza ações com fundo claro e texto herdado/claro,
+   preservando botões de navegação por linha e controles iconográficos. */
+.pa-shell { color: var(--ui-ink); }
+.pa-content { min-width: 0; }
+.pa-content button:not(.secondary):not(.icon-button):not(.pa-refresh):not(.pa-global-search):not(.pa-menu):not(.pa-collapse):not(.pa-mobile-close):not(.pa-row-button):not(.pa-purpose-row):not(.pa-kpi-button):not(.pa-exec-card):not(.pa-nav-search):not([class*="table"]):not([class*="tab"]):not([class*="row"]):not([class*="close"]):not([class*="search"]):not([class*="refresh"]):not([class*="collapse"]):not([class*="icon"]) {
+  background: var(--ui-action) !important;
+  border-color: var(--ui-action) !important;
+  color: #fff !important;
+  text-shadow: none !important;
+}
+.pa-content button:not(:disabled):not(.secondary):not(.icon-button):hover {
+  filter: brightness(.92);
+}
+.pa-content .secondary,
+.pa-content button.secondary,
+.pa-content button.icon-button,
+.pa-content button.pa-refresh,
+.pa-content button.pa-global-search,
+.pa-content button.pa-menu,
+.pa-content button.pa-collapse,
+.pa-content button.pa-mobile-close,
+.pa-content button[class*="tab"] {
+  background: #fff !important;
+  color: #075e59 !important;
+  border-color: #b8d5d1 !important;
+}
+.pa-content button:disabled {
+  background: var(--ui-disabled-bg) !important;
+  color: var(--ui-disabled-ink) !important;
+  border-color: #c7d1d8 !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+.pa-content .pa-kpi, .pa-content .pa-card, .pa-content .pa-home-card,
+.pa-content .pa-exec-card, .pa-content .pa-insight-card,
+.pa-content .pa-load-state, .pa-content .pa-purpose-list {
+  background-color: var(--ui-surface);
+  color: var(--ui-ink);
+}
+.pa-content .pa-kpi span, .pa-content .pa-kpi small,
+.pa-content .pa-card small, .pa-content .pa-home-card small,
+.pa-content .pa-exec-card small, .pa-content .pa-insight-card p {
+  color: var(--ui-muted);
+}
+.pa-content .pa-nav-group > button {
+  align-items: center;
+  min-height: 44px;
+}
+.pa-content .pa-nav-group > button > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+.pa-content .pa-nav-group > button > svg { flex: 0 0 auto; }
+.pa-content .pa-subnav { min-width: 0; }
+.pa-content .pa-subnav button {
+  min-width: 0;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+  text-align: left;
+}
+.pa-content .pa-topbar, .pa-content .pa-breadcrumb,
+.pa-content .pa-topbar-actions { min-width: 0; }
+.pa-content .pa-breadcrumb small, .pa-content .pa-breadcrumb h1,
+.pa-content .pa-breadcrumb p { overflow-wrap: anywhere; }
+.pa-content .pa-topbar-actions { flex-wrap: wrap; }
+.pa-content .pa-table, .pa-content [class*="table"] { max-width: 100%; }
+
+/* Área do cliente: texto escuro em superfícies claras e texto branco apenas
+   em ações preenchidas; menu móvel não corta nome de loja/cliente. */
+.customer-portal { color: var(--ui-ink); }
+.customer-portal .cp-card, .customer-portal .cp-kpis article,
+.customer-portal .cp-reward-grid article, .customer-portal .cp-modal,
+.customer-portal .cp-settings, .customer-portal .cp-form {
+  color: var(--ui-ink);
+}
+.customer-portal .cp-card p, .customer-portal .cp-card small,
+.customer-portal .cp-reward-grid p, .customer-portal .cp-reward-grid article > small,
+.customer-portal .cp-modal dt, .customer-portal .cp-title p {
+  color: var(--ui-muted);
+}
+.customer-portal .cp-primary,
+.customer-portal .cp-use-coupon,
+.customer-portal .cp-reward-grid article > button:not(:disabled),
+.customer-portal .cp-form > button:not(:disabled),
+.customer-portal .cp-modal .cp-actions button:not(.secondary):not(:disabled),
+.customer-portal .cp-privacy button:not(:disabled),
+.customer-portal button.cp-retry {
+  background: var(--ui-action) !important;
+  border: 1px solid var(--ui-action) !important;
+  color: #fff !important;
+}
+.customer-portal .cp-primary:hover,
+.customer-portal .cp-use-coupon:hover,
+.customer-portal .cp-reward-grid article > button:not(:disabled):hover,
+.customer-portal .cp-form > button:not(:disabled):hover,
+.customer-portal .cp-modal .cp-actions button:not(.secondary):not(:disabled):hover {
+  background: var(--ui-action-hover) !important;
+}
+.customer-portal .secondary,
+.customer-portal button.secondary,
+.customer-portal .cp-bell,
+.customer-portal .cp-menu,
+.customer-portal .cp-modal > .close {
+  background: #fff !important;
+  color: #075e59 !important;
+  border: 1px solid #b8d5d1 !important;
+}
+.customer-portal button:disabled,
+.customer-portal button:disabled:hover {
+  background: var(--ui-disabled-bg) !important;
+  color: var(--ui-disabled-ink) !important;
+  border-color: #c7d1d8 !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+.customer-portal .cp-brand, .customer-portal .cp-user,
+.customer-portal .cp-user > div, .customer-portal .cp-user b,
+.customer-portal .cp-user small, .customer-portal .cp-shell,
+.customer-portal .cp-content { min-width: 0; }
+.customer-portal .cp-user b, .customer-portal .cp-user small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.customer-portal .cp-welcome h1, .customer-portal .cp-title h1,
+.customer-portal .cp-card h2, .customer-portal .cp-card p { overflow-wrap: anywhere; }
+.customer-portal .cp-table { max-width: 100%; overflow-x: auto; }
+
+@media (max-width: 800px) {
+  .pa-shell > aside { width: min(320px, 88vw); }
+  .pa-content { width: 100%; overflow-x: clip; }
+  .pa-content .pa-subnav { margin-left: 28px; }
+  .pa-content .pa-nav-group > button { padding: 10px 9px; }
+}
+@media (max-width: 560px) {
+  .content { padding-left: 16px; padding-right: 16px; }
+  .content > header { align-items: flex-start; flex-direction: column; }
+  .content > header > button, .content > header .primary { width: 100%; justify-content: center; }
+  .customer-portal .cp-content { width: calc(100% - 28px); }
+  .customer-portal .cp-welcome { padding: 24px 18px; }
+  .customer-portal .cp-welcome article { min-width: 0; width: 100%; }
+  .pa-content .pa-topbar { align-items: flex-start; }
+}
