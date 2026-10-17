@@ -58,6 +58,15 @@ export function AdminExecutiveDashboard({ dash, all, updatedAt, refreshing, onRe
       <ExecutiveCard icon={Activity} label="Saúde da plataforma" value={`${health}%`} detail={`${operational.averageResponseMs} ms · ${operational.integrationErrors} integração(ões) em atenção`} bars={[100 - operational.failedProcesses, 100 - operational.integrationErrors, health]} tone="green" onClick={() => onNavigate('monitoring', 'Dashboard técnico')} />
     </div>
 
+    <section className="pa-action-center" aria-label="Prioridades operacionais">
+      <header><div><small>PRÓXIMOS PASSOS</small><h3>O que acompanhar agora</h3><p>Indicadores atuais com acesso direto à área responsável.</p></div></header>
+      <div className="pa-action-grid">
+        <article className={invoices.some((item:any)=>item.status==='overdue')?'attention':''}><span>Financeiro</span><strong>{invoices.filter((item:any)=>item.status==='overdue').length} fatura(s) vencida(s)</strong><p>{invoices.some((item:any)=>item.status==='overdue')?'Revisar a régua de cobrança e conciliação.':'Nenhuma fatura vencida nesta leitura.'}</p><button onClick={()=>onNavigate('finance','Inadimplência')}>Abrir inadimplência <ArrowUpRight/></button></article>
+        <article className={operational.failedProcesses?'attention':''}><span>Operação</span><strong>{operational.failedProcesses || 0} processamento(s) com falha</strong><p>{operational.failedProcesses?'Priorizar a análise das falhas antes de reprocessar.':'Processamentos sem falha registrada.'}</p><button onClick={()=>onNavigate('operations','Processamentos')}>Abrir processamentos <ArrowUpRight/></button></article>
+        <article><span>Carteira</span><strong>{business.trialing || 0} empresa(s) em teste</strong><p>{activeShare}% da carteira está ativa; acompanhe conversões e adesão.</p><button onClick={()=>onNavigate('analytics','Conversão Trial')}>Ver conversão <ArrowUpRight/></button></article>
+      </div>
+    </section>
+
     <div className="pa-exec-layout">
       <section className="pa-insight-card pa-revenue-panel">
         <header><div><small>DESEMPENHO COMERCIAL</small><h3>Receita por plano</h3><p>Composição do MRR atual por oferta.</p></div><button onClick={() => onNavigate('finance', 'Receita')}>Abrir financeiro <ArrowUpRight /></button></header>
