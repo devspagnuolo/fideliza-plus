@@ -46,10 +46,12 @@ POST /storeos/customers/enroll (escopo customers:enroll)
 - Se o CPF já estiver no Fidelizei, o cadastro é associado ao registro existente e o saldo/histórico não é recriado.
 - Cadastro novo ou consumidor ainda não aderente exige programConsent: true, versão dos documentos, nome e CPF válido.
 - programConsent: false pode apenas vincular um cadastro que já tenha adesão. Não habilita fidelidade nem registra consentimento novo.
-- Resposta inclui id, pointsBalance, enrolledAt, eligibleForPoints e os pontos eventualmente reprocessados de pedidos Bling do mesmo dia da adesão.
+- Se ainda não existir acesso ao portal Fidelizei para o cadastro, o endpoint cria uma conta com senha temporária aleatória, marca a troca obrigatória no primeiro acesso e prazo de 48 horas, e enfileira o e-mail de boas-vindas. O endereço de e-mail informado (ou já cadastrado) é obrigatório nessa situação; sem ele a operação é revertida e retorna CUSTOMER_EMAIL_REQUIRED.
+- Se já existir conta do portal, a senha não é alterada e nenhuma nova senha é enviada.
+- A resposta informa apenas portalAccessCreated e welcomeEmailQueued; nunca retorna a senha. O envio é processado pela fila de mensagens e depende da configuração de e-mail do Fidelizei. O StoreOS deve tratar erros da adesão e não considerar a adesão concluída se a API retornar falha.
 - O StoreOS deve encaminhar/atualizar o contato no Bling usando o mesmo CPF. Isso permite a identificação quando o pedido for conciliado.
 
-O endpoint não cria credencial de login Fidelizei; ele vincula a identidade da conta StoreOS à identidade do programa.
+A adesão e criação da credencial/fila de boas-vindas são persistidas na mesma transação. Repetições com a mesma Idempotency-Key e mesmo corpo retornam a resposta original sem gerar nova senha ou e-mail.
 
 ## 2. Consultar saldo, nível e benefícios
 
