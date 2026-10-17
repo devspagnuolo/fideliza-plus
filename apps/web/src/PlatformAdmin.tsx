@@ -9,6 +9,7 @@ import { BrandLogo } from './BrandLogo';
 import { LegalFooter } from './LegalPages';
 import './platform-admin.css';
 import './contrast-fixes.css';
+import './visual-quality.css';
 
 const menu = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, children: ['Visão geral', 'Indicadores', 'Receita (MRR/ARR)', 'Alertas', 'Saúde da plataforma'] },
