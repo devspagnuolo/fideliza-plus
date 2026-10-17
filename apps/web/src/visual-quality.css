@@ -271,3 +271,47 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .customer-portal .cp-welcome article { min-width: 0; width: 100%; }
   .pa-content .pa-topbar { align-items: flex-start; }
 }
+
+
+/* Linhas de consulta são superfícies claras, não ações primárias. */
+.pa-content .db-health-row,
+.pa-content .pa-portfolio-table > button,
+.pa-content .plan-table > button,
+.pa-content .pa-purpose-list > button,
+.pa-content .pa-health-list button,
+.pa-content .pa-alert-center > div > button {
+  background:#fff !important;
+  color:#10233b !important;
+  border-radius:0 !important;
+  text-shadow:none !important;
+}
+.pa-content .db-health-row:hover,
+.pa-content .pa-portfolio-table > button:hover,
+.pa-content .plan-table > button:hover,
+.pa-content .pa-health-list button:hover,
+.pa-content .pa-alert-center > div > button:hover {background:#eef7f7 !important;}
+.pa-content .db-health-row :is(b,strong),
+.pa-content .pa-portfolio-table > button :is(b,strong) {color:#10233b !important;}
+.pa-content .db-health-row :is(small,em),
+.pa-content .pa-portfolio-table > button small {color:#52677d !important;}
+.pa-content .db-health-row {gap:12px;min-height:50px;text-align:left;}
+.pa-content .db-health-row > :last-child {flex:0 0 auto;text-align:right;}
+.pa-content .pa-portfolio-table .badge.canceled {background:#fbe8ed;color:#862842 !important;}
+.pa-content .pa-portfolio-table .badge.active {background:#dff4ef;color:#086750 !important;}
+.pa-content .pa-portfolio-table .badge.trialing {background:#fff2d7;color:#785100 !important;}
+
+/* A barra de cobranças não pode encolher botões até quebrar letras. */
+.pa-content .asaas-filters{display:grid !important;grid-template-columns:minmax(230px,2fr) minmax(150px,1fr) minmax(140px,1fr) auto auto;gap:10px;align-items:stretch;}
+.pa-content .asaas-filters > *{min-width:0;min-height:44px;}
+.pa-content .asaas-filters > label{width:auto !important;min-width:0 !important;}
+.pa-content .asaas-filters > select{width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:8px 12px;background:#fff;color:#10233b;}
+.pa-content .asaas-filters > button{width:auto !important;min-width:132px;padding:9px 14px !important;white-space:normal;overflow-wrap:normal;word-break:normal;line-height:1.25;}
+.pa-content .asaas-filters > button svg{width:18px;height:18px;flex:0 0 auto;}
+@media(max-width:1180px){.pa-content .asaas-filters{grid-template-columns:repeat(2,minmax(0,1fr));}.pa-content .asaas-filters > label{grid-column:1/-1;}}
+@media(max-width:640px){.pa-content .asaas-filters{grid-template-columns:1fr;}.pa-content .asaas-filters > label{grid-column:auto;}.pa-content .asaas-filters > button{width:100% !important;}}
+
+/* Controles de relatórios legíveis mesmo com zoom e largura reduzida. */
+.pa-content .ana-report-choices{display:flex;flex-wrap:wrap;gap:10px 20px;border:1px solid #d5e0e8;border-radius:12px;padding:14px 16px;min-width:0;}
+.pa-content .ana-report-choices legend{font-weight:800;color:#10233b;padding:0 6px;}
+.pa-content .ana-report-choices label{display:inline-flex;align-items:center;gap:7px;margin:0;color:#284158;}
+.pa-content .ana-report-choices input{width:16px;height:16px;accent-color:#007d79;}
