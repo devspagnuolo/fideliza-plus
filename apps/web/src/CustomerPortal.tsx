@@ -2,7 +2,7 @@ import{useEffect,useMemo,useState}from'react';
 import{Bell,ChevronLeft,ChevronRight,CircleHelp,Download,Gift,History,Home,KeyRound,LogOut,Menu,MessageCircle,Percent,ReceiptText,Search,ShieldCheck,ShoppingBag,SlidersHorizontal,Store,Tag,User,UserPlus,WalletCards,X}from'lucide-react';
 import{ApiError,api}from'./api';import{BrandLogo}from'./BrandLogo';import{LegalFooter}from'./LegalPages';import'./portal.css';import'./customer-portal.css';
 import{Barcode}from'./Barcode';import'./customer-card.css';
-import'./contrast-fixes.css';
+import'./contrast-fixes.css';import'./visual-quality.css';
 type View='home'|'card'|'statement'|'purchases'|'rewards'|'redemptions'|'offers'|'notifications'|'support'|'profile'|'preferences'|'security'|'privacy';
 const date=(value:string)=>new Date(value).toLocaleDateString('pt-BR'),money=(cents:number)=>(cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),today=()=>{const value=new Date();return`${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`};
 function Empty({icon:Icon=History,title,text}:{icon?:any,title:string,text:string}){return <div className="cp-empty"><Icon/><b>{title}</b><span>{text}</span></div>}
