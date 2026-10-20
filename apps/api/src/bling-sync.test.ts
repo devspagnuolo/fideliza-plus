@@ -22,6 +22,8 @@ db.prepare("INSERT INTO sales (id,tenant_id,external_id,total_cents,occurred_at,
 
 createTenant('lifecycle-tenant');
 db.prepare('INSERT INTO customers (id,tenant_id,name,email,phone,cpf,enrolled_at) VALUES (?,?,?,?,?,?,?)').run('lifecycle-customer','lifecycle-tenant','Cliente Ciclo','ciclo@example.com','11999998888','52998224725','2026-08-01T12:00:00.000Z');
+createTenant('unlink-tenant');
+db.prepare('INSERT INTO customers (id,tenant_id,external_id,name,email,phone,cpf,enrolled_at) VALUES (?,?,?,?,?,?,?,?)').run('unlink-customer','unlink-tenant','bling:30','Cliente Vínculo','vinculo@example.com','11999998888','52998224725','2026-08-01T12:00:00.000Z');
 createTenant('limited-scope-tenant');
 db.prepare('INSERT INTO customers (id,tenant_id,name,email,phone,cpf,enrolled_at) VALUES (?,?,?,?,?,?,?)').run('limited-scope-customer','limited-scope-tenant','Cliente Escopo','escopo@example.com','11999998888','52998224725','2026-08-01T12:00:00.000Z');
 createTenant('same-day-tenant');
@@ -30,6 +32,7 @@ db.prepare('INSERT INTO customers (id,tenant_id,name,email,phone,cpf,enrolled_at
 let scenario:'reconciliation'|'lifecycle'|'same-day'='reconciliation';
 let lifecycleStatus:'active'|'canceled'='active';
 let lifecycleTotal=200;
+let lifecycleContactId:number|null=30;
 let situationAccess=true;
 vi.stubGlobal('fetch',vi.fn(async(urlValue:string)=>{
   const url=new URL(urlValue),pathname=url.pathname;
@@ -42,7 +45,7 @@ vi.stubGlobal('fetch',vi.fn(async(urlValue:string)=>{
     else if(scenario==='same-day')data=[{id:40,nome:'Cliente do mesmo dia',email:'mesmodia@example.com',numeroDocumento:'93541134780'}];
     else data=url.searchParams.getAll('idsContatos[]').includes('11')?[{id:11,nome:'Cliente já cadastrada',email:'cliente@example.com',celular:'11988887777',numeroDocumento:'11144477735'}]:[{id:10,nome:'Cliente Bling',email:'bling@example.com',celular:'11999990000',numeroDocumento:'52998224725'}];
   }else if(pathname.endsWith('/pedidos/vendas')){
-    data=scenario==='lifecycle'?[{id:30,numero:300,data:'2026-08-10',total:lifecycleTotal,contato:{id:30},situacao:{id:lifecycleStatus==='active'?1:2,valor:lifecycleStatus==='active'?0:2}}]:scenario==='same-day'?[{id:40,numero:400,numeroLoja:'3ad83645-ab22-4055-bfc9-71648c3caa08',data:'2026-08-10T10:00:00-03:00',total:125,contato:{id:40},situacao:{id:1,valor:0}}]:[{id:20,data:'2026-08-10',total:150,contato:{id:10},situacao:{id:1,valor:0}},{id:21,numero:987,data:'2026-08-10',total:200,contato:{id:11},situacao:{id:1,valor:0}}];
+    data=scenario==='lifecycle'?[{id:30,numero:300,data:'2026-08-10',total:lifecycleTotal,contato:lifecycleContactId===null?null:{id:lifecycleContactId},situacao:{id:lifecycleStatus==='active'?1:2,valor:lifecycleStatus==='active'?0:2}}]:scenario==='same-day'?[{id:40,numero:400,numeroLoja:'3ad83645-ab22-4055-bfc9-71648c3caa08',data:'2026-08-10T10:00:00-03:00',total:125,contato:{id:40},situacao:{id:1,valor:0}}]:[{id:20,data:'2026-08-10',total:150,contato:{id:10},situacao:{id:1,valor:0}},{id:21,numero:987,data:'2026-08-10',total:200,contato:{id:11},situacao:{id:1,valor:0}}];
   }
   return new Response(JSON.stringify({data}),{status:200,headers:{'content-type':'application/json'}});
 }));
@@ -69,7 +72,7 @@ describe('sincronização Bling',()=>{
   });
 
   it('estorna, não duplica, permite saldo devedor e reativa apenas a diferença correta',async()=>{
-    scenario='lifecycle';situationAccess=true;lifecycleStatus='active';lifecycleTotal=200;
+    scenario='lifecycle';situationAccess=true;lifecycleStatus='active';lifecycleTotal=200;lifecycleContactId=30;
     expect(await syncBling('lifecycle-tenant')).toMatchObject({sales:1,adjustedPoints:200});
     db.prepare("INSERT INTO loyalty_ledger (id,tenant_id,customer_id,points,reason,entry_type) VALUES (?,'lifecycle-tenant','lifecycle-customer',-150,'Resgate teste','redemption')").run(randomUUID());
     db.prepare("UPDATE customers SET points_balance=points_balance-150 WHERE id='lifecycle-customer'").run();
@@ -88,8 +91,20 @@ describe('sincronização Bling',()=>{
     expect(await syncBling('lifecycle-tenant')).toMatchObject({reinstatedSales:0,adjustedPoints:0});
   },20_000);
 
+  it('registra troca de cliente para sem identificação apenas com snapshot completo do Bling',async()=>{
+    scenario='lifecycle';situationAccess=true;lifecycleStatus='active';lifecycleTotal=100;lifecycleContactId=30;
+    await syncBling('unlink-tenant');
+    lifecycleContactId=null;
+    expect(await syncBling('unlink-tenant')).toMatchObject({updatedSales:1,adjustedPoints:100});
+    expect((db.prepare("SELECT customer_id FROM sales WHERE tenant_id='unlink-tenant' AND external_id='bling:30'").get() as {customer_id:string|null}).customer_id).toBeNull();
+    expect((db.prepare("SELECT points_balance FROM customers WHERE id='unlink-customer'").get() as {points_balance:number}).points_balance).toBe(0);
+    const change=db.prepare("SELECT metadata FROM audit_logs WHERE tenant_id='unlink-tenant' AND action='sale_customer_changed' ORDER BY created_at DESC LIMIT 1").get() as {metadata:string};
+    expect(JSON.parse(change.metadata)).toMatchObject({orderNumber:'300',previousCustomerName:'Cliente Ciclo',customerId:null,customerName:null});
+    lifecycleContactId=30;
+  });
+
   it('processa exclusão e ignora evento antigo recebido fora de ordem',async()=>{
-    scenario='lifecycle';situationAccess=true;lifecycleStatus='active';lifecycleTotal=250;
+    scenario='lifecycle';situationAccess=true;lifecycleStatus='active';lifecycleTotal=250;lifecycleContactId=30;
     const payload=(eventId:string,event:string,date:string,data:object)=>JSON.stringify({eventId,date,version:'v1',event,companyId:'company',data});
     const oldEventAt=new Date(Date.now()-86_400_000).toISOString(),deleteEventAt=new Date(Date.now()+86_400_000).toISOString(),manualOverrideAt=new Date(Date.now()+172_800_000).toISOString();
     db.prepare("INSERT INTO integration_webhook_events (id,provider,external_event_id,tenant_id,event_type,occurred_at,payload) VALUES (?,'bling',?,'lifecycle-tenant','order.deleted',?,?)").run('delete-event','delete-event',deleteEventAt,payload('delete-event','order.deleted',deleteEventAt,{id:30}));
@@ -110,7 +125,7 @@ describe('sincronização Bling',()=>{
   },20_000);
 
   it('continua sincronizando e reconhece cancelamento quando o mapa de situações retorna 403',async()=>{
-    scenario='lifecycle';situationAccess=false;lifecycleStatus='canceled';lifecycleTotal=200;
+    scenario='lifecycle';situationAccess=false;lifecycleStatus='canceled';lifecycleTotal=200;lifecycleContactId=30;
     const warning=vi.spyOn(console,'warn').mockImplementation(()=>undefined);
     expect(await syncBling('limited-scope-tenant')).toMatchObject({sales:1,adjustedPoints:0,situationMappingAvailable:false});
     expect(await syncBling('limited-scope-tenant')).toMatchObject({situationMappingAvailable:false});
