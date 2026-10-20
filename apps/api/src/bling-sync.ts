@@ -83,11 +83,11 @@ function notifyAdjustment(tenantId:string,customerId:string,orderNumber:string|n
   db.prepare("INSERT INTO customer_notifications (id,tenant_id,customer_id,title,message,type) VALUES (?,?,?,?,?,'loyalty')").run(randomUUID(),tenantId,customerId,title,message);
 }
 
-function reconcileOrder(tenantId:string,item:Order,situations:Map<string,Situation>,stats:SyncStats,externalUpdatedAt:string,deleted=false){
+function reconcileOrder(tenantId:string,item:Order,situations:Map<string,Situation>,stats:SyncStats,externalUpdatedAt:string,deleted=false,authoritativeSnapshot=false){
   const externalId=`bling:${item.id}`,existing=db.prepare('SELECT id,customer_id,order_number,total_cents,occurred_at,reversed_at,reversal_source,external_updated_at FROM sales WHERE tenant_id=? AND external_id=?').get(tenantId,externalId) as StoredSale|undefined;
   if(existing?.external_updated_at&&new Date(existing.external_updated_at)>new Date(externalUpdatedAt))return;
 
-  const customer=customerForOrder(tenantId,item),hasContact=Object.prototype.hasOwnProperty.call(item,'contato'),customerId=hasContact?customer?.id??null:existing?.customer_id??null;
+  const customer=customerForOrder(tenantId,item),hasContact=item.contato?.id!==undefined,explicitlyUnassigned=authoritativeSnapshot&&Object.prototype.hasOwnProperty.call(item,'contato')&&!hasContact,customerId=hasContact?customer?.id??null:explicitlyUnassigned?null:existing?.customer_id??null;
   const rawOrderDate=item.dataSaida??item.data,totalCents=deleted&&existing?existing.total_cents:Math.max(0,Math.round(Number(item.total??0)*100)),date=deleted&&existing?existing.occurred_at:occurredAt(rawOrderDate),orderNumber=deleted&&existing?existing.order_number:(item.numero===undefined||String(item.numero).trim()===''?null:String(item.numero).trim()),state=orderState(item,situations,deleted);
   const manualReversal=existing?.reversal_source==='manual',reversed=manualReversal?true:state.known||deleted?state.reversed:Boolean(existing?.reversed_at),saleId=existing?.id??randomUUID(),reversedAt=reversed?existing?.reversed_at??externalUpdatedAt:null,reversalSource=reversed?(manualReversal?'manual':'bling'):null;
 
@@ -169,7 +169,7 @@ async function performSync(tenantId:string,trigger:ErpSyncTrigger):Promise<SyncR
   for(let page=1;page<=1000;page++){
     const params=new URLSearchParams({pagina:String(page),limite:'100',dataAlteracaoInicial:since.slice(0,10)}),items=await getPage<Order>(tenantId,'pedidos/vendas',params);
     await fetchMissingContacts(tenantId,items,stats);
-    db.transaction(()=>items.forEach(item=>reconcileOrder(tenantId,item,situations,stats,startedAt)))();
+    db.transaction(()=>items.forEach(item=>reconcileOrder(tenantId,item,situations,stats,startedAt,false,true)))();
     if(items.length<100)break;
   }
   db.prepare("UPDATE integration_connections SET last_sync_at=?,sync_cursor=NULL,last_error=NULL,updated_at=CURRENT_TIMESTAMP WHERE tenant_id=? AND provider='bling'").run(startedAt,tenantId);
