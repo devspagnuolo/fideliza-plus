@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { audit } from './audit.js';
 import { db } from './database/db.js';
 import { decryptSecret,encryptSecret,exchangeBlingToken } from './bling.js';
 import { calculateSalePoints,isSaleEligibleFromEnrollmentDay,reconcileSalePoints } from './loyalty.js';
@@ -7,7 +8,7 @@ import { completeErpSyncRun,failErpSyncRun,startErpSyncRun,type ErpSyncTrigger }
 
 type Connection={access_token_encrypted:string;refresh_token_encrypted:string;expires_at:string;last_sync_at:string|null};
 type Contact={id:number|string;nome?:string;email?:string;telefone?:string;celular?:string;numeroDocumento?:string};
-type Order={id:number|string;numero?:number|string;numeroLoja?:string;data?:string;dataSaida?:string;total?:number;contato?:{id?:number|string};situacao?:{id?:number|string;valor?:number|string}};
+type Order={id:number|string;numero?:number|string;numeroLoja?:string;data?:string;dataSaida?:string;total?:number;contato?:{id?:number|string}|null;situacao?:{id?:number|string;valor?:number|string}};
 type SituationModule={id:number|string;nome?:string;descricao?:string};
 type Situation={id:number|string;nome?:string;idHerdado?:number|string};
 type WebhookRow={id:string;event_type:string;occurred_at:string;payload:string};
@@ -86,14 +87,21 @@ function reconcileOrder(tenantId:string,item:Order,situations:Map<string,Situati
   const externalId=`bling:${item.id}`,existing=db.prepare('SELECT id,customer_id,order_number,total_cents,occurred_at,reversed_at,reversal_source,external_updated_at FROM sales WHERE tenant_id=? AND external_id=?').get(tenantId,externalId) as StoredSale|undefined;
   if(existing?.external_updated_at&&new Date(existing.external_updated_at)>new Date(externalUpdatedAt))return;
 
-  const customer=customerForOrder(tenantId,item),hasContact=item.contato?.id!==undefined,customerId=hasContact?customer?.id??null:existing?.customer_id??null;
+  const customer=customerForOrder(tenantId,item),hasContact=Object.prototype.hasOwnProperty.call(item,'contato'),customerId=hasContact?customer?.id??null:existing?.customer_id??null;
   const rawOrderDate=item.dataSaida??item.data,totalCents=deleted&&existing?existing.total_cents:Math.max(0,Math.round(Number(item.total??0)*100)),date=deleted&&existing?existing.occurred_at:occurredAt(rawOrderDate),orderNumber=deleted&&existing?existing.order_number:(item.numero===undefined||String(item.numero).trim()===''?null:String(item.numero).trim()),state=orderState(item,situations,deleted);
   const manualReversal=existing?.reversal_source==='manual',reversed=manualReversal?true:state.known||deleted?state.reversed:Boolean(existing?.reversed_at),saleId=existing?.id??randomUUID(),reversedAt=reversed?existing?.reversed_at??externalUpdatedAt:null,reversalSource=reversed?(manualReversal?'manual':'bling'):null;
 
   if(!existing){
+    const importedCustomer=customerId?db.prepare('SELECT name FROM customers WHERE id=? AND tenant_id=?').get(customerId,tenantId) as {name:string}|undefined:undefined;
     db.prepare("INSERT INTO sales (id,tenant_id,customer_id,external_id,order_number,total_cents,occurred_at,source,reversed_at,reversal_source,external_status,external_updated_at) VALUES (?,?,?,?,?,?,?,'bling',?,?,?,?)").run(saleId,tenantId,customerId,externalId,orderNumber,totalCents,date,reversedAt,reversalSource,state.status,externalUpdatedAt);
     stats.sales++;
+    audit(tenantId,null,'sale_imported','sale',saleId,{source:'bling',orderNumber,customerId,customerName:importedCustomer?.name??null,totalCents,pointsEligible:!reversed});
   }else{
+    if(existing.customer_id!==customerId){
+      const previous=existing.customer_id?db.prepare('SELECT name FROM customers WHERE id=? AND tenant_id=?').get(existing.customer_id,tenantId) as {name:string}|undefined:undefined;
+      const next=customerId?db.prepare('SELECT name FROM customers WHERE id=? AND tenant_id=?').get(customerId,tenantId) as {name:string}|undefined:undefined;
+      audit(tenantId,null,'sale_customer_changed','sale',saleId,{source:'bling',orderNumber,previousCustomerId:existing.customer_id,previousCustomerName:previous?.name??null,customerId,customerName:next?.name??null,changedAt:externalUpdatedAt});
+    }
     if(existing.customer_id&&existing.customer_id!==customerId){const old=reconcileSalePoints(tenantId,existing.customer_id,saleId,0,'Estorno por alteração do cliente no pedido Bling');stats.adjustedPoints+=Math.abs(old.delta);notifyAdjustment(tenantId,existing.customer_id,orderNumber,old.delta);}
     db.prepare('UPDATE sales SET customer_id=?,order_number=?,total_cents=?,occurred_at=?,reversed_at=?,reversal_source=?,external_status=?,external_updated_at=? WHERE id=? AND tenant_id=?').run(customerId,orderNumber,totalCents,date,reversedAt,reversalSource,state.status,externalUpdatedAt,saleId,tenantId);
     stats.updatedSales++;
