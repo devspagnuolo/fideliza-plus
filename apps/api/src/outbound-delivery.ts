@@ -12,7 +12,7 @@ type OutboundMessage = {
 };
 
 /** Mensagens que carregam códigos ou links de acesso: o conteúdo não fica no banco depois do envio. */
-const SENSITIVE_TEMPLATES = ['user.password_reset_otp', 'customer.password_reset_otp', 'customer.password_reset', 'customer.registration_code'];
+const SENSITIVE_TEMPLATES = ['user.password_reset_otp', 'customer.password_reset_otp', 'customer.password_reset', 'customer.registration_code', 'trial.email_code'];
 const sensitivePlaceholders = SENSITIVE_TEMPLATES.map(() => '?').join(',');
 const REDACTED = '[conteúdo de segurança removido]';
 const redact = (id: string, template: string | null) => {
