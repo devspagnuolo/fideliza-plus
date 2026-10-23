@@ -15,7 +15,7 @@ import './visual-quality.css';
 const menu = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, children: ['Visão geral', 'Indicadores', 'Receita (MRR/ARR)', 'Alertas', 'Saúde da plataforma'] },
   { id: 'companies', label: 'Empresas', icon: Building2, children: ['Listagem de empresas', 'Nova empresa', 'Assinaturas', 'Cobranças', 'Empresas suspensas', 'Histórico de alterações'] },
-  { id: 'users', label: 'Usuários', icon: Users, children: ['Todos os usuários', 'Administradores', 'Perfis', 'Permissões', 'MFA', 'Usuários bloqueados', 'Convites pendentes'] },
+  { id: 'users', label: 'Usuários', icon: Users, children: ['Todos os usuários', 'Administradores', 'Equipe da plataforma', 'Perfis', 'Permissões', 'MFA', 'Usuários bloqueados', 'Convites pendentes'] },
   { id: 'finance', label: 'Financeiro', icon: WalletCards, children: ['Receita', 'MRR', 'ARR', 'Faturas', 'Pagamentos', 'Inadimplência', 'Cupons', 'Relatórios financeiros'] },
   { id: 'plans', label: 'Planos', icon: CreditCard, children: ['Planos e licenciamento', 'Recursos', 'Limites', 'Add-ons', 'Trial', 'Regras comerciais'] },
   { id: 'analytics', label: 'Analytics', icon: BarChart3, children: ['Empresas', 'Consumidores', 'Engajamento', 'Crescimento', 'Conversão Trial', 'Churn', 'Relatórios personalizados'] },
@@ -26,6 +26,14 @@ const menu = [
   { id: 'support', label: 'Suporte', icon: Headphones, children: ['Chamados', 'SLA', 'Feedbacks', 'Base de conhecimento', 'Notificações'] },
   { id: 'settings', label: 'Configurações', icon: Settings, children: ['Configurações gerais', 'Branding', 'SMTP', 'Notificações', 'Domínios', 'Variáveis do sistema', 'Feature flags', 'Backup e retenção'] }
 ] as const;
+
+/** Áreas que exigem mais do que a leitura geral do painel; o restante do menu aparece com platform.read. */
+const menuPermission: Record<string, string> = { security: 'security.read', settings: 'security.read' };
+const subpagePermission: Record<string, string> = { 'Equipe da plataforma': 'admins.manage' };
+function visibleMenu(permissions: string[] = []) {
+  return menu.filter(item => !menuPermission[item.id] || permissions.includes(menuPermission[item.id]))
+    .map(item => ({ ...item, children: item.children.filter(child => !subpagePermission[child] || permissions.includes(subpagePermission[child])) }));
+}
 
 const pageDescription: Record<string, string> = {
   dashboard: 'Indicadores estratégicos, receita, riscos e saúde operacional em uma única visão.',
@@ -96,7 +104,8 @@ export function PlatformAdmin() {
       scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
-  const searchResults = useMemo(() => menu.flatMap(item => item.children.map(child => ({ page: item.id, parent: item.label, child }))).filter(item => `${item.parent} ${item.child}`.toLowerCase().includes(search.toLowerCase())).slice(0, 12), [search]);
+  const allowedMenu = useMemo(() => visibleMenu(admin?.permissions), [admin]);
+  const searchResults = useMemo(() => allowedMenu.flatMap(item => item.children.map(child => ({ page: item.id, parent: item.label, child }))).filter(item => `${item.parent} ${item.child}`.toLowerCase().includes(search.toLowerCase())).slice(0, 12), [search, allowedMenu]);
 
   async function login(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
@@ -119,7 +128,7 @@ export function PlatformAdmin() {
   if (admin.mfaRequired && !admin.twoFactorEnabled) return <main className="admin-login"><section><BrandLogo full /><small>ADMINISTRAÇÃO DA PLATAFORMA</small><h1>Ative o segundo fator</h1><p>O painel controla todas as empresas da plataforma. Para continuar, configure um aplicativo autenticador nesta conta.</p><PlatformMfaControl enabled={false} onSaved={async () => { await check(); }} /><button type="button" className="secondary" onClick={async () => { await api('/platform/auth/logout', { method: 'POST' }); location.reload(); }}>Sair</button><LegalFooter compact /></section></main>;
   if (!dash || !all) return <main className="pa-loading"><BrandLogo full />{loadError?<section className="pa-load-state" role="alert"><b>Não foi possível carregar o painel</b><span>{loadError}</span><button disabled={refreshing} onClick={()=>void load()}>{refreshing?'Atualizando…':'Tentar novamente'}</button></section>:<span>Preparando a central de comando...</span>}</main>;
 
-  const current = menu.find(item => item.id === page)!;
+  const current = allowedMenu.find(item => item.id === page) ?? allowedMenu[0];
   const core = ['companies', 'users'].includes(page);
   const advanced = ['finance', 'plans', 'analytics', 'integrations', 'operations', 'monitoring', 'security', 'support', 'settings'].includes(page);
   const executive = page === 'dashboard';
@@ -128,8 +137,8 @@ export function PlatformAdmin() {
     <aside className={mobile ? 'open' : ''}>
       <div className="pa-logo"><BrandLogo compact={collapsed} inverse context="Administração SaaS" /><button className="pa-collapse" title={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => { const next = !collapsed; setCollapsed(next); localStorage.setItem('fideliza_admin_sidebar', next ? 'collapsed' : 'expanded'); }}>{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}</button><button className="pa-mobile-close" onClick={() => setMobile(false)} aria-label="Fechar menu"><X /></button></div>
       <button className="pa-nav-search" onClick={() => setSearchOpen(true)}><Search /><span>Localizar módulo</span><kbd>Ctrl K</kbd></button>
-      <nav aria-label="Módulos administrativos">{menu.map(item => { const Icon = item.icon, open = !!expanded[item.id], groupId = `admin-menu-${item.id}`; return <div className="pa-nav-group" key={item.id}><button type="button" className={page === item.id ? 'active' : ''} title={item.label} aria-expanded={open} aria-controls={groupId} onClick={() => toggleMenuGroup(item.id, item.children[0])}><Icon /><span>{item.label}</span><ChevronDown className={open ? 'rotated' : ''} /></button>{open && <div className="pa-subnav" id={groupId}>{item.children.map(child => <button type="button" className={page === item.id && subpage === child ? 'selected' : ''} onClick={() => navigate(item.id, child)} key={child}>{child}</button>)}</div>}</div>; })}</nav>
-      <div className="pa-user"><span>{String(admin.name || 'A')[0]}</span><div><b>{admin.name}</b><small>{admin.role === 'super_admin' ? 'Super Admin' : admin.role}</small></div><button title="Alterar senha" onClick={() => { setPasswordError(''); setPasswordOpen(true); }}><KeyRound /></button><button title="Sair" onClick={async () => { await api('/platform/auth/logout', { method: 'POST' }); location.reload(); }}><LogOut /></button></div>
+      <nav aria-label="Módulos administrativos">{allowedMenu.map(item => { const Icon = item.icon, open = !!expanded[item.id], groupId = `admin-menu-${item.id}`; return <div className="pa-nav-group" key={item.id}><button type="button" className={page === item.id ? 'active' : ''} title={item.label} aria-expanded={open} aria-controls={groupId} onClick={() => toggleMenuGroup(item.id, item.children[0])}><Icon /><span>{item.label}</span><ChevronDown className={open ? 'rotated' : ''} /></button>{open && <div className="pa-subnav" id={groupId}>{item.children.map(child => <button type="button" className={page === item.id && subpage === child ? 'selected' : ''} onClick={() => navigate(item.id, child)} key={child}>{child}</button>)}</div>}</div>; })}</nav>
+      <div className="pa-user"><span>{String(admin.name || 'A')[0]}</span><div><b>{admin.name}</b><small>{admin.roleLabel || admin.role}</small></div><button title="Alterar senha" onClick={() => { setPasswordError(''); setPasswordOpen(true); }}><KeyRound /></button><button title="Sair" onClick={async () => { await api('/platform/auth/logout', { method: 'POST' }); location.reload(); }}><LogOut /></button></div>
     </aside>
     {mobile && <button aria-label="Fechar menu" className="pa-backdrop" onClick={() => setMobile(false)} />}
 
@@ -139,7 +148,7 @@ export function PlatformAdmin() {
       {loadError && <div className="pa-load-warning" role="status"><span>{loadError} Os dados exibidos podem estar desatualizados.</span><button disabled={refreshing} onClick={()=>void load()}>{refreshing?'Atualizando…':'Atualizar agora'}</button></div>}
       {executive && <AdminDashboardWorkspace subpage={subpage} dash={dash} all={all} updatedAt={updatedAt} refreshing={refreshing} onRefresh={() => void load()} onNavigate={navigate} />}
       {core && page === 'companies' && <CompaniesWorkspace subpage={subpage} all={all} refresh={load} />}
-      {core && page === 'users' && <UsersWorkspace subpage={subpage} all={all} refresh={load} />}
+      {core && page === 'users' && <UsersWorkspace subpage={subpage} all={all} refresh={load} permissions={admin.permissions || []} adminId={admin.adminId} />}
       {advanced && <AdvancedWorkspace page={page} subpage={subpage} all={all} />}
       {!executive && !core && !advanced && <PurposeAdminSubpage page={page} subpage={subpage} dash={dash} all={all} />}
     </section>

@@ -6,6 +6,7 @@ import { PLAN_CATALOG } from '../plan-catalog.js';
 import { decryptSecret,encryptSecret } from '../bling.js';
 import { decryptTotp,encryptTotp } from '../two-factor.js';
 import { isCurrentDataCipher } from '../data-encryption.js';
+import { seedPlatformPermissions } from '../platform-permissions.js';
 
 const sql = fs.readFileSync(path.resolve(process.cwd(), 'src/database/schema.sql'), 'utf8');
 db.exec(sql);
@@ -526,12 +527,12 @@ if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(supportBridge)){
   })();
 }
 const permissions=[
- ['super_admin','platform.manage','Gerenciar toda a plataforma e configurações globais'],['super_admin','billing.manage','Gerenciar assinaturas, cobranças e conciliação'],
  ['owner','company.manage','Gerenciar cadastro, equipe e integrações da própria empresa'],['owner','billing.read','Consultar plano, faturas e pagamentos da própria empresa'],
  ['manager','crm.manage','Gerenciar clientes, vendas, campanhas e relatórios'],['operator','operation.write','Cadastrar clientes e vendas na operação diária']
 ];
 const permissionInsert=db.prepare('INSERT OR IGNORE INTO platform_permissions(role,permission,description) VALUES(?,?,?)');
 db.transaction(()=>permissions.forEach(x=>permissionInsert.run(...x)))();
+seedPlatformPermissions();
 const ledgerBaseline='loyalty-ledger-source-of-truth-v1';
 if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(ledgerBaseline)){
   db.transaction(()=>{
