@@ -22,6 +22,20 @@ services:
         value: /data/backups
       - key: AUTO_BACKUP_ENABLED
         value: true
+      - key: BACKUP_MAX_FILES
+        value: 7
+      - key: BACKUP_S3_ENDPOINT
+        sync: false
+      - key: BACKUP_S3_BUCKET
+        sync: false
+      - key: BACKUP_S3_ACCESS_KEY_ID
+        sync: false
+      - key: BACKUP_S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: BACKUP_S3_REGION
+        value: auto
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
       - key: WORKER_EXECUTION_MODE
         value: embedded
       - key: SESSION_SECRET

@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import type BetterSqlite3 from 'better-sqlite3';
+import { diskUsagePercent, uploadBackupOffsite, type OffsiteResult } from './backup-offsite.js';
 
 const backupPattern = /^fideliza-\d{4}-\d{2}-\d{2}T[\d-]+Z\.db$/;
-export type BackupSummary = { path: string; sizeBytes: number; tenants: number; customers: number; sales: number };
+export type BackupSummary = { path: string; sizeBytes: number; tenants: number; customers: number; sales: number; offsite?: OffsiteResult | null; diskUsagePercent?: number | null };
 
 export function verifyBackup(filePath: string): BackupSummary {
   const resolved = path.resolve(filePath);
@@ -33,7 +34,10 @@ export async function createVerifiedBackup(database: BetterSqlite3.Database, dir
   fs.mkdirSync(directory, { recursive: true });
   const destination = path.join(directory, `fideliza-${new Date().toISOString().replace(/[:.]/g, '-')}.db`);
   await database.backup(destination);
-  const summary = verifyBackup(destination);
+  const summary: BackupSummary = verifyBackup(destination);
+  summary.offsite = await uploadBackupOffsite(destination);
   applyBackupRetention(directory, retentionDays, maxFiles);
+  summary.diskUsagePercent = diskUsagePercent(directory);
+  if (summary.diskUsagePercent !== null && summary.diskUsagePercent >= 70) console.error(`Disco do banco em ${summary.diskUsagePercent}%: reduza BACKUP_MAX_FILES ou aumente o disco`);
   return summary;
 }

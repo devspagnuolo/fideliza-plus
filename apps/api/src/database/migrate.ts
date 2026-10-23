@@ -562,6 +562,17 @@ CREATE TABLE IF NOT EXISTS integration_entity_links(
 );
 CREATE INDEX IF NOT EXISTS idx_integration_entity_local ON integration_entity_links(tenant_id,provider,entity_type,local_id);`);
 
+db.exec(`CREATE TABLE IF NOT EXISTS customer_registration_codes(
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+ code_hash TEXT NOT NULL,channel TEXT NOT NULL,expires_at TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,used_at TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_customer_registration_codes ON customer_registration_codes(tenant_id,customer_id,created_at DESC);`);
+// Mensagens antigas guardavam códigos e links de redefinição em texto puro; o conteúdo não é mais necessário.
+db.prepare(`UPDATE outbound_messages SET message='[conteúdo de segurança removido]' WHERE status IN ('sent','failed')
+  AND template IN ('user.password_reset_otp','customer.password_reset_otp','customer.password_reset','customer.registration_code')
+  AND message<>'[conteúdo de segurança removido]'`).run();
+
 // Rotação assistida: com DATA_ENCRYPTION_KEY definida, migra segredos legados e
 // chaves anteriores para a chave ativa antes de a aplicação começar a atender.
 if(process.env.DATA_ENCRYPTION_KEY?.trim()){

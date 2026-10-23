@@ -12,7 +12,8 @@
     "db:migrate": "tsx src/database/migrate.ts",
     "db:seed": "tsx src/database/seed.ts",
     "db:backup": "tsc -p tsconfig.json && node dist/database/backup.js",
-    "db:verify-backup": "tsc -p tsconfig.json && node dist/database/verify-backup.js"
+    "db:verify-backup": "tsc -p tsconfig.json && node dist/database/verify-backup.js",
+    "db:decrypt-backup": "tsc -p tsconfig.json && node dist/database/decrypt-backup.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

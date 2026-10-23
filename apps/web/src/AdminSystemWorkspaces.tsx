@@ -169,7 +169,7 @@ function SecurityWorkspace({ subpage, data, records, load, setNotice }: any) {
   return <><Head eyebrow="SEGURANÇA / CREDENCIAIS" title="Política de senhas" text="Complexidade, tentativas, bloqueio e ciclo seguro das credenciais." icon={<KeyRound />} /><Metrics items={[["Tamanho mínimo", data.settings?.['security.password_min'] || 10], ["Tentativas", data.settings?.['security.lock_attempts'] || 5], ["Sessões ativas", (data.sessions || []).length], ["Acessos negados", (data.accessLogs || []).filter((x: any) => !x.success).length]]} /><PolicyForm subpage={subpage} settings={data.settings} onSaved={load} /></>;
 }
 
-function PlatformMfaControl({enabled,onSaved}:{enabled:boolean;onSaved:()=>Promise<void>}){
+export function PlatformMfaControl({enabled,onSaved}:{enabled:boolean;onSaved:()=>Promise<void>}){
   const[setup,setSetup]=useState<{secret:string;uri:string}|null>(null),[message,setMessage]=useState('');
   async function begin(){try{setSetup(await api('/platform/me/security/2fa/setup',{method:'POST',body:JSON.stringify({})})as {secret:string;uri:string});setMessage('Chave criada. Conclua a confirmação para ativar.')}catch(reason){setMessage((reason as Error).message)}}
   async function confirmMfa(event:FormEvent<HTMLFormElement>){event.preventDefault();const code=String(new FormData(event.currentTarget).get('code')||'');try{await api('/platform/me/security/2fa/confirm',{method:'POST',body:JSON.stringify({code})});setMessage('MFA ativado com sucesso. Guarde o acesso ao autenticador.');setSetup(null);await onSaved()}catch(reason){setMessage((reason as Error).message)}}

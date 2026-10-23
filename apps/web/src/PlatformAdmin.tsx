@@ -5,6 +5,7 @@ import { PurposeAdminSubpage } from './AdminSubpages';
 import { CompaniesWorkspace, UsersWorkspace } from './AdminCoreWorkspaces';
 import { AdvancedWorkspace } from './AdminWorkspaceRouter';
 import { AdminDashboardWorkspace } from './AdminDashboardWorkspace';
+import { PlatformMfaControl } from './AdminSystemWorkspaces';
 import { BrandLogo } from './BrandLogo';
 import { LegalFooter } from './LegalPages';
 import './platform-admin.css';
@@ -115,6 +116,7 @@ export function PlatformAdmin() {
 
   if (admin === undefined) return <main className="pa-loading"><BrandLogo full />{authError?<section className="pa-load-state" role="alert"><b>Conexão indisponível</b><span>{authError}</span><button onClick={()=>void check()}>Tentar novamente</button></section>:<span>Validando acesso administrativo...</span>}</main>;
   if (!admin) return <main className="admin-login"><section><BrandLogo full /><small>ADMINISTRAÇÃO DA PLATAFORMA</small><h1>Central Fidelizei</h1><p>Gestão segura de empresas, receita e operação SaaS.</p><form onSubmit={login}><label>E-mail<input name="email" type="email" autoComplete="username" required /></label><label>Senha<input name="password" type="password" autoComplete="current-password" minLength={10} maxLength={128} required /></label>{requiresTotp&&<label>Código do autenticador<input name="totpCode" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} placeholder="000000" required/></label>}{error && <div className="error">{error}</div>}<button>Entrar no painel</button></form><a href="/acesso">Voltar para a seleção de acesso</a><LegalFooter compact /></section></main>;
+  if (admin.mfaRequired && !admin.twoFactorEnabled) return <main className="admin-login"><section><BrandLogo full /><small>ADMINISTRAÇÃO DA PLATAFORMA</small><h1>Ative o segundo fator</h1><p>O painel controla todas as empresas da plataforma. Para continuar, configure um aplicativo autenticador nesta conta.</p><PlatformMfaControl enabled={false} onSaved={async () => { await check(); }} /><button type="button" className="secondary" onClick={async () => { await api('/platform/auth/logout', { method: 'POST' }); location.reload(); }}>Sair</button><LegalFooter compact /></section></main>;
   if (!dash || !all) return <main className="pa-loading"><BrandLogo full />{loadError?<section className="pa-load-state" role="alert"><b>Não foi possível carregar o painel</b><span>{loadError}</span><button disabled={refreshing} onClick={()=>void load()}>{refreshing?'Atualizando…':'Tentar novamente'}</button></section>:<span>Preparando a central de comando...</span>}</main>;
 
   const current = menu.find(item => item.id === page)!;

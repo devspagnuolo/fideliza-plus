@@ -241,10 +241,13 @@ export function processAsaasWebhook(payload: Json) {
   const eventType = String(payload.event ?? 'UNKNOWN');
   const payment = payload.payment as Json | undefined;
   const eventId = String(payload.id ?? `${eventType}:${payment?.id ?? 'none'}:${payment?.dateCreated ?? payload.dateCreated ?? 'unknown'}`);
-  const inserted = db.prepare(`INSERT OR IGNORE INTO payment_webhook_events
+  // Um evento que falhou volta a ser processado quando o Asaas reenviar; os demais são idempotentes.
+  const previous = db.prepare("SELECT status FROM payment_webhook_events WHERE provider='asaas' AND external_event_id=?").get(eventId) as { status: string } | undefined;
+  if (previous && previous.status !== 'failed') return { duplicate: true };
+  if (previous) db.prepare("UPDATE payment_webhook_events SET status='processing',error=NULL,payload=?,processed_at=CURRENT_TIMESTAMP WHERE provider='asaas' AND external_event_id=?").run(JSON.stringify(payload), eventId);
+  else db.prepare(`INSERT INTO payment_webhook_events
     (id,provider,external_event_id,event_type,payload,status,processed_at) VALUES(?, 'asaas', ?, ?, ?, 'processing', CURRENT_TIMESTAMP)`).run(randomUUID(), eventId, eventType, JSON.stringify(payload));
-  if (!inserted.changes) return { duplicate: true };
-  try {
+  try { return db.transaction(() => {
     if (!payment?.id) throw new Error('Evento sem pagamento');
     let invoice = db.prepare('SELECT id,tenant_id,subscription_id FROM invoices WHERE (asaas_environment=? AND external_payment_id=?) OR id=?').get(environment(), payment.id, payment.externalReference ?? '') as Json | undefined;
     if (!invoice) {
@@ -269,7 +272,7 @@ export function processAsaasWebhook(payload: Json) {
     if (status === 'refunded') db.prepare("UPDATE subscriptions SET status='past_due',updated_at=CURRENT_TIMESTAMP WHERE id=?").run(invoice.subscription_id);
     db.prepare("UPDATE payment_webhook_events SET status='processed',processed_at=CURRENT_TIMESTAMP WHERE provider='asaas' AND external_event_id=?").run(eventId);
     return { duplicate: false, invoiceId: invoice.id, status };
-  } catch (error) {
+  })(); } catch (error) {
     db.prepare("UPDATE payment_webhook_events SET status='failed',error=?,processed_at=CURRENT_TIMESTAMP WHERE provider='asaas' AND external_event_id=?").run((error as Error).message, eventId);
     throw error;
   }

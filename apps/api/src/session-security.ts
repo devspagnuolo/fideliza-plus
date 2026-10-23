@@ -33,3 +33,12 @@ export function touchSession(table:'sessions'|'customer_sessions'|'platform_sess
 }
 
 export function clearSessionCookie(kind:SessionKind,res:Response){res.clearCookie(definitions[kind].cookie,cookieOptions())}
+
+/**
+ * Administradores da plataforma controlam todas as empresas, então em produção o painel só libera
+ * as rotas depois que o segundo fator estiver ativo. A desativação fica na política global de MFA.
+ */
+export function platformMfaRequired(){
+  if(!config.isProduction&&process.env.PLATFORM_ADMIN_MFA_REQUIRED!=='true')return false;
+  try{const row=db.prepare("SELECT value FROM global_settings WHERE key='security.mfa_admin'").get()as{value:string}|undefined;return row?.value!=='false'}catch{return true}
+}
