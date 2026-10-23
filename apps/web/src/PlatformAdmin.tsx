@@ -11,6 +11,7 @@ import { LegalFooter } from './LegalPages';
 import './platform-admin.css';
 import './contrast-fixes.css';
 import './visual-quality.css';
+import './admin-navigation.css';
 
 const menu = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, children: ['Visão geral', 'Indicadores', 'Receita (MRR/ARR)', 'Alertas', 'Saúde da plataforma'] },
@@ -134,11 +135,11 @@ export function PlatformAdmin() {
   const executive = page === 'dashboard';
 
   return <main className={`pa-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
-    <aside className={mobile ? 'open' : ''}>
-      <div className="pa-logo"><BrandLogo compact={collapsed} inverse context="Administração SaaS" /><button className="pa-collapse" title={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => { const next = !collapsed; setCollapsed(next); localStorage.setItem('fideliza_admin_sidebar', next ? 'collapsed' : 'expanded'); }}>{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}</button><button className="pa-mobile-close" onClick={() => setMobile(false)} aria-label="Fechar menu"><X /></button></div>
+    <aside className={`admin-navigation ${mobile ? 'open' : ''}`}>
+      <div className="pa-logo"><BrandLogo inverse context="Administração SaaS" /><button className="pa-collapse" aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'} title={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => { const next = !collapsed; setCollapsed(next); localStorage.setItem('fideliza_admin_sidebar', next ? 'collapsed' : 'expanded'); }}>{collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}</button><button className="pa-mobile-close" onClick={() => setMobile(false)} aria-label="Fechar menu"><X /></button></div>
       <button className="pa-nav-search" onClick={() => setSearchOpen(true)}><Search /><span>Localizar módulo</span><kbd>Ctrl K</kbd></button>
-      <nav aria-label="Módulos administrativos">{allowedMenu.map(item => { const Icon = item.icon, open = !!expanded[item.id], groupId = `admin-menu-${item.id}`; return <div className="pa-nav-group" key={item.id}><button type="button" className={page === item.id ? 'active' : ''} title={item.label} aria-expanded={open} aria-controls={groupId} onClick={() => toggleMenuGroup(item.id, item.children[0])}><Icon /><span>{item.label}</span><ChevronDown className={open ? 'rotated' : ''} /></button>{open && <div className="pa-subnav" id={groupId}>{item.children.map(child => <button type="button" className={page === item.id && subpage === child ? 'selected' : ''} onClick={() => navigate(item.id, child)} key={child}>{child}</button>)}</div>}</div>; })}</nav>
-      <div className="pa-user"><span>{String(admin.name || 'A')[0]}</span><div><b>{admin.name}</b><small>{admin.roleLabel || admin.role}</small></div><button title="Alterar senha" onClick={() => { setPasswordError(''); setPasswordOpen(true); }}><KeyRound /></button><button title="Sair" onClick={async () => { await api('/platform/auth/logout', { method: 'POST' }); location.reload(); }}><LogOut /></button></div>
+      <nav aria-label="Módulos administrativos">{allowedMenu.map(item => { const Icon = item.icon, open = !!expanded[item.id], groupId = `admin-menu-${item.id}`; return <div className="pa-nav-group" key={item.id}><button type="button" className={page === item.id ? 'active' : ''} title={item.label} aria-expanded={open} aria-controls={groupId} onClick={() => toggleMenuGroup(item.id, item.children[0])}><Icon /><span>{item.label}</span><ChevronDown className={open ? 'rotated' : ''} /></button>{open && <div className="pa-subnav" id={groupId}>{item.children.map(child => <button type="button" className={page === item.id && subpage === child ? 'selected' : ''} aria-current={page === item.id && subpage === child ? 'page' : undefined} onClick={() => navigate(item.id, child)} key={child}>{child}</button>)}</div>}</div>; })}</nav>
+      <div className="pa-user"><span>{String(admin.name || 'A')[0]}</span><div><b>{admin.name}</b><small>{admin.roleLabel || admin.role}</small></div><button aria-label="Alterar senha" title="Alterar senha" onClick={() => { setPasswordError(''); setPasswordOpen(true); }}><KeyRound /></button><button aria-label="Sair" title="Sair" onClick={async () => { await api('/platform/auth/logout', { method: 'POST' }); location.reload(); }}><LogOut /></button></div>
     </aside>
     {mobile && <button aria-label="Fechar menu" className="pa-backdrop" onClick={() => setMobile(false)} />}
 
