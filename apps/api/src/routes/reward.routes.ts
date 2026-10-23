@@ -6,14 +6,17 @@ import { requireAuth, requireRole } from '../auth.js';
 import { db } from '../database/db.js';
 import { customerVipTier,redemptionLimit } from '../loyalty.js';
 import { PLAN_FEATURES,requirePlanFeature,requirePlanStorage } from '../plan-catalog.js';
+import { APP_CHANNEL_SQL,REWARD_CHANNELS,hasSiteIntegration } from '../reward-channels.js';
 
 export const rewardRoutes = Router();
 const businessDate=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 rewardRoutes.use(requireAuth);
 rewardRoutes.use(['/rewards','/reward-redemptions'],requirePlanFeature(PLAN_FEATURES.REWARDS));
 
+rewardRoutes.get('/rewards/channels', (req, res) => res.json({ siteIntegration: hasSiteIntegration(req.auth!.tenantId) }));
+
 rewardRoutes.get('/rewards', (req, res) => res.json(db.prepare(`
-  SELECT r.id,r.name,r.description,r.points_cost,r.active,r.created_at,r.reward_type,r.image_data,r.product_sku,r.discount_type,r.discount_value,r.minimum_order_cents,r.valid_from,r.valid_until,r.minimum_tier_rank,lt.name minimum_tier_name,
+  SELECT r.id,r.name,r.description,r.points_cost,r.active,r.created_at,r.reward_type,r.image_data,r.product_sku,r.discount_type,r.discount_value,r.minimum_order_cents,r.valid_from,r.valid_until,r.minimum_tier_rank,r.channel,lt.name minimum_tier_name,
     (SELECT COUNT(*) FROM reward_redemptions rr WHERE rr.reward_id=r.id AND rr.tenant_id=r.tenant_id) redemptions
   FROM rewards r LEFT JOIN loyalty_tiers lt ON lt.tenant_id=r.tenant_id AND lt.rank=r.minimum_tier_rank
   WHERE r.tenant_id=? AND r.reward_type='coupon' ORDER BY r.active DESC,r.points_cost,r.name
@@ -33,6 +36,7 @@ const rewardFields = z.object({
   validFrom: dateField.optional(),
   validUntil: dateField,
   minimumTierRank: z.number().int().positive().nullable().optional(),
+  channel: z.enum(REWARD_CHANNELS).optional(),
 }).superRefine((value,ctx)=>{
   if(!value.discountType||!value.discountValue)ctx.addIssue({code:'custom',path:['discountValue'],message:'Toda recompensa em cupom precisa de tipo e valor de desconto'});
   if(value.discountType==='percent'&&value.discountValue&&value.discountValue>100)ctx.addIssue({code:'custom',path:['discountValue'],message:'O desconto percentual não pode exceder 100%'});
@@ -44,14 +48,17 @@ rewardRoutes.post('/rewards', requireRole('owner', 'manager'), requirePlanStorag
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Recompensa inválida' });
   if(parsed.data.validUntil<businessDate())return res.status(400).json({error:'A validade não pode estar no passado'});
   if(parsed.data.minimumTierRank&&!db.prepare('SELECT 1 FROM loyalty_tiers WHERE tenant_id=? AND rank=?').get(req.auth!.tenantId,parsed.data.minimumTierRank))return res.status(400).json({error:'Nível de cliente inválido'});
+  const siteIntegration=hasSiteIntegration(req.auth!.tenantId);
+  const channel=parsed.data.channel??(siteIntegration?'both':'app');
+  if(channel!=='app'&&!siteIntegration)return res.status(400).json({error:'Recompensas para o site exigem uma integração de site ativa'});
   const id = randomUUID();
-  db.prepare('INSERT INTO rewards (id,tenant_id,name,description,points_cost,stock,reward_type,image_data,product_sku,discount_type,discount_value,minimum_order_cents,valid_from,valid_until,minimum_tier_rank) VALUES (?,?,?,?,?,NULL,?,?,?,?,?,?,?,?,?)')
-    .run(id, req.auth!.tenantId, parsed.data.name, parsed.data.description || null, parsed.data.pointsCost,parsed.data.rewardType,parsed.data.imageData||null,parsed.data.productSku||null,parsed.data.discountType||null,parsed.data.discountValue||null,parsed.data.minimumOrderCents,parsed.data.validFrom||null,parsed.data.validUntil,parsed.data.minimumTierRank??null);
-  audit(req.auth!.tenantId, req.auth!.userId, 'create', 'reward', id, { pointsCost: parsed.data.pointsCost });
+  db.prepare('INSERT INTO rewards (id,tenant_id,name,description,points_cost,stock,reward_type,image_data,product_sku,discount_type,discount_value,minimum_order_cents,valid_from,valid_until,minimum_tier_rank,channel) VALUES (?,?,?,?,?,NULL,?,?,?,?,?,?,?,?,?,?)')
+    .run(id, req.auth!.tenantId, parsed.data.name, parsed.data.description || null, parsed.data.pointsCost,parsed.data.rewardType,parsed.data.imageData||null,parsed.data.productSku||null,parsed.data.discountType||null,parsed.data.discountValue||null,parsed.data.minimumOrderCents,parsed.data.validFrom||null,parsed.data.validUntil,parsed.data.minimumTierRank??null,channel);
+  audit(req.auth!.tenantId, req.auth!.userId, 'create', 'reward', id, { pointsCost: parsed.data.pointsCost, channel });
   res.status(201).json({ id });
 });
 
-const rewardUpdate = z.object({name:z.string().trim().min(2).max(100).optional(),description:z.string().trim().max(500).optional(),pointsCost:z.number().int().positive().optional(),rewardType:z.literal('coupon').optional(),imageData:z.string().max(1_600_000).optional(),productSku:z.string().trim().max(80).optional(),discountType:z.enum(['percent','fixed']).nullable().optional(),discountValue:z.number().int().positive().nullable().optional(),minimumOrderCents:z.number().int().nonnegative().optional(),validFrom:dateField.nullable().optional(),validUntil:dateField.optional(),minimumTierRank:z.number().int().positive().nullable().optional(),active:z.boolean().optional()}).refine(
+const rewardUpdate = z.object({name:z.string().trim().min(2).max(100).optional(),description:z.string().trim().max(500).optional(),pointsCost:z.number().int().positive().optional(),rewardType:z.literal('coupon').optional(),imageData:z.string().max(1_600_000).optional(),productSku:z.string().trim().max(80).optional(),discountType:z.enum(['percent','fixed']).nullable().optional(),discountValue:z.number().int().positive().nullable().optional(),minimumOrderCents:z.number().int().nonnegative().optional(),validFrom:dateField.nullable().optional(),validUntil:dateField.optional(),minimumTierRank:z.number().int().positive().nullable().optional(),channel:z.enum(REWARD_CHANNELS).optional(),active:z.boolean().optional()}).refine(
   value => Object.keys(value).length > 0,
   'Informe ao menos uma alteração',
 );
@@ -71,12 +78,13 @@ rewardRoutes.patch('/rewards/:id', requireRole('owner', 'manager'), requirePlanS
   const nextFrom=changes.validFrom===undefined?current.valid_from:changes.validFrom,nextUntil=changes.validUntil??current.valid_until;
   if(nextFrom&&nextUntil&&nextFrom>nextUntil)return res.status(400).json({error:'A validade final deve ser posterior ao início'});
   if(changes.minimumTierRank&&!db.prepare('SELECT 1 FROM loyalty_tiers WHERE tenant_id=? AND rank=?').get(req.auth!.tenantId,changes.minimumTierRank))return res.status(400).json({error:'Nível de cliente inválido'});
+  if(changes.channel&&changes.channel!=='app'&&changes.channel!==current.channel&&!hasSiteIntegration(req.auth!.tenantId))return res.status(400).json({error:'Recompensas para o site exigem uma integração de site ativa'});
   db.prepare(`UPDATE rewards SET
     name=COALESCE(?,name),
     description=CASE WHEN ? THEN ? ELSE description END,
     points_cost=COALESCE(?,points_cost),
     stock=NULL,
-    active=COALESCE(?,active),reward_type=?,image_data=?,product_sku=?,discount_type=?,discount_value=?,minimum_order_cents=?,valid_from=?,valid_until=?,minimum_tier_rank=?
+    active=COALESCE(?,active),reward_type=?,image_data=?,product_sku=?,discount_type=?,discount_value=?,minimum_order_cents=?,valid_from=?,valid_until=?,minimum_tier_rank=?,channel=?
     WHERE id=? AND tenant_id=?`).run(
       changes.name ?? null,
       changes.description !== undefined ? 1 : 0,
@@ -92,6 +100,7 @@ rewardRoutes.patch('/rewards/:id', requireRole('owner', 'manager'), requirePlanS
       nextFrom||null,
       nextUntil,
       changes.minimumTierRank===undefined?current.minimum_tier_rank:changes.minimumTierRank,
+      changes.channel??current.channel,
       id,
       req.auth!.tenantId,
     );
@@ -117,7 +126,7 @@ rewardRoutes.post('/rewards/:id/redeem', (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Cliente inválido' });
   try {
     const result = db.transaction(() => {
-      const reward = db.prepare('SELECT id,name,points_cost,active,valid_from,valid_until,minimum_tier_rank,discount_type,discount_value FROM rewards WHERE id=? AND tenant_id=?').get(String(req.params.id), req.auth!.tenantId) as any;
+      const reward = db.prepare(`SELECT id,name,points_cost,active,valid_from,valid_until,minimum_tier_rank,discount_type,discount_value FROM rewards WHERE id=? AND tenant_id=? AND ${APP_CHANNEL_SQL}`).get(String(req.params.id), req.auth!.tenantId) as any;
       const customer = db.prepare('SELECT id,points_balance FROM customers WHERE id=? AND tenant_id=?').get(parsed.data.customerId, req.auth!.tenantId) as { id: string; points_balance: number } | undefined;
       if (!reward || !reward.active) throw new Error('REWARD');
       if(!['percent','fixed'].includes(reward.discount_type)||!Number.isInteger(Number(reward.discount_value))||Number(reward.discount_value)<=0||reward.discount_type==='percent'&&Number(reward.discount_value)>100)throw new Error('INVALID_DISCOUNT');

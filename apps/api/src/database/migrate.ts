@@ -313,6 +313,8 @@ ensureColumn('rewards','minimum_order_cents','INTEGER NOT NULL DEFAULT 0');
 ensureColumn('rewards','valid_from','TEXT');
 ensureColumn('rewards','valid_until','TEXT');
 ensureColumn('rewards','minimum_tier_rank','INTEGER');
+// Existing rewards were offered in the App and at site checkout, so they keep 'both'.
+ensureColumn('rewards','channel',"TEXT NOT NULL DEFAULT 'both' CHECK(channel IN ('app','site','both'))");
 const rewardValidityMigration='reward-validity-tier-v1';
 if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(rewardValidityMigration))db.transaction(()=>{
   db.prepare("UPDATE rewards SET stock=NULL WHERE reward_type='coupon'").run();
