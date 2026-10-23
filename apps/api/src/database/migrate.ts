@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db } from './db.js';
@@ -597,5 +598,17 @@ if(process.env.DATA_ENCRYPTION_KEY?.trim()){
     migrateEncryptedColumns('platform_admins',['two_factor_secret_encrypted','two_factor_pending_secret_encrypted'],'totp',decryptTotp,encryptTotp);
   })();
 }
+
+// Antes do vínculo no OAuth, o companyId do Bling era gravado pelo primeiro
+// webhook desconhecido que chegasse. Esses vínculos não são confiáveis: são
+// apagados e a próxima sincronização refaz cada um pela conta dona do token.
+const blingCompanyRebind='2026-10-23-rebind-bling-company-from-oauth';
+if(!db.prepare('SELECT 1 FROM migrations WHERE name=?').get(blingCompanyRebind))db.transaction(()=>{
+  db.prepare("UPDATE integration_connections SET external_company_id=NULL WHERE provider='bling'").run();
+  const tenants=db.prepare("SELECT tenant_id FROM integration_connections WHERE provider='bling' AND status='connected'").all() as {tenant_id:string}[];
+  for(const {tenant_id} of tenants)if(!db.prepare("SELECT 1 FROM jobs WHERE tenant_id=? AND type='sync_bling' AND status IN ('queued','processing')").get(tenant_id))db.prepare("INSERT INTO jobs (id,tenant_id,type,payload) VALUES (?,?,'sync_bling',?)").run(randomUUID(),tenant_id,JSON.stringify({trigger:'scheduled'}));
+  db.prepare('INSERT INTO migrations(name)VALUES(?)').run(blingCompanyRebind);
+})();
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_integration_connections_external_company ON integration_connections(provider,external_company_id) WHERE external_company_id IS NOT NULL");
 
 console.log('Banco atualizado com sucesso.');
