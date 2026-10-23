@@ -59,6 +59,8 @@ GET /storeos/customers/{externalCustomerId}/loyalty (escopo rewards:read)
 
 Retorna saldo atual, data de adesão, nível e recompensas ativas do tipo cupom que o cliente pode visualizar, incluindo validade, custo em pontos e se o saldo permite resgatar. O servidor deve tratar o saldo retornado como retrato do momento: a reserva valida novamente saldo, validade, nível e mínimo do pedido em transação.
 
+Só entram as recompensas cujo canal é **Somente site** ou **App e site**. Recompensas **App e loja física** não aparecem aqui e a reserva delas retorna 404. O canal é definido pela loja ao criar a recompensa e só fica disponível quando existe uma chave ativa com o escopo rewards:redeem.
+
 ## 3. Reservar e resgatar
 
 POST /storeos/redemptions (escopo rewards:redeem; Idempotency-Key obrigatório)

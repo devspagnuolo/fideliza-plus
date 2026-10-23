@@ -7,6 +7,7 @@ import { normalizeCpf, validCpf } from '../cpf.js';
 import { db } from '../database/db.js';
 import { calculateSalePoints, customerVipTier, isSaleEligibleFromEnrollmentDay, reconcileSalePoints } from '../loyalty.js';
 import { PLAN_FEATURES, tenantPlan } from '../plan-catalog.js';
+import { SITE_CHANNEL_SQL } from '../reward-channels.js';
 import { hashPassword } from '../security.js';
 
 export const storeOsApiRoutes = Router();
@@ -174,7 +175,7 @@ storeOsApiRoutes.get('/storeos/customers/:externalCustomerId/loyalty', requireAp
   const tierRank = customerVipTier(tenantId, customer.id)?.current?.rank ?? 0, today = businessDate();
   const rewards = db.prepare(`SELECT id,name,description,points_cost pointsCost,discount_type discountType,discount_value discountValue,
     minimum_order_cents minimumOrderCents,valid_from validFrom,valid_until validUntil,minimum_tier_rank minimumTierRank
-    FROM rewards WHERE tenant_id=? AND active=1 AND reward_type='coupon' AND (valid_from IS NULL OR valid_from<=?)
+    FROM rewards WHERE tenant_id=? AND active=1 AND reward_type='coupon' AND ${SITE_CHANNEL_SQL} AND (valid_from IS NULL OR valid_from<=?)
     AND (valid_until IS NULL OR valid_until>=?) AND COALESCE(minimum_tier_rank,0)<=? ORDER BY points_cost`)
     .all(tenantId, today, today, tierRank) as any[];
   return res.json({ data: { customer: { id: customer.id, externalCustomerId, name: customer.name, pointsBalance: Number(customer.points_balance), enrolledAt: customer.enrolled_at }, tierRank,
@@ -190,7 +191,7 @@ storeOsApiRoutes.post('/storeos/redemptions', requireApiKey('rewards:redeem'), r
     const result = db.transaction(() => {
       const customer = findLink(tenantId, p.externalCustomerId);
       if (!customer || customer.deleted_at || !customer.enrolled_at) throw new Error('CUSTOMER');
-      const reward = db.prepare("SELECT * FROM rewards WHERE id=? AND tenant_id=? AND active=1 AND reward_type='coupon'").get(p.rewardId, tenantId) as any;
+      const reward = db.prepare(`SELECT * FROM rewards WHERE id=? AND tenant_id=? AND active=1 AND reward_type='coupon' AND ${SITE_CHANNEL_SQL}`).get(p.rewardId, tenantId) as any;
       if (!reward) throw new Error('REWARD');
       const today = businessDate(), tierRank = customerVipTier(tenantId, customer.id)?.current?.rank ?? 0;
       if (reward.valid_from && today < reward.valid_from || reward.valid_until && today > reward.valid_until) throw new Error('VALIDITY');
