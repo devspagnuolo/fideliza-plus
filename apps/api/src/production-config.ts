@@ -27,6 +27,11 @@ export function validateProductionEnvironment(env: Environment) {
     if (!env.ASAAS_WEBHOOK_TOKEN) throw new Error('ASAAS_WEBHOOK_TOKEN é obrigatório quando a cobrança Asaas está ativa');
     if (asaasEnvironment !== 'production') throw new Error('ASAAS_ENVIRONMENT deve ser production quando a cobrança real está ativa');
   }
+  if (env.BACKUP_S3_BUCKET) {
+    for (const name of ['BACKUP_S3_ENDPOINT', 'BACKUP_S3_ACCESS_KEY_ID', 'BACKUP_S3_SECRET_ACCESS_KEY']) if (!env[name]) throw new Error(`${name} é obrigatório com BACKUP_S3_BUCKET`);
+    if ((env.BACKUP_ENCRYPTION_KEY ?? '').trim().length < 32) throw new Error('BACKUP_ENCRYPTION_KEY deve ter pelo menos 32 caracteres para o backup externo');
+    if (!/^https:\/\//.test(env.BACKUP_S3_ENDPOINT ?? '')) throw new Error('BACKUP_S3_ENDPOINT deve usar HTTPS');
+  }
   const interval = Number(env.WORKER_INTERVAL_MS ?? 15_000);
   if (!Number.isFinite(interval) || interval < 5_000) throw new Error('WORKER_INTERVAL_MS deve ser um número de pelo menos 5000');
   const backupNumbers: Array<[string, string]> = [['BACKUP_INTERVAL_HOURS', '24'], ['BACKUP_RETENTION_DAYS', '30'], ['BACKUP_MAX_FILES', '30']];

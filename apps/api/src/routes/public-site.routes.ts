@@ -73,6 +73,9 @@ publicSiteRoutes.post('/public/trials', async (req, res) => {
   const input = parsed.data, plan = planByCode(input.planCode);
   if (!plan) return res.status(409).json({ error: 'Este plano não está mais disponível. Atualize a página e escolha outro.' });
   if (input.paymentMethod === 'card' && (!asaasStatus().configured || !asaasStatus().billingEnabled)) return res.status(503).json({ error: 'O pagamento por cartão está temporariamente indisponível. Tente novamente em instantes.' });
+  // Freio contra abuso do cadastro público: um teste por CNPJ e poucos testes por IP ao dia.
+  if (db.prepare('SELECT 1 FROM public_trial_signups WHERE cnpj=? LIMIT 1').get(digits(input.cnpj))) return res.status(409).json({ error: 'Este CNPJ já utilizou o teste grátis. Fale com contato@fidelizaplus.com.br para contratar.' });
+  if (req.ip && Number((db.prepare("SELECT COUNT(*) total FROM subscription_contract_acceptances WHERE ip_address=? AND accepted_at>=datetime('now','-1 day')").get(req.ip) as { total: number }).total) >= 3) return res.status(429).json({ error: 'Muitos cadastros a partir desta rede hoje. Tente novamente amanhã ou fale com contato@fidelizaplus.com.br.' });
   const tenantId = randomUUID(), subscriptionId = randomUUID(), returnToken = randomBytes(32).toString('hex');
   try {
     const result = db.transaction(() => {

@@ -28,3 +28,10 @@ export function parseCsv(input: string): CsvRow[] {
   const keys = header.map(value => value.toLowerCase().replace(/^\uFEFF/, ''));
   return body.map(values => Object.fromEntries(keys.map((key, index) => [key, values[index] ?? ''])));
 }
+
+/** Célula CSV entre aspas, neutralizando fórmulas (=, +, -, @, tab, CR) que o Excel executaria. */
+export function csvCell(value: unknown) {
+  const raw = String(value ?? '');
+  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  return `"${safe.replaceAll('"', '""')}"`;
+}

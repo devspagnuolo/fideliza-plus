@@ -6,6 +6,12 @@ Ative `AUTO_BACKUP_ENABLED=true` para gerar uma cópia verificada ao iniciar a A
 
 Para uma cópia manual, execute `npm run db:backup`. O processo só informa sucesso depois de abrir o arquivo, verificar sua integridade e confirmar as tabelas essenciais. Mantenha outra cópia criptografada fora do servidor.
 
+### Cópia externa criptografada
+
+Com `BACKUP_S3_BUCKET` definido, cada backup verificado é compactado, criptografado com AES-256-GCM (`BACKUP_ENCRYPTION_KEY`) e enviado para um bucket compatível com S3 (Cloudflare R2, Backblaze B2 ou AWS S3). Variáveis: `BACKUP_S3_ENDPOINT` (HTTPS), `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_REGION` (`auto` no R2) e `BACKUP_S3_PREFIX`. Falha no envio não apaga a cópia local e aparece no log como "Falha ao enviar backup para o armazenamento externo". O log também alerta quando o disco passa de 70%.
+
+Para restaurar uma cópia externa: baixe o arquivo `.gz.enc` do bucket e rode `BACKUP_ENCRYPTION_KEY=... npm run db:decrypt-backup -- arquivo.gz.enc restaurado.db`; depois siga o procedimento de verificação e restauração abaixo. Guarde a `BACKUP_ENCRYPTION_KEY` também fora do Render, pois sem ela o backup externo não pode ser aberto.
+
 ## Verificação e restauração
 
 Execute `npm run db:verify-backup -- caminho/do/backup.db`. Para restaurar: pare a API; preserve o banco atual; verifique a cópia; coloque-a em `DATABASE_PATH`; rode `npm run db:migrate`; inicie a API; valide `/ready`, login e dashboard. Nunca sobrescreva o banco com a API ativa. Faça um ensaio trimestral em ambiente separado.

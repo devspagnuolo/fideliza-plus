@@ -1,4 +1,4 @@
-import express from 'express';import cors from 'cors';import helmet from 'helmet';import cookieParser from 'cookie-parser';import { config } from './config.js';import { apiRoutes } from './routes/index.js';
+import express from 'express';import { ZodError } from 'zod';import cors from 'cors';import helmet from 'helmet';import cookieParser from 'cookie-parser';import { config } from './config.js';import { apiRoutes } from './routes/index.js';
 import { db } from './database/db.js';import { observeRequest,runtimeMetrics } from './observability.js';
 import { publicApiRoutes } from './routes/public-api.routes.js';import{posApiRoutes}from'./routes/pos-api.routes.js';import{storeOsApiRoutes}from'./routes/storeos-api.routes.js';
 import { credentialPayloadGuard,securityEnvelope } from './security-middleware.js';
@@ -10,4 +10,4 @@ app.get('/health',(_req,res)=>res.json({status:'ok',version:'v1',uptimeSeconds:r
 app.get('/ready',(_req,res)=>{try{db.prepare('SELECT 1').get();res.json({status:'ready',database:'ok'});}catch{res.status(503).json({status:'unavailable',database:'error'});}});
 app.use('/public/v1',publicApiRoutes,posApiRoutes,storeOsApiRoutes);
 app.use('/api/v1',apiRoutes);app.use(apiRoutes);
-app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{console.error(err);res.status(500).json({error:'Não foi possível concluir a operação'});});
+app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{if(err instanceof ZodError)return res.status(400).json({error:'Dados inválidos',fields:err.issues.map(issue=>issue.path.join('.')).filter(Boolean)});if((err as {type?:string})?.type==='entity.parse.failed')return res.status(400).json({error:'JSON inválido'});console.error(err);res.status(500).json({error:'Não foi possível concluir a operação'});});
