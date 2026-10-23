@@ -14,6 +14,7 @@ export function validateProductionEnvironment(env: Environment) {
   paired(env, 'WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID');
   if (env.WHATSAPP_ACCESS_TOKEN && !env.WHATSAPP_PASSWORD_RESET_TEMPLATE) throw new Error('WHATSAPP_PASSWORD_RESET_TEMPLATE é obrigatório com WhatsApp');
   paired(env, 'BLING_CLIENT_ID', 'BLING_CLIENT_SECRET');
+  paired(env, 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY');
   if (env.RESEND_API_KEY && !env.EMAIL_FROM) throw new Error('EMAIL_FROM é obrigatório com RESEND_API_KEY');
   const asaasEnvironment = (env.ASAAS_ENVIRONMENT ?? '').trim().toLowerCase();
   const asaasBilling = (env.ASAAS_BILLING_ENABLED ?? '').trim().toLowerCase();

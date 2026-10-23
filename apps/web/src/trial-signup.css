@@ -28,3 +28,10 @@
 .spin{animation:trial-spin .8s linear infinite}
 @keyframes trial-spin{to{transform:rotate(360deg)}}
 @media(max-width:700px){.trial-form-grid,.payment-options{grid-template-columns:1fr}.trial-form-grid .wide{grid-column:auto}}
+.trial-email-verification{display:grid;gap:10px;grid-column:1/-1;padding:14px;border:1px dashed #99d9d4;border-radius:14px;background:#f5fcfb}
+.trial-email-code{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:end}
+.trial-email-code .site-button{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.trial-email-code .site-button svg{width:18px}
+.trial-email-code input{letter-spacing:.3em;font-variant-numeric:tabular-nums}
+.trial-captcha{min-height:65px}
+@media(max-width:700px){.trial-email-code{grid-template-columns:1fr}.trial-email-code .site-button{justify-content:center;white-space:normal}}

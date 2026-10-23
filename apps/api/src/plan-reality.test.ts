@@ -13,6 +13,7 @@ await import('./database/migrate.js');
 const {hashPassword}=await import('./security.js');
 const {app}=await import('./app.js');
 const {runAsaasBillingCycle}=await import('./asaas.js');
+const trialEmailCode=async(email:string)=>(await request(app).post('/public/trials/email-code').set('x-fideliza-request','web').send({email}).expect(202)).body.developmentCode as string;
 
 function seed(code:string){
   const tenantId=`tenant-${code}`,email=`owner-${code}@plan.test`;
@@ -60,7 +61,8 @@ describe('planos comerciais aplicados de verdade',()=>{
 
   it('cria teste público por exatamente sete dias sem cobrança imediata',async()=>{
     const before=Date.now();
-    const response=await request(app).post('/public/trials').set('x-fideliza-request','web').send({planCode:'essential',companyName:'Loja Trial',legalName:'Loja Trial LTDA',cnpj:'11222333000181',responsibleName:'Responsável Trial',email:'trial@plan.test',phone:'11999999999',password:'Trial@12345',postalCode:'01310100',address:'Avenida Paulista',addressNumber:'1000',complement:'',district:'Bela Vista',city:'São Paulo',state:'SP',paymentMethod:'boleto',acceptContract:true,acceptTerms:true,minimumTermConsent:true,billingConsent:true}).expect(201);
+    const emailCode=await trialEmailCode('trial@plan.test');
+    const response=await request(app).post('/public/trials').set('x-fideliza-request','web').send({planCode:'essential',companyName:'Loja Trial',legalName:'Loja Trial LTDA',cnpj:'11222333000181',responsibleName:'Responsável Trial',email:'trial@plan.test',phone:'11999999999',password:'Trial@12345',postalCode:'01310100',address:'Avenida Paulista',addressNumber:'1000',complement:'',district:'Bela Vista',city:'São Paulo',state:'SP',paymentMethod:'boleto',acceptContract:true,acceptTerms:true,minimumTermConsent:true,billingConsent:true,emailCode}).expect(201);
     const subscription=db.prepare('SELECT status,current_period_end,monthly_price_cents monthlyPriceCents,payment_method paymentMethod,billing_consent_at billingConsentAt FROM subscriptions WHERE tenant_id=?').get(response.body.tenantId)as any;
     expect(subscription.status).toBe('trialing');
     expect(subscription.monthlyPriceCents).toBe(9900);
@@ -88,7 +90,8 @@ describe('planos comerciais aplicados de verdade',()=>{
       return new Response('{}',{status:404,headers:{'content-type':'application/json'}});
     });
     try{
-      const response=await request(app).post('/public/trials').set('x-fideliza-request','web').send({planCode:'growth',companyName:'Loja Cartão',legalName:'Loja Cartão LTDA',cnpj:'22333444000192',responsibleName:'Responsável Cartão',email:'card@plan.test',phone:'11988887777',password:'Cartao@12345',postalCode:'01310100',address:'Avenida Paulista',addressNumber:'2000',complement:'Sala 2',district:'Bela Vista',city:'São Paulo',state:'SP',paymentMethod:'card',acceptContract:true,acceptTerms:true,minimumTermConsent:true,billingConsent:true}).expect(201);
+      const emailCode=await trialEmailCode('card@plan.test');
+      const response=await request(app).post('/public/trials').set('x-fideliza-request','web').send({planCode:'growth',companyName:'Loja Cartão',legalName:'Loja Cartão LTDA',cnpj:'22333444000192',responsibleName:'Responsável Cartão',email:'card@plan.test',phone:'11988887777',password:'Cartao@12345',postalCode:'01310100',address:'Avenida Paulista',addressNumber:'2000',complement:'Sala 2',district:'Bela Vista',city:'São Paulo',state:'SP',paymentMethod:'card',acceptContract:true,acceptTerms:true,minimumTermConsent:true,billingConsent:true,emailCode}).expect(201);
       expect(response.body.checkoutUrl).toContain('chk_trial_card');
       const checkout=requests.find(item=>item.url.endsWith('/checkouts'))?.body;
       expect(checkout).toMatchObject({billingTypes:['CREDIT_CARD'],chargeTypes:['RECURRENT'],externalReference:response.body.subscriptionId,subscription:{cycle:'MONTHLY'}});

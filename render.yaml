@@ -64,6 +64,10 @@ services:
         value: contato@fidelizaplus.com.br
       - key: RESEND_API_KEY
         sync: false
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
       - key: EMAIL_FROM
         value: Fideliza Plus <contato@fidelizaplus.com.br>
       - key: WHATSAPP_ACCESS_TOKEN
@@ -111,7 +115,7 @@ services:
         value: camera=(), microphone=(), geolocation=()
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://api.fidelizaplus.com.br"
+        value: "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://api.fidelizaplus.com.br"
     envVars:
       - key: VITE_API_URL
         value: https://api.fidelizaplus.com.br

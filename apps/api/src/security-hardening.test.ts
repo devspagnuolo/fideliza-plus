@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -156,6 +156,80 @@ describe('demais correções', () => {
     expect(db.prepare("SELECT COUNT(*) total FROM tenants WHERE name='Loja Repetida'").get()).toEqual({ total: 0 });
   });
 
+});
+
+describe('teste grátis com captcha e confirmação de e-mail', () => {
+  const trial = (overrides: Record<string, unknown> = {}) => request(app).post('/public/trials').set(web).send({
+    planCode: 'essential', companyName: 'Loja Confirmada', legalName: 'Loja Confirmada Ltda', cnpj: '45.723.174/0001-10', email: 'dona@confirmada.test', phone: '11977770000', responsibleName: 'Dona',
+    password: 'SenhaForte123', postalCode: '01001000', address: 'Rua B', addressNumber: '2', district: 'Centro', city: 'São Paulo', state: 'SP', paymentMethod: 'boleto',
+    acceptTerms: true, acceptContract: true, minimumTermConsent: true, billingConsent: true, ...overrides,
+  });
+  const requestCode = (body: Record<string, unknown>) => request(app).post('/public/trials/email-code').set(web).send(body);
+
+  it('só cria o ambiente depois que o código enviado ao e-mail é confirmado', async () => {
+    db.prepare('DELETE FROM trial_email_codes').run();
+    expect((await trial().expect(400)).body.code).toBe('EMAIL_CODE_REQUIRED');
+    const sent = await requestCode({ email: 'Dona@Confirmada.test' }).expect(202);
+    expect(sent.body).toMatchObject({ destination: 'do***@confirmada.test', expiresInMinutes: 30 });
+    const message = db.prepare("SELECT recipient,message FROM outbound_messages WHERE template='trial.email_code'").get() as { recipient: string; message: string };
+    expect(message.recipient).toBe('dona@confirmada.test');
+    expect(message.message).toContain(sent.body.developmentCode);
+    expect(db.prepare('SELECT code_hash FROM trial_email_codes').get()).not.toEqual({ code_hash: sent.body.developmentCode });
+
+    const wrong = sent.body.developmentCode === '000000' ? '111111' : '000000';
+    expect((await trial({ emailCode: wrong }).expect(400)).body.code).toBe('EMAIL_CODE_INVALID');
+    expect((await trial({ email: 'outra@confirmada.test', emailCode: sent.body.developmentCode }).expect(400)).body.code).toBe('EMAIL_CODE_INVALID');
+    expect(db.prepare("SELECT COUNT(*) total FROM tenants WHERE name='Loja Confirmada'").get()).toEqual({ total: 0 });
+
+    await trial({ emailCode: sent.body.developmentCode }).expect(201);
+    expect(db.prepare("SELECT COUNT(*) total FROM tenants WHERE name='Loja Confirmada'").get()).toEqual({ total: 1 });
+    expect((await trial({ cnpj: '11.444.777/0001-61', emailCode: sent.body.developmentCode }).expect(400)).body.code).toBe('EMAIL_CODE_INVALID');
+    await requestCode({ email: 'dona@confirmada.test' }).expect(409);
+  });
+
+  it('bloqueia o código após 5 tentativas erradas e limita novos pedidos', async () => {
+    db.prepare('DELETE FROM trial_email_codes').run();
+    const sent = await requestCode({ email: 'tentativas@confirmada.test' }).expect(202);
+    const wrong = sent.body.developmentCode === '000000' ? '111111' : '000000';
+    for (let attempt = 0; attempt < 5; attempt++) await trial({ email: 'tentativas@confirmada.test', cnpj: '19.131.243/0001-97', emailCode: wrong }).expect(400);
+    await trial({ email: 'tentativas@confirmada.test', cnpj: '19.131.243/0001-97', emailCode: sent.body.developmentCode }).expect(400);
+    await requestCode({ email: 'tentativas@confirmada.test' }).expect(202);
+    await requestCode({ email: 'tentativas@confirmada.test' }).expect(202);
+    await requestCode({ email: 'tentativas@confirmada.test' }).expect(429);
+  });
+
+  it('exige o Turnstile quando as chaves estão configuradas', async () => {
+    db.prepare('DELETE FROM trial_email_codes').run();
+    process.env.TURNSTILE_SITE_KEY = '0x4AAAAAAA-site';
+    process.env.TURNSTILE_SECRET_KEY = '0x4AAAAAAA-secret';
+    const calls: URLSearchParams[] = [];
+    let outcome: 'success' | 'fail' | 'down' = 'fail';
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      calls.push(new URLSearchParams(String(init?.body)));
+      if (outcome === 'down') throw new Error('timeout');
+      return new Response(JSON.stringify({ success: outcome === 'success' }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    try {
+      expect((await request(app).get('/public/plans').expect(200)).body.captcha).toEqual({ provider: 'turnstile', siteKey: '0x4AAAAAAA-site' });
+      expect((await requestCode({ email: 'robo@captcha.test' }).expect(400)).body.code).toBe('CAPTCHA_INVALID');
+      expect(calls).toHaveLength(0);
+      expect((await requestCode({ email: 'robo@captcha.test', captchaToken: 'token-falso' }).expect(400)).body.code).toBe('CAPTCHA_INVALID');
+      outcome = 'down';
+      expect((await requestCode({ email: 'robo@captcha.test', captchaToken: 'token' }).expect(503)).body.code).toBe('CAPTCHA_UNAVAILABLE');
+      expect(db.prepare('SELECT COUNT(*) total FROM trial_email_codes').get()).toEqual({ total: 0 });
+      outcome = 'success';
+      await requestCode({ email: 'humano@captcha.test', captchaToken: 'token-valido' }).expect(202);
+      expect(calls.at(-1)?.get('secret')).toBe('0x4AAAAAAA-secret');
+      expect(calls.at(-1)?.get('response')).toBe('token-valido');
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.TURNSTILE_SITE_KEY;
+      delete process.env.TURNSTILE_SECRET_KEY;
+    }
+  });
+});
+
+describe('backup externo', () => {
   it('envia o backup criptografado ao armazenamento externo compatível com S3', async () => {
     const received: { url?: string; auth?: string; body: Buffer[] } = { body: [] };
     const server = createServer((req, res) => { received.url = req.url; received.auth = String(req.headers.authorization); req.on('data', chunk => received.body.push(chunk)); req.on('end', () => { res.writeHead(200); res.end(); }); });

@@ -24,3 +24,12 @@ Execute `npm run db:verify-backup -- caminho/do/backup.db`. Para restaurar: pare
 - falha de backup ou entrega deve gerar alerta e investigação.
 
 Antes da produção pública, siga `docs/RELEASE-PRODUCAO.md`. Em produção, a API recusa segredo curto, origem pública sem HTTPS e credenciais externas incompletas.
+
+## Teste grátis: captcha e confirmação de e-mail
+
+O cadastro público do teste grátis tem duas etapas antes de criar o ambiente:
+
+1. **Captcha (Cloudflare Turnstile):** o botão "Enviar código de confirmação" só funciona depois da verificação anti-robô. Crie um widget em Cloudflare → Turnstile → Add widget, com os domínios `fidelizaplus.com.br` e `www.fidelizaplus.com.br` e modo *Managed*. Copie a *Site Key* para `TURNSTILE_SITE_KEY` e a *Secret Key* para `TURNSTILE_SECRET_KEY` no serviço `fideliza-plus-api` do Render. As duas devem ser configuradas juntas. Sem elas o captcha fica desligado, mas a confirmação por e-mail continua obrigatória.
+2. **Código por e-mail:** a API envia um código de 6 dígitos (válido por 30 minutos, 5 tentativas) para o e-mail de acesso. O teste só é criado com o código correto. Depende de `RESEND_API_KEY` e `EMAIL_FROM`: sem e-mail configurado, ninguém consegue concluir o teste grátis.
+
+Limites: 3 códigos por e-mail a cada 15 minutos e 10 por IP por hora, além de 1 teste por CNPJ e 3 por IP ao dia. O conteúdo do e-mail com o código é apagado do banco depois do envio.
