@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { audit } from './audit.js';
 import { db } from './database/db.js';
-import { decryptSecret,encryptSecret,exchangeBlingToken } from './bling.js';
+import { bindBlingCompany,decryptSecret,encryptSecret,exchangeBlingToken,fetchBlingCompanyId } from './bling.js';
 import { calculateSalePoints,isSaleEligibleFromEnrollmentDay,reconcileSalePoints } from './loyalty.js';
 import { normalizeCpf,validCpf } from './cpf.js';
 import { completeErpSyncRun,failErpSyncRun,startErpSyncRun,type ErpSyncTrigger } from './erp/sync-runs.js';
@@ -153,12 +153,22 @@ async function processWebhookEvents(tenantId:string,situations:Map<string,Situat
   }
 }
 
+// Conexões feitas antes do vínculo no OAuth não têm companyId: descobre pela
+// própria conta do token. Melhor esforço, para não travar a sincronização.
+async function backfillCompanyId(tenantId:string){
+  const row=db.prepare("SELECT external_company_id FROM integration_connections WHERE tenant_id=? AND provider='bling'").get(tenantId) as {external_company_id:string|null}|undefined;
+  if(!row||row.external_company_id)return;
+  try{const {token}=await tokenFor(tenantId);await respectRateLimit();const companyId=await fetchBlingCompanyId(token);if(!bindBlingCompany(tenantId,companyId))console.warn(`Bling: conta ${companyId} já vinculada a outra empresa; webhooks de ${tenantId} seguem bloqueados`);}
+  catch(error){console.warn(`Bling: não foi possível identificar a conta de ${tenantId}: ${(error as Error).message}`);}
+}
+
 async function performSync(tenantId:string,trigger:ErpSyncTrigger):Promise<SyncResult>{
   const runId=startErpSyncRun(tenantId,'bling',trigger);
   try{
   const connection=db.prepare("SELECT last_sync_at FROM integration_connections WHERE tenant_id=? AND provider='bling'").get(tenantId) as {last_sync_at:string|null}|undefined;
   if(!connection)throw new Error('Bling não conectado');
   const since=connection.last_sync_at??new Date(Date.now()-365*86_400_000).toISOString(),startedAt=new Date().toISOString(),stats:SyncStats={contacts:0,ignoredContacts:0,sales:0,updatedSales:0,reversedSales:0,reinstatedSales:0,adjustedPoints:0,webhookEvents:0,failedWebhookEvents:0};
+  await backfillCompanyId(tenantId);
   const situations=await situationMapForSync(tenantId);
   for(let page=1;page<=1000;page++){
     const params=new URLSearchParams({pagina:String(page),limite:'100',dataAlteracaoInicial:since.slice(0,10)}),items=await getPage<Contact>(tenantId,'contatos',params);

@@ -13,7 +13,7 @@ const {syncBling}=await import('./bling-sync.js');
 
 function createTenant(id:string){
   db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run(id,'Vivi Moda',id);
-  db.prepare('INSERT INTO integration_connections (id,tenant_id,provider,access_token_encrypted,refresh_token_encrypted,expires_at) VALUES (?,?,?,?,?,?)').run(`connection-${id}`,id,'bling',encryptSecret('access'),encryptSecret('refresh'),new Date(Date.now()+3_600_000).toISOString());
+  db.prepare('INSERT INTO integration_connections (id,tenant_id,provider,access_token_encrypted,refresh_token_encrypted,expires_at,external_company_id) VALUES (?,?,?,?,?,?,?)').run(`connection-${id}`,id,'bling',encryptSecret('access'),encryptSecret('refresh'),new Date(Date.now()+3_600_000).toISOString(),`company-${id}`);
 }
 
 createTenant('sync-tenant');
