@@ -11,6 +11,10 @@ FROM dependencies AS build
 COPY . .
 RUN npm run build
 
+# A imagem da API leva só as dependências de produção (sem vitest, tsx, supertest ou typescript).
+FROM dependencies AS production-dependencies
+RUN npm prune --omit=dev
+
 FROM nginx:1.27-alpine AS web
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
@@ -21,7 +25,7 @@ HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 CMD wget -
 FROM node:22-bookworm-slim AS api
 ENV NODE_ENV=production PORT=3333 DATABASE_PATH=/data/fideliza.db
 WORKDIR /app/apps/api
-COPY --from=dependencies /app/node_modules /app/node_modules
+COPY --from=production-dependencies /app/node_modules /app/node_modules
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/apps/api/src/database/schema.sql ./src/database/schema.sql
 RUN mkdir -p /data && chown -R node:node /app /data
