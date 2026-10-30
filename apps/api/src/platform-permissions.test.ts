@@ -74,6 +74,22 @@ describe('permissões por papel da equipe da plataforma',()=>{
   expect(db.prepare("SELECT action FROM platform_audit_logs WHERE action='permission.update'").all()).toHaveLength(2);
  });
 
+ it('reserva ao super admin as políticas de segurança mesmo com security.manage delegado',async()=>{
+  await root.patch('/platform/permissions/operations/security.manage').set('x-fideliza-request','web').send({enabled:true}).expect(204);
+  const operations=await loginAs('operations@fideliza.test');
+  await root.patch('/platform/settings').set('x-fideliza-request','web').send({'security.mfa_admin':'true'}).expect(204);
+  await operations.patch('/platform/settings').set('x-fideliza-request','web').send({'platform.name':'Fidelizei'}).expect(204);
+  const denied=await operations.patch('/platform/settings').set('x-fideliza-request','web').send({'platform.name':'Fidelizei','security.mfa_admin':'false'}).expect(403);
+  expect(denied.body.code).toBe('PLATFORM_PERMISSION_DENIED');
+  await operations.patch('/platform/settings').set('x-fideliza-request','web').send({'security.lock_attempts':'10'}).expect(403);
+  await operations.patch('/platform/settings').set('x-fideliza-request','web').send({'platform.name':'Fidelizei Plus','security.mfa_admin':'true'}).expect(204);
+  await operations.patch('/platform/settings').set('x-fideliza-request','web').send({'Chave Livre':'x'}).expect(400);
+  expect(db.prepare("SELECT value FROM global_settings WHERE key='security.mfa_admin'").get()).toEqual({value:'true'});
+  expect(db.prepare("SELECT value FROM global_settings WHERE key='security.lock_attempts'").get()).toBeUndefined();
+  await root.patch('/platform/settings').set('x-fideliza-request','web').send({'security.lock_attempts':'6'}).expect(204);
+  await root.patch('/platform/permissions/operations/security.manage').set('x-fideliza-request','web').send({enabled:false}).expect(204);
+ });
+
  it('protege a equipe: sem autoalteração, sempre um super admin e sessões revogadas na troca de papel',async()=>{
   const rootId=(await root.get('/platform/me').expect(200)).body.adminId;
   await root.patch(`/platform/admins/${rootId}`).set('x-fideliza-request','web').send({role:'viewer'}).expect(400);
