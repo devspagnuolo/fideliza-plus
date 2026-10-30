@@ -7,7 +7,7 @@ import path from 'node:path';
 const databasePath=path.resolve(process.cwd(),`data/test-bling-oauth-${randomUUID()}.db`);
 process.env.DATABASE_PATH=databasePath;
 process.env.SESSION_SECRET='bling-oauth-test-secret-with-32-characters';
-process.env.BLING_CLIENT_ID='client-id';process.env.BLING_CLIENT_SECRET='client-secret';
+process.env.WEB_ORIGIN='https://app.fideliza.test,https://www.fideliza.test';process.env.BLING_CLIENT_ID='client-id';process.env.BLING_CLIENT_SECRET='client-secret';
 const { db }=await import('./database/db.js');
 await import('./database/migrate.js');
 const { hashPassword }=await import('./security.js');
@@ -44,7 +44,7 @@ describe('vínculo da conta Bling no OAuth',()=>{
 
   it('grava o companyId da conta autorizada junto com os tokens',async()=>{
     const response=await connect(alpha,'code-alpha','company-alpha');
-    expect(response.headers.location).toMatch(/\?bling=connected$/);
+    expect(response.headers.location).toBe('https://app.fideliza.test/?bling=connected');
     expect(companyOf('alpha')).toBe('company-alpha');
   });
 
