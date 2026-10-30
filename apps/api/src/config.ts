@@ -5,12 +5,14 @@ import { validateProductionEnvironment } from './production-config.js';
 const isProduction = process.env.NODE_ENV === 'production';
 const sessionSecret = process.env.SESSION_SECRET ?? 'local-development-secret-change-me-please';
 validateProductionEnvironment(process.env);
+// WEB_ORIGIN pode listar vários domínios (CORS); redirecionamentos usam o primeiro, o principal.
+const webOrigins = (process.env.WEB_ORIGIN ?? 'http://localhost:5173').split(',').map(value => value.trim()).filter(Boolean);
 const databasePath = path.resolve(process.cwd(), process.env.DATABASE_PATH ?? './data/fideliza.db');
 
 export const config = {
   port: Number(process.env.PORT ?? 3333),
-  webOrigin: process.env.WEB_ORIGIN ?? 'http://localhost:5173',
-  webOrigins: (process.env.WEB_ORIGIN ?? 'http://localhost:5173').split(',').map(value => value.trim()).filter(Boolean),
+  webOrigin: webOrigins[0] ?? 'http://localhost:5173',
+  webOrigins,
   databasePath,
   sessionSecret,
   isProduction,
