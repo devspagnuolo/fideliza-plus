@@ -12,7 +12,7 @@ const { db }=await import('./database/db.js');
 await import('./database/migrate.js');
 const { hashPassword }=await import('./security.js');
 const { encryptSecret }=await import('./bling.js');
-const { syncBling }=await import('./bling-sync.js');
+const { syncBling,resetBlingCompanyRetry }=await import('./bling-sync.js');
 const { app }=await import('./app.js');
 
 // Cada código de autorização devolve um token; cada token pertence a uma conta Bling.
@@ -64,12 +64,14 @@ describe('vínculo da conta Bling no OAuth',()=>{
     expect(companyOf('beta')).toBe('company-alpha');
   });
 
-  it('rejeita o callback quando o Bling não informa a conta',async()=>{
+  it('rejeita o callback quando o Bling não informa a conta, com aviso em vez de erro 500',async()=>{
     const agent=await ownerOf('gamma');
     const authorize=await agent.post('/integrations/bling/authorize').set('x-fideliza-request','web').send({}).expect(200);
     const state=new URL(authorize.body.url).searchParams.get('state')!;
-    await agent.get('/integrations/bling/callback').query({code:'code-unknown',state}).expect(500);
+    const response=await agent.get('/integrations/bling/callback').query({code:'code-unknown',state}).expect(302);
+    expect(response.headers.location).toMatch(/\?bling=account_unavailable$/);
     expect(db.prepare("SELECT 1 FROM integration_connections WHERE tenant_id='gamma'").get()).toBeUndefined();
+    expect(db.prepare("SELECT action FROM audit_logs WHERE tenant_id='gamma' ORDER BY rowid DESC LIMIT 1").get()).toEqual({action:'connect_rejected'});
   });
 
   it('a sincronização identifica conexões antigas sem roubar contas de outra empresa',async()=>{
@@ -83,5 +85,17 @@ describe('vínculo da conta Bling no OAuth',()=>{
     expect(companyOf('legacy')).toBe('company-legacy');
     expect(companyOf('legacy-dup')).toBeNull();
     expect(companyOf('beta')).toBe('company-alpha');
+  });
+
+  it('espera cada vez mais antes de perguntar de novo a conta quando o Bling recusa',async()=>{
+    resetBlingCompanyRetry();
+    db.prepare('INSERT INTO tenants (id,name,slug) VALUES (?,?,?)').run('refused','Loja sem escopo','refused');
+    db.prepare('INSERT INTO integration_connections (id,tenant_id,provider,access_token_encrypted,refresh_token_encrypted,expires_at) VALUES (?,?,?,?,?,?)').run('refused-connection','refused','bling',encryptSecret('access-refused'),encryptSecret('refresh-refused'),new Date(Date.now()+3_600_000).toISOString());
+    const companyCalls=()=>vi.mocked(fetch).mock.calls.filter(([input,init])=>String(input).endsWith('/empresas/me/dados-basicos')&&new Headers(init?.headers).get('authorization')==='Bearer access-refused').length;
+    await syncBling('refused','manual');
+    expect(companyCalls()).toBe(1);
+    await syncBling('refused','manual');
+    expect(companyCalls()).toBe(1);
+    expect(companyOf('refused')).toBeNull();
   });
 });

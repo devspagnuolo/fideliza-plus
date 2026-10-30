@@ -155,11 +155,18 @@ async function processWebhookEvents(tenantId:string,situations:Map<string,Situat
 
 // Conexões feitas antes do vínculo no OAuth não têm companyId: descobre pela
 // própria conta do token. Melhor esforço, para não travar a sincronização.
+// Uma recusa do Bling (escopo ausente, por exemplo) costuma persistir: cada falha dobra a espera,
+// de 5 minutos até 6 horas, para não gastar a cota da sincronização. Zera ao reiniciar o processo.
+const COMPANY_RETRY_BASE_MS=5*60_000,COMPANY_RETRY_MAX_MS=6*3_600_000;
+const companyRetry=new Map<string,{failures:number;nextAt:number}>();
+export function resetBlingCompanyRetry(){companyRetry.clear();}
 async function backfillCompanyId(tenantId:string){
   const row=db.prepare("SELECT external_company_id FROM integration_connections WHERE tenant_id=? AND provider='bling'").get(tenantId) as {external_company_id:string|null}|undefined;
-  if(!row||row.external_company_id)return;
-  try{const {token}=await tokenFor(tenantId);await respectRateLimit();const companyId=await fetchBlingCompanyId(token);if(!bindBlingCompany(tenantId,companyId))console.warn(`Bling: conta ${companyId} já vinculada a outra empresa; webhooks de ${tenantId} seguem bloqueados`);}
-  catch(error){console.warn(`Bling: não foi possível identificar a conta de ${tenantId}: ${(error as Error).message}`);}
+  if(!row||row.external_company_id){companyRetry.delete(tenantId);return;}
+  const retry=companyRetry.get(tenantId);if(retry&&Date.now()<retry.nextAt)return;
+  try{const {token}=await tokenFor(tenantId);await respectRateLimit();const companyId=await fetchBlingCompanyId(token);companyRetry.delete(tenantId);if(!bindBlingCompany(tenantId,companyId))console.warn(`Bling: conta ${companyId} já vinculada a outra empresa; webhooks de ${tenantId} seguem bloqueados`);}
+  catch(error){const failures=(retry?.failures??0)+1,wait=Math.min(COMPANY_RETRY_MAX_MS,COMPANY_RETRY_BASE_MS*2**(failures-1));companyRetry.set(tenantId,{failures,nextAt:Date.now()+wait});
+    console.warn(`Bling: não foi possível identificar a conta de ${tenantId}: ${(error as Error).message}; nova tentativa em ${Math.round(wait/60_000)} min`);}
 }
 
 async function performSync(tenantId:string,trigger:ErpSyncTrigger):Promise<SyncResult>{
