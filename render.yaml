@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: starter
     healthCheckPath: /ready
-    autoDeployTrigger: commit
+    autoDeployTrigger: checksPass
     domains:
       - api.fidelizaplus.com.br
     disk:
@@ -99,7 +99,7 @@ services:
       - www.fidelizaplus.com.br
     buildCommand: npm ci && npm run build -w @fideliza/web
     staticPublishPath: ./apps/web/dist
-    autoDeployTrigger: commit
+    autoDeployTrigger: checksPass
     headers:
       - path: /*
         name: X-Content-Type-Options
