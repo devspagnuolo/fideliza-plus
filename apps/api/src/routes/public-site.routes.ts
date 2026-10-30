@@ -179,7 +179,9 @@ publicSiteRoutes.post('/public/trials/billing-confirm', (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Retorno de pagamento inválido' });
   const subscription = db.prepare('SELECT id FROM subscriptions WHERE billing_setup_token_hash=?').get(tokenHash(parsed.data.token)) as { id: string } | undefined;
   if (!subscription) return res.status(404).json({ error: 'Assinatura não encontrada' });
-  const status = parsed.data.status === 'success' ? 'ready' : parsed.data.status;
-  db.prepare('UPDATE subscriptions SET billing_setup_status=?,billing_setup_error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(status, subscription.id);
-  res.json({ ok: true, status });
+  // O retorno vem do navegador e pode ser forjado: "success" só indica que a pessoa voltou do checkout.
+  // O cartão fica "ready" quando o Asaas confirma pelo webhook, e esse estado não é desfeito por aqui.
+  const status = parsed.data.status === 'success' ? 'checkout_returned' : parsed.data.status;
+  db.prepare("UPDATE subscriptions SET billing_setup_status=?,billing_setup_error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND billing_setup_status<>'ready'").run(status, subscription.id);
+  res.json({ ok: true, status: (db.prepare('SELECT billing_setup_status status FROM subscriptions WHERE id=?').get(subscription.id) as { status: string }).status });
 });

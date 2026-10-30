@@ -99,6 +99,11 @@ describe('planos comerciais aplicados de verdade',()=>{
       expect(JSON.stringify(checkout)).not.toMatch(/creditCard|cardNumber|cvv/i);
       const subscription=db.prepare('SELECT billing_setup_status status,external_checkout_id checkoutId FROM subscriptions WHERE id=?').get(response.body.subscriptionId)as any;
       expect(subscription).toEqual({status:'checkout_pending',checkoutId:'chk_trial_card'});
+      // O retorno do navegador não confirma o cartão; só o Asaas confirma, e o "ready" não é desfeito.
+      const token=new URL(checkout.callback.successUrl).searchParams.get('token');
+      expect((await request(app).post('/public/trials/billing-confirm').set('x-fideliza-request','web').send({token,status:'success'}).expect(200)).body.status).toBe('checkout_returned');
+      db.prepare("UPDATE subscriptions SET billing_setup_status='ready' WHERE id=?").run(response.body.subscriptionId);
+      expect((await request(app).post('/public/trials/billing-confirm').set('x-fideliza-request','web').send({token,status:'cancel'}).expect(200)).body.status).toBe('ready');
     }finally{fetchMock.mockRestore();if(previousKey===undefined)delete process.env.ASAAS_API_KEY;else process.env.ASAAS_API_KEY=previousKey}
   });
 
